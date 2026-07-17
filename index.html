@@ -179,6 +179,21 @@
       </div>
     </div>
 
+    <!-- Bannière "nouvelle version disponible" (voir js/update-notifier.js)
+         — uniquement dans l'app Android (jamais sur le site web, voir ce
+         fichier), masquée par défaut, juste sous la grille d'actions
+         rapides (Facture/Recharge UV/Exchange/Cadeau), visible dès
+         qu'une mise à jour est détectée. -->
+    <div id="update-banner">
+      <div class="upb-icon"><img src="img/logo.png" alt=""></div>
+      <div class="upb-text">
+        <div class="upb-title">Nouvelle version disponible</div>
+        <div class="upb-sub">Téléchargez la dernière version de l'application.</div>
+      </div>
+      <button type="button" class="upb-btn" onclick="UpdateNotifier.applyUpdate()">Télécharger</button>
+      <button type="button" class="upb-close" onclick="UpdateNotifier.dismiss()" title="Fermer"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+
     <!-- IDs conservés pour la compatibilité JS (masqués) -->
     <span id="fid-count"     style="display:none"></span>
     <span id="fid-bar"       style="display:none"></span>
@@ -859,6 +874,17 @@
           </div>
         </div>
 
+      </div>
+
+      <!-- Télécharger l'application Android (visible uniquement sur Android,
+           voir renderAndroidProfileButton() dans js/client.js) -->
+      <div class="appdl-wrap" id="cs-profile-android-dl" style="display:none;">
+        <a class="appdl-btn" href="downloads/kbineplus.apk" download>
+          <div class="appdl-btn-bg"></div>
+          <div class="appdl-ico"><i class="fa-brands fa-android"></i></div>
+          <span class="appdl-label">Télécharger l'application Android</span>
+          <i class="fa-solid fa-download appdl-arrow"></i>
+        </a>
       </div>
 
       <!-- Sécurité : connexion biométrique (masqué si aucun capteur, voir
@@ -3167,6 +3193,7 @@
 <script src="js/auth.js?v=3"></script>
 <script src="js/biometric.js?v=1"></script>
 <script src="js/pull-to-refresh.js?v=1"></script>
+<script src="js/update-notifier.js?v=1"></script>
 <script src="js/vendor-qrcode.js?v=1"></script>
 <script src="js/client.js"></script>
 </body>
