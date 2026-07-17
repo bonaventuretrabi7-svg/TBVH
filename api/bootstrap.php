@@ -1,6 +1,16 @@
 <?php
 declare(strict_types=1);
 
+// DIAGNOSTIC TEMPORAIRE (2e passage) — à retirer dès le problème identifié.
+error_reporting(E_ALL);
+ini_set('display_errors', '1');
+set_exception_handler(function ($e) {
+  http_response_code(500);
+  header('Content-Type: application/json; charset=utf-8');
+  echo json_encode(['error' => 'DIAG2: ' . get_class($e) . ': ' . $e->getMessage()]);
+  exit;
+});
+
 // Bootstrap commun à tous les scripts de api/ — connexion MySQL (PDO),
 // en-têtes CORS/JSON, aides communes. Remplace le rôle de js/supabase-
 // client.js + supabase/functions/login (Supabase), voir README.md dans ce
