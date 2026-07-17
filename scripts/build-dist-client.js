@@ -15,13 +15,10 @@ const outDir = path.join(root, 'dist-client');
 
 const JS_FILES = [
   'supabase-config.js', 'supabase-client.js', 'db.js', 'auth.js', 'biometric.js',
-  'pull-to-refresh.js', 'update-notifier.js', 'vendor-qrcode.js', 'client.js',
+  'pull-to-refresh.js', 'vendor-qrcode.js', 'client.js',
 ];
 const DIRS = ['css', 'img'];
-// app-version.json doit vivre à la racine du paquet (même niveau
-// qu'index.html) — voir js/update-notifier.js, qui compare la copie
-// embarquée dans l'app à celle en ligne à cette même adresse relative.
-const ROOT_FILES = ['app-version.json'];
+const ROOT_FILES = [];
 const SKIP_RE = /\.bak$|~$|^\.DS_Store$|^Thumbs\.db$/i;
 
 function copyRecursive(src, dest) {

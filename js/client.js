@@ -415,7 +415,6 @@ function boot() {
     renderSoldeSection();
     initPinRows();
     tfRenderPaymentMethods();
-    renderAndroidProfileButton();
 
     // QR "invité" (générique, avant connexion) — voir renderMyQrCode()
     // pour l'équivalent une fois connecté, généré en local de la même
@@ -439,10 +438,6 @@ function boot() {
     PullToRefresh.register('profit',       loadProfit);
     PullToRefresh.register('partenaires',  loadPartenaires);
     PullToRefresh.init();
-
-    // Notification de nouvelle version disponible (voir sw.js +
-    // js/update-notifier.js) — n'a d'effet réel que sur le site web.
-    UpdateNotifier.init();
 
     if (currentUser) {
       loadHistory();
@@ -511,23 +506,6 @@ function boot() {
     clearTimeout(loaderSafety);
     setTimeout(hideLoader, 800);
   }
-}
-
-/* ── Téléchargement de l'application Android ───────────────────────────
-   Proposé uniquement aux visiteurs sous Android (détection via
-   navigator.userAgent) — voir BUILD_APK.md pour la compilation du .apk
-   qui doit être déposé dans downloads/kbineplus.apk. */
-function isAndroidDevice() {
-  return /android/i.test(navigator.userAgent || '');
-}
-
-/* Bouton de téléchargement dans "Mon profil" (section cs-profit), juste
-   au-dessus de la déconnexion — seul emplacement de ce bouton dans
-   l'app, voir client.html #cs-profile-android-dl. */
-function renderAndroidProfileButton() {
-  const el = document.getElementById('cs-profile-android-dl');
-  if (!el) return;
-  el.style.display = isAndroidDevice() ? 'block' : 'none';
 }
 
 /* normalizeMaintenanceNetwork/isServiceInMaintenance/isNetworkInMaintenance/
