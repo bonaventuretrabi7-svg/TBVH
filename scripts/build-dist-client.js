@@ -15,7 +15,7 @@ const outDir = path.join(root, 'dist-client');
 
 const JS_FILES = [
   'supabase-config.js', 'supabase-client.js', 'db.js', 'auth.js', 'biometric.js',
-  'pull-to-refresh.js', 'update-notifier.js', 'client.js',
+  'pull-to-refresh.js', 'update-notifier.js', 'vendor-qrcode.js', 'client.js',
 ];
 const DIRS = ['css', 'img'];
 // app-version.json doit vivre à la racine du paquet (même niveau

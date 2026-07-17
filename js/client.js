@@ -417,6 +417,12 @@ function boot() {
     tfRenderPaymentMethods();
     renderAndroidProfileButton();
 
+    // QR "invité" (générique, avant connexion) — voir renderMyQrCode()
+    // pour l'équivalent une fois connecté, généré en local de la même
+    // façon (js/vendor-qrcode.js).
+    const guestQrImg = document.getElementById('hbc-qr-guest-img');
+    if (guestQrImg) guestQrImg.src = _buildQrDataUrl('KBINE-PLUS');
+
     renderFidelite();
     initActuCarousel();
     initRevCarousel();
@@ -615,13 +621,23 @@ function refreshSidebarBalance() {
 }
 
 /* ── Mon code QR (à présenter pour recevoir un transfert) ───────
-   ecc=H (correction d'erreur haute, ~30%) pour que le logo K+ incrusté
-   au centre (voir .pgc-qr-logo-badge) ne nuise pas au scan. */
+   Généré 100% en local (js/vendor-qrcode.js) — ancienne version basée
+   sur api.qrserver.com (service tiers appelé à chaque affichage) dont la
+   lenteur/indisponibilité laissait parfois le QR bloqué (image vide)
+   après un rechargement de page. 'H' = correction d'erreur haute (~30%)
+   pour que le logo K+ incrusté au centre (voir .pgc-qr-logo-badge) ne
+   nuise pas au scan — même niveau qu'avant. */
+function _buildQrDataUrl(text) {
+  const qr = qrcode(0, 'H');
+  qr.addData(text);
+  qr.make();
+  return qr.createDataURL(6, 0);
+}
+
 function renderMyQrCode(telephone) {
   const img = document.getElementById('hbc-qr-img');
   if (!img || !telephone) return;
-  const payload = encodeURIComponent('KBINE:' + telephone);
-  img.src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=0&ecc=H&data=${payload}`;
+  img.src = _buildQrDataUrl('KBINE:' + telephone);
 }
 
 /* ── Scanner un code QR (caméra + jsQR) ─────────────────────────
