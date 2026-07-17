@@ -10,7 +10,9 @@ const root = path.join(__dirname, '..');
 const distDir = path.join(root, 'dist');
 
 const FILES = ['index.html', 'admin.html', 'cabine.html', 'client.html'];
-const DIRS = ['css', 'js', 'img'];
+// downloads/ (APK Android publié) est optionnel : seulement copié s'il
+// existe déjà (voir BUILD_APK.md — jamais généré automatiquement ici).
+const DIRS = ['css', 'js', 'img', 'downloads'];
 
 // Fichiers à ne jamais livrer (sauvegardes d'éditeur, fichiers cachés...).
 const SKIP_RE = /\.bak$|~$|^\.DS_Store$|^Thumbs\.db$/i;

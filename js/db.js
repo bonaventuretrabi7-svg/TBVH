@@ -122,7 +122,7 @@ const DB = (() => {
       },
       {
         id: 'u_cli1', nom: 'COULIBALY', prenom: 'Jean-Baptiste',
-        telephone: '0504112233', email: 'client@cabineplus.ci',
+        telephone: '0504112233', email: 'client@kbineplus.ci',
         mot_de_passe: hashPwd('1234'),
         role: 'client', solde: 47500, statut: 'actif',
         date_creation: '2024-02-10T11:00:00Z'
@@ -597,7 +597,7 @@ const DB = (() => {
       const list  = get(KEY.users);
       const canAutoEmail = data.role !== 'admin' && data.role !== 'cabine';
       const email = data.email ? data.email.toLowerCase().trim()
-                                : (canAutoEmail ? (data.telephone || '') + '@cabineplus.app' : '');
+                                : (canAutoEmail ? (data.telephone || '') + '@kbineplus.app' : '');
       // Filet de sécurité (pas le rempart principal — voir les validations
       // dans js/admin.js/js/cabine.js/js/client.js) : signale tout compte
       // cabine/admin créé sans email Gmail valide, sans bloquer la création

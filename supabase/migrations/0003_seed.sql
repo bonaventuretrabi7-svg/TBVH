@@ -14,7 +14,7 @@ insert into profiles (nom, prenom, telephone, email, mot_de_passe_hash, role, so
   ('OUATTARA', 'Fatoumata', '0759345678', 'cabine3@gmail.com', hash_password('1234'), 'cabine', 43000, 'inactif', 'Abobo', 'KBINE Plus Abobo', 5800, 52, '2024-03-10T08:00:00Z');
 
 insert into profiles (nom, prenom, telephone, email, mot_de_passe_hash, role, solde, statut, date_creation) values
-  ('COULIBALY', 'Jean-Baptiste', '0504112233', 'client@cabineplus.ci', hash_password('1234'),        'client', 47500, 'actif',    '2024-02-10T11:00:00Z'),
+  ('COULIBALY', 'Jean-Baptiste', '0504112233', 'client@kbineplus.ci', hash_password('1234'),        'client', 47500, 'actif',    '2024-02-10T11:00:00Z'),
   ('BAMBA',     'Mariam',        '0717223344', 'mariam@example.ci',    hash_password('Client@2024'), 'client', 12000, 'actif',    '2024-02-20T14:00:00Z'),
   ('N''GUESSAN','Koffi',         '0585334455', 'koffi@example.ci',     hash_password('Client@2024'), 'client', 5000,  'suspendu', '2024-03-05T16:00:00Z'),
   ('DIABATÉ',   'Aïcha',         '0102445566', 'aicha@example.ci',     hash_password('Client@2024'), 'client', 78200, 'actif',    '2024-04-01T09:30:00Z'),

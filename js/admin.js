@@ -3255,17 +3255,17 @@ function exportCSV(type) {
               t.operateur, t.numero_beneficiaire, t.montant, t.commission, t.statut,
               new Date(t.date).toLocaleString('fr-CI')];
     });
-    filename = 'transactions_cabineplus.csv';
+    filename = 'transactions_kbineplus.csv';
   } else if (type === 'clients') {
     const clients = DB.users.byRole('client');
     headers = ['ID','Prénom','Nom','Téléphone','Email','Solde','Statut','Date création'];
     data = clients.map(c => [c.id, c.prenom, c.nom, c.telephone, c.email, c.solde, c.statut, new Date(c.date_creation).toLocaleDateString('fr-CI')]);
-    filename = 'clients_cabineplus.csv';
+    filename = 'clients_kbineplus.csv';
   } else if (type === 'cabines') {
     const cabines = DB.users.byRole('cabine');
     headers = ['ID','Prénom','Nom','Téléphone','Zone','Solde','Commissions','Statut'];
     data = cabines.map(c => [c.id, c.prenom, c.nom, c.telephone, c.zone||'', c.solde, c.commissions_total||0, c.statut]);
-    filename = 'cabines_cabineplus.csv';
+    filename = 'cabines_kbineplus.csv';
   } else if (type === 'bilan') {
     if (currentUser.admin_level !== 'super') { Toast.error('Seul le super administrateur peut exporter le bilan.'); return; }
     const label = _bilanPeriodLabel();
@@ -3306,7 +3306,7 @@ function exportCSV(type) {
       const sub = reabonnements.filter(r => r.formule === f);
       if (sub.length) data.push(['Réabonnement cabine', f, sub.length, vol(sub, 'prix')]);
     });
-    filename = `bilan_${label.replace(/\s+/g, '_')}_cabineplus.csv`;
+    filename = `bilan_${label.replace(/\s+/g, '_')}_kbineplus.csv`;
   } else {
     return;
   }

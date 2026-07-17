@@ -1,8 +1,8 @@
 /* Paquet autonome ne contenant QUE l'espace client (pas cabine.html/
-   admin.html) — pensé pour être intégré/déposé tel quel : client.html
-   devient index.html (index.html d'origine n'est de toute façon qu'une
-   redirection immédiate vers client.html, voir ce fichier). N'inclut que
-   les fichiers JS réellement chargés par client.html.
+   admin.html) — pensé pour être intégré/déposé tel quel : index.html EST
+   déjà l'espace client (client.html n'est plus qu'une redirection vers
+   index.html, gardée pour ne pas casser les liens existants — voir la
+   racine du projet). N'inclut que les fichiers JS réellement chargés.
    Limite assumée : un compte cabine/admin qui se connecterait via les
    modales de ce fichier ne pourra pas être redirigé (cabine.html/
    admin.html absents de ce paquet) — normal, seul l'espace client est
@@ -36,8 +36,8 @@ function copyRecursive(src, dest) {
 fs.rmSync(outDir, { recursive: true, force: true });
 fs.mkdirSync(outDir, { recursive: true });
 
-// client.html -> index.html (voir note en tête de fichier).
-fs.copyFileSync(path.join(root, 'client.html'), path.join(outDir, 'index.html'));
+// index.html EST déjà l'espace client (voir note en tête de fichier).
+fs.copyFileSync(path.join(root, 'index.html'), path.join(outDir, 'index.html'));
 
 for (const dir of DIRS) {
   const src = path.join(root, dir);
@@ -50,4 +50,4 @@ for (const file of JS_FILES) {
   if (fs.existsSync(src)) fs.copyFileSync(src, path.join(outDir, 'js', file));
 }
 
-console.log('[build-dist-client] dist-client/ généré (index.html <- client.html, ' + DIRS.concat(JS_FILES.map(f => 'js/' + f)).join(', ') + ')');
+console.log('[build-dist-client] dist-client/ généré (index.html, ' + DIRS.concat(JS_FILES.map(f => 'js/' + f)).join(', ') + ')');

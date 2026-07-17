@@ -4074,7 +4074,7 @@ function loadProfit() {
 
 function renderParrainage(u) {
   const linkEl = document.getElementById('parrain-link');
-  if (linkEl) linkEl.textContent = 'cabineplus.app/ref/' + u.telephone;
+  if (linkEl) linkEl.textContent = 'kbineplus.app/ref/' + u.telephone;
 
   const stored = JSON.parse(localStorage.getItem('cbp_parrain_' + u.id) || '{"count":0,"total":0}');
   const countEl = document.getElementById('parrain-count');
