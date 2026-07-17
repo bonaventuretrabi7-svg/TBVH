@@ -273,6 +273,30 @@ async function submitAdminLoginGate() {
   window.location.reload();
 }
 
+// Synchronise le cache local des comptes (client/cabine) avec le serveur
+// (voir api/list_profiles.php) — sans ça, le tableau de bord admin ne
+// reflète que les comptes déjà connus sur SON appareil, jamais ceux
+// inscrits par un client/cabine depuis son propre téléphone (voir le
+// diagnostic du bug rapporté : "le super admin ne voit pas en temps réel
+// le nombre de cabines/clients"). Jamais bloquant : les listes sont déjà
+// affichées depuis le cache local avant cet appel (loadClients()/
+// loadCabines() dans boot()) — celui-ci les rafraîchit une fois la
+// synchronisation terminée, avec les mêmes filtres de recherche déjà en
+// cours (voir _adminResume.filters).
+async function refreshUsersFromServer() {
+  if (!ServerAPI.isConfigured || !DB.Net.isOnline()) return;
+  const [clientsRes, cabinesRes] = await Promise.all([
+    ServerAPI.listProfiles('client'),
+    ServerAPI.listProfiles('cabine'),
+  ]);
+  if (clientsRes.ok) DB.users.mergeProfileList(clientsRes.profiles);
+  if (cabinesRes.ok) DB.users.mergeProfileList(cabinesRes.profiles);
+  if (!clientsRes.ok && !cabinesRes.ok) return; // rien de nouveau, pas la peine de re-rendre
+  loadClients(_adminResume.filters.clients || '');
+  loadCabines(_adminResume.filters.cabines || '');
+  loadDashboard();
+}
+
 function boot() {
   const loaderSafety = setTimeout(hideLoader, 3000);
   try {
@@ -334,6 +358,10 @@ function boot() {
     loadDashboard();
     loadClients();
     loadCabines();
+    // Cache local affiché immédiatement ci-dessus (jamais bloquant) ;
+    // resynchronise en tâche de fond avec le serveur, puis rafraîchit ces
+    // mêmes vues — voir refreshUsersFromServer() plus bas.
+    refreshUsersFromServer();
     loadZeroTransactionAdmin();
     loadClientsInactifsAdmin();
     loadCabinesInactivesAdmin();
@@ -362,6 +390,7 @@ function boot() {
     DB.presence.ping(currentUser.id);
     setInterval(() => {
       DB.presence.ping(currentUser.id);
+      refreshUsersFromServer();
       const sweep = DB.business.sweepStaleOrders();
       if (sweep.staleCount > 0) {
         loadCabines();

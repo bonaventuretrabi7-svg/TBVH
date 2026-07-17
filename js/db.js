@@ -509,18 +509,21 @@ const DB = (() => {
     },
 
     // Convertit une ligne `profiles` (table MySQL, snake_case, mot de passe
-    // en bcrypt — voir api/) vers le format local — utilisé uniquement après une
-    // vérification SERVEUR réussie (voir Auth.login() dans js/auth.js).
-    // `plainPin` : le code EN CLAIR qui vient d'être validé côté serveur ;
-    // jamais conservé tel quel, seulement son hash LOCAL (hashPwd(), le même
-    // que tous les autres comptes) pour que les connexions suivantes sur CET
+    // en bcrypt — voir api/) vers le format local. `plainPin` : le code EN
+    // CLAIR qui vient d'être validé côté serveur (uniquement après une
+    // connexion RÉUSSIE, voir Auth.login() dans js/auth.js) ; jamais
+    // conservé tel quel, seulement son hash LOCAL (hashPwd(), le même que
+    // tous les autres comptes) pour que les connexions suivantes sur CET
     // appareil fonctionnent hors ligne sans dépendre du bcrypt serveur
-    // (format incompatible avec checkPwd() ci-dessus).
+    // (format incompatible avec checkPwd() ci-dessus). Omis (voir
+    // mergeProfileList() ci-dessous, synchronisation en lecture seule côté
+    // admin) : mot_de_passe n'est alors pas inclus dans le résultat —
+    // l'admin ne connaît pas le PIN des autres comptes, écraser un hash
+    // local existant casserait la connexion hors-ligne de son propriétaire.
     fromProfileRow(row, plainPin) {
-      return {
+      const out = {
         id: row.id, nom: row.nom || '', prenom: row.prenom || '',
         telephone: row.telephone || '', email: row.email || '',
-        mot_de_passe: hashPwd(plainPin),
         role: row.role, solde: row.solde || 0, statut: row.statut,
         admin_level: row.admin_level || undefined,
         permissions: row.permissions || undefined,
@@ -536,6 +539,8 @@ const DB = (() => {
         abonnement: row.abonnement || undefined,
         date_creation: row.date_creation,
       };
+      if (plainPin) out.mot_de_passe = hashPwd(plainPin);
+      return out;
     },
 
     // Fusionne un profil serveur fraîchement vérifié dans le cache local
@@ -560,6 +565,33 @@ const DB = (() => {
       list[idx] = { ...list[idx], ...fieldsWithoutId };
       set(KEY.users, list);
       return list[idx];
+    },
+
+    // Fusionne la liste complète des comptes d'un rôle (voir
+    // api/list_profiles.php) — utilisé par le tableau de bord admin
+    // (refreshUsersFromServer(), js/admin.js) pour refléter TOUS les
+    // comptes existants, pas seulement ceux déjà connus sur cet appareil
+    // (voir le diagnostic : un client inscrit depuis son propre téléphone
+    // n'apparaissait jamais dans les listes de l'admin). Aucun PIN ici
+    // (fromProfileRow(row) sans 2e argument) : mot_de_passe n'est jamais
+    // touché, contrairement à cacheFromServer() (appelé au login avec le
+    // PIN qui vient d'être vérifié).
+    mergeProfileList(rows) {
+      const list = get(KEY.users);
+      rows.forEach(row => {
+        const mapped = users.fromProfileRow(row);
+        const idx = list.findIndex(u => mapped.role === u.role && (
+          (mapped.telephone && mapped.telephone === u.telephone) ||
+          (mapped.email && mapped.email === u.email)
+        ));
+        if (idx === -1) {
+          list.push(mapped);
+        } else {
+          const { id, ...fieldsWithoutId } = mapped;
+          list[idx] = { ...list[idx], ...fieldsWithoutId };
+        }
+      });
+      set(KEY.users, list);
     },
 
     hash: hashPwd,

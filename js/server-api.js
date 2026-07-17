@@ -126,5 +126,18 @@ const ServerAPI = (() => {
     return data.settings;
   }
 
-  return { login, establishSession, logout, createAccount, adminCreateAccount, getSettings, updateSettings, isConfigured };
+  /* Liste des comptes (voir api/list_profiles.php, réservée à un jeton
+     admin) — utilisée par refreshUsersFromServer() dans js/admin.js pour
+     que le tableau de bord admin reflète tous les comptes existants, pas
+     seulement ceux déjà connus sur cet appareil. `role` optionnel
+     ('client'/'cabine'/'admin') — omis renvoie tous les rôles. */
+  async function listProfiles(role) {
+    const { res, data } = await _call('list_profiles.php', { auth: true, body: { role: role || null } });
+    if (!res.ok || !data || data.error) {
+      return { ok: false, error: (data && data.error) || 'Échec de la synchronisation.' };
+    }
+    return { ok: true, profiles: data.profiles };
+  }
+
+  return { login, establishSession, logout, createAccount, adminCreateAccount, getSettings, updateSettings, listProfiles, isConfigured };
 })();
