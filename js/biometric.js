@@ -90,6 +90,20 @@ const BiometricAuth = (() => {
   // (isUserVerifyingPlatformAuthenticatorAvailable) : impossible de
   // distinguer les deux cas, on retombe alors toujours sur 'no-hardware'.
   async function checkAvailability() {
+    // isUserVerifyingPlatformAuthenticatorAvailable() (et, plus rarement,
+    // plugin.isAvailable() côté Capacitor) peut rester en suspens plusieurs
+    // secondes sur certains navigateurs/appareils sans capteur clairement
+    // reconnu — observé en conditions réelles : une connexion déjà réussie
+    // restait visuellement bloquée 10+ secondes avant la redirection,
+    // uniquement pour cette vérification optionnelle (voir
+    // _maybeOfferBiometricEnrollment(), js/client.js, qui l'appelle après
+    // chaque connexion réussie). Un délai traite ce cas comme "aucun
+    // capteur" plutôt que de bloquer indéfiniment l'appelant.
+    const timeout = new Promise(resolve => setTimeout(() => resolve({ available: false, reason: 'no-hardware' }), 1500));
+    return Promise.race([_checkAvailabilityRaw(), timeout]);
+  }
+
+  async function _checkAvailabilityRaw() {
     const backend = _backend();
     if (backend === 'capacitor') {
       const plugin = _plugin();

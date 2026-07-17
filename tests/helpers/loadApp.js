@@ -96,7 +96,7 @@ function loadApp(opts = {}) {
     localStorage, sessionStorage,
     console,
     Date: FakeDate,
-    crypto, atob, btoa, TextEncoder,
+    crypto, atob, btoa, TextEncoder, setTimeout, clearTimeout,
     navigator: Object.assign(navigatorStub, { credentials: credentialsContainer }),
     window: Object.assign(windowStub, { PublicKeyCredential: publicKeyCredential }),
     document: { addEventListener() {} },

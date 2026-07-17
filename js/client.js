@@ -1134,6 +1134,9 @@ function initPinRows() {
    depuis les Paramètres. */
 async function _maybeOfferBiometricEnrollment(user, role) {
   if (BiometricAuth.isEnabled(role)) return;
+  // checkAvailability() applique déjà son propre délai de sécurité (voir
+  // js/biometric.js) — jamais bloquant au-delà de ~1.5s même si l'API
+  // WebAuthn du navigateur reste en suspens.
   const avail = await BiometricAuth.checkAvailability();
   if (!avail.available) return;
   if (!confirm('Activer la connexion par empreinte digitale ? Vous n\'aurez plus à saisir votre code à chaque ouverture (activable plus tard depuis les Paramètres).')) return;
