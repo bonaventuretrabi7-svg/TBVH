@@ -1100,6 +1100,13 @@ const DB = (() => {
   // plutôt que de dupliquer la boucle de drainage.
   const SYNC_HANDLERS = {
     async settings(updates) {
+      // Défense en profondeur : couvre aussi une entrée déjà en file
+      // (ancienne session, avant ce contrôle) — sans configuration réelle,
+      // rien ne sera jamais synchronisable, donc rien à réessayer :
+      // succès silencieux (voir drainSyncQueue ci-dessus, qui retire alors
+      // l'entrée de la file) plutôt qu'un échec qui la ferait rester
+      // indéfiniment.
+      if (!SupabaseAPI.isConfigured) return;
       const row = {};
       for (const [jsKey, col] of Object.entries(SETTINGS_COLUMNS)) {
         if (jsKey in updates) row[col] = updates[jsKey];
@@ -1167,6 +1174,11 @@ const DB = (() => {
     // dans get()) pour que les tests puissent l'attendre explicitement sans
     // délai arbitraire.
     _refresh() {
+      // Voir la note dans update() ci-dessous : sans configuration réelle,
+      // toute tentative échouerait de toute façon (domaine placeholder,
+      // ERR_NAME_NOT_RESOLVED) — jamais appelé dans ce cas, le cache
+      // local reste directement la seule source de vérité.
+      if (!SupabaseAPI.isConfigured) return Promise.resolve();
       if (_settingsRefreshInFlight) return _settingsRefreshInFlight;
       _settingsRefreshInFlight = (async () => {
         try {
@@ -1182,6 +1194,13 @@ const DB = (() => {
       // l'admin voit son changement à l'instant, connexion ou pas.
       const current = get(KEY.settings) || {};
       set(KEY.settings, { ...current, ...updates });
+
+      // Tant que Supabase n'est pas réellement configuré (voir
+      // SupabaseAPI.isConfigured, js/supabase-client.js), aucune tentative
+      // réseau n'a de sens : le domaine placeholder ne résoudra jamais,
+      // et mettre quand même en file ferait grossir syncQueue à l'infini
+      // pour une resynchronisation qui n'arrivera jamais.
+      if (!SupabaseAPI.isConfigured) return;
 
       if (Net.isOnline()) {
         try {

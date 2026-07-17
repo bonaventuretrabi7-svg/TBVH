@@ -6,6 +6,15 @@
 const SupabaseAPI = (() => {
   const client = supabase.createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.anonKey);
 
+  // Tant que js/supabase-config.js n'a pas été renseigné avec un vrai
+  // projet (valeurs par défaut "VOTRE-PROJET"/"VOTRE-ANON-KEY"), tout
+  // appel réseau échouerait de toute façon (domaine inexistant,
+  // ERR_NAME_NOT_RESOLVED) — DB.settings (js/db.js) vérifie ce drapeau
+  // avant de tenter quoi que ce soit, pour ne jamais multiplier des
+  // requêtes vouées à l'échec (retombe directement sur le cache local,
+  // déjà le comportement hors ligne existant).
+  const isConfigured = !/VOTRE-PROJET|VOTRE-ANON-KEY/.test(SUPABASE_CONFIG.url + SUPABASE_CONFIG.anonKey);
+
   /* Appelle l'Edge Function `login` (vérifie identifiant+PIN côté serveur
      via verify_login()), puis adopte la session Supabase retournée pour que
      les appels suivants (RLS basé sur auth.uid()) soient authentifiés. */
@@ -27,5 +36,5 @@ const SupabaseAPI = (() => {
     await client.auth.signOut();
   }
 
-  return { client, login, logout };
+  return { client, login, logout, isConfigured };
 })();

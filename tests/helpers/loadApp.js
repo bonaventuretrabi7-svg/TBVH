@@ -79,7 +79,10 @@ function loadApp(opts = {}) {
     // tout appel réel à DB.business.*) définit son PROPRE `const Fmt` au
     // niveau module — le prédéfinir sur le sandbox risquerait un conflit
     // de déclaration avec ce `const` au chargement du script.
-    SupabaseAPI: { client: opts.supabaseClient ?? null },
+    // isConfigured: true par défaut, même raison que loadDb.js (voir ce
+    // fichier) — un test simule un projet Supabase joignable ou non, pas
+    // l'état "jamais configuré".
+    SupabaseAPI: { client: opts.supabaseClient ?? null, isConfigured: opts.supabaseConfigured ?? true },
     NativeBiometric: opts.nativeBiometric,
   };
   vm.createContext(sandbox);

@@ -152,3 +152,55 @@ test('drainSyncQueue() ne fait rien tant qu\'on est hors ligne (pas de tentative
   assert.equal(called, false);
   assert.equal(DB.syncQueue.all().length, 1, 'reste en file');
 });
+
+/* Supabase jamais configuré (js/supabase-config.js encore sur ses valeurs
+   placeholder "VOTRE-PROJET"/"VOTRE-ANON-KEY") — trouvé en auditant le
+   site : chaque vérification de maintenance déclenchait une requête vers
+   un domaine inexistant (ERR_NAME_NOT_RESOLVED), visible en console à
+   chaque clic sur un service. SupabaseAPI.isConfigured (voir
+   js/supabase-client.js) doit court-circuiter toute tentative réseau —
+   un client qui explose au moindre appel prouve qu'il n'est jamais
+   sollicité. */
+// `called` se lève même si l'appelant capture l'exception (try/catch
+// existant de _refresh()) — seul moyen de prouver sans ambiguïté que le
+// client n'a JAMAIS été sollicité, pas juste que l'échec a été avalé.
+function makePoisonSupabaseClient(state) {
+  return {
+    from() { state.called = true; throw new Error('ne doit jamais être appelé sans configuration réelle'); },
+  };
+}
+
+test('settings.get() sans configuration réelle : ne tente jamais le réseau, cache local direct', async () => {
+  const state = { called: false };
+  const client = makePoisonSupabaseClient(state);
+  const { DB } = loadDb({ online: true, supabaseClient: client, supabaseConfigured: false });
+
+  await DB.settings.get();
+  assert.equal(state.called, false, 'SupabaseAPI.client ne doit jamais être touché sans configuration réelle');
+});
+
+test('settings.update() sans configuration réelle : écrit en local, jamais mis en file (rien à resynchroniser)', async () => {
+  const client = makePoisonSupabaseClient({});
+  const { DB } = loadDb({ online: true, supabaseClient: client, supabaseConfigured: false });
+
+  await DB.settings.update({ platformName: 'Sans backend' });
+
+  const settings = await DB.settings.get();
+  assert.equal(settings.platformName, 'Sans backend', 'écrit localement quand même');
+  assert.equal(DB.syncQueue.all().length, 0, 'jamais mis en file : rien ne pourra jamais se synchroniser');
+});
+
+test('SYNC_HANDLERS.settings (via drainSyncQueue) : une entrée déjà en file avant ce contrôle est retirée sans planter', async () => {
+  const client = makePoisonSupabaseClient({});
+  // Une session précédente (avant l'ajout du contrôle) a pu laisser une
+  // entrée en file alors que Supabase n'a jamais été configuré — elle ne
+  // doit plus jamais bloquer ni planter, juste être purgée.
+  const { DB, net } = loadDb({ online: false, supabaseClient: client, supabaseConfigured: false });
+  DB.syncQueue.enqueue({ entity: 'settings', op: 'update', payload: { platformName: 'Ancienne entrée' } });
+  assert.equal(DB.syncQueue.all().length, 1);
+
+  net.setOnline(true);
+  await DB.drainSyncQueue();
+
+  assert.equal(DB.syncQueue.all().length, 0, 'purgée silencieusement, jamais retentée indéfiniment');
+});

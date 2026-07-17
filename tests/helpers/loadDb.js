@@ -99,7 +99,11 @@ function loadDb(opts = {}) {
     // connexion est là (voir SYNC_HANDLERS.settings, js/db.js) — un test
     // hors-ligne peut laisser `null` (jamais appelé, Net.isOnline() le
     // court-circuite), un test de synchronisation fournit un mock.
-    SupabaseAPI: { client: options.supabaseClient || null },
+    // isConfigured : true par défaut (un test simule un vrai projet
+    // Supabase joignable ou non, pas l'état "jamais configuré" — voir
+    // SupabaseAPI.isConfigured, js/supabase-client.js — passer
+    // supabaseConfigured:false explicitement pour tester ce cas précis).
+    SupabaseAPI: { client: options.supabaseClient || null, isConfigured: options.supabaseConfigured ?? true },
   };
   vm.createContext(sandbox);
   vm.runInContext(src + '\nthis.__DB__ = DB;', sandbox, { filename: DB_JS_PATH });
