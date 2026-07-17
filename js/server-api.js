@@ -31,12 +31,23 @@ const ServerAPI = (() => {
   async function _call(path, { body, auth = false } = {}) {
     const headers = { 'Content-Type': 'application/json' };
     if (auth && _token) headers['Authorization'] = 'Bearer ' + _token;
-    const res = await fetch(BASE_URL + '/' + path, {
-      method: 'POST', headers, body: JSON.stringify(body || {}),
-    });
-    let data = null;
-    try { data = await res.json(); } catch (e) { /* réponse non-JSON (ex. erreur serveur brute) */ }
-    return { res, data };
+    // fetch() lui-même peut lever une exception (réseau coupé, CORS, DNS...),
+    // contrairement au client Supabase historique qui renvoyait toujours un
+    // objet { data, error }. Sans ce try/catch, un tel échec remontait en
+    // exception non gérée à travers login()/Auth.login() jusqu'à l'appelant
+    // (ex. submitAdminLogin() dans js/client.js, jamais dans un try/catch),
+    // ce qui bloquait silencieusement l'écran de connexion sans le moindre
+    // message — jamais un { ok:false, error } exploitable par l'appelant.
+    try {
+      const res = await fetch(BASE_URL + '/' + path, {
+        method: 'POST', headers, body: JSON.stringify(body || {}),
+      });
+      let data = null;
+      try { data = await res.json(); } catch (e) { /* réponse non-JSON (ex. erreur serveur brute) */ }
+      return { res, data };
+    } catch (e) {
+      return { res: { ok: false }, data: null };
+    }
   }
 
   /* Vérifie identifiant+PIN côté serveur (voir api/login.php), obtient un
