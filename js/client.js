@@ -533,7 +533,10 @@ async function boot() {
     // nous !" qui, lui, se déclenche à chaque reconnexion, voir afterLogin()).
     if (!localStorage.getItem('cbp_first_visit_done')) {
       localStorage.setItem('cbp_first_visit_done', 'true');
-      Toast.success('Bienvenue sur KBINE PLUS !');
+      // toast--welcome (voir css/style.css) : agrandi pour bien se
+      // démarquer des toasts normaux, plus discrets — un seul affichage
+      // dans toute la vie du client sur cet appareil, mérite d'être vu.
+      Toast.success('Bienvenue sur KBINE PLUS !', 5000, 'toast--welcome');
     }
 
     // "Se connecter à un autre compte administrateur/partenaire" (choix à

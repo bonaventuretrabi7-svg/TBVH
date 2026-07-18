@@ -429,7 +429,11 @@ const ResumeState = (() => {
 
 /* â”€â”€ Toast helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 const Toast = {
-  show(msg, type = 'info', duration = 3500) {
+  // extraClass (optionnel) : modificateur CSS ajouté au toast (ex.
+  // "toast--welcome", voir css/style.css) — pour un cas particulier qui
+  // doit se démarquer visuellement, sans changer l'apparence des toasts
+  // normaux.
+  show(msg, type = 'info', duration = 3500, extraClass = '') {
     const container = document.getElementById('toast-container') || (() => {
       const d = document.createElement('div'); d.id = 'toast-container'; document.body.appendChild(d); return d;
     })();
@@ -443,7 +447,7 @@ const Toast = {
 
     const labels = { success: 'Succès', error: 'Erreur', info: 'Information', warning: 'Attention' };
     const t = document.createElement('div');
-    t.className = `toast ${type}`;
+    t.className = `toast ${type}${extraClass ? ' ' + extraClass : ''}`;
     t.dataset.dupeKey = dupeKey;
     t.innerHTML = `
       <div class="toast-inner">
@@ -463,10 +467,10 @@ const Toast = {
       setTimeout(() => t.remove(), 300);
     }, duration);
   },
-  success: (m, d) => Toast.show(m, 'success', d),
-  error:   (m, d) => Toast.show(m, 'error', d),
-  info:    (m, d) => Toast.show(m, 'info', d),
-  warning: (m, d) => Toast.show(m, 'warning', d),
+  success: (m, d, c) => Toast.show(m, 'success', d, c),
+  error:   (m, d, c) => Toast.show(m, 'error', d, c),
+  info:    (m, d, c) => Toast.show(m, 'info', d, c),
+  warning: (m, d, c) => Toast.show(m, 'warning', d, c),
 };
 
 /* â”€â”€ Format helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
