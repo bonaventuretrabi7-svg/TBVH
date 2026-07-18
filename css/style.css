@@ -8691,7 +8691,7 @@ body.dark .rh-card-ref { color: var(--dark-text, #F1F3F9); }
 .pgc-hero-card {
   position: fixed; top: 0; left: 0; right: 0; z-index: 150;
   width: 100%; max-width: 720px; margin: 0 auto; box-sizing: border-box;
-  padding: 26px 20px 66px;
+  padding: 26px 20px 34px;
   border-radius: 0 0 28px 28px;
   background: #0F0A2E;
   transition: padding .28s cubic-bezier(.4,0,.2,1), border-radius .28s ease;
@@ -8708,7 +8708,7 @@ body.dark .rh-card-ref { color: var(--dark-text, #F1F3F9); }
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
 }
-@media (max-width: 600px) { .pgc-hero-card { padding: 22px 16px 60px; } }
+@media (max-width: 600px) { .pgc-hero-card { padding: 22px 16px 30px; } }
 
 /* En-tête qui se compacte au défilement : dès que la page a scrollé,
    .pgc-hero-card--compact réduit le bandeau à une fine bande (le
@@ -8754,7 +8754,7 @@ body.dark .rh-card-ref { color: var(--dark-text, #F1F3F9); }
    coins arrondis + ombre portée pour donner du relief. */
 .pgc-qr-card {
   position: relative; z-index: 160;
-  width: fit-content; margin: -46px auto 0;
+  width: fit-content; margin: -20px auto 0;
   padding: 18px;
   background: var(--white);
   border-radius: 24px;
