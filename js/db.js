@@ -1793,6 +1793,17 @@ const DB = (() => {
       return { ok: true };
     },
 
+    /* Super admin uniquement : suppression définitive d'une commande (voir
+       api/orders_delete.php — bloquée côté serveur pour une commande
+       'terminé', rembourser d'abord via refundTransaction). Cascade sur
+       réclamation/messages/demande de remboursement/retards liés. */
+    async deleteTransaction(txnId) {
+      const res = await ServerAPI.ordersDelete(txnId);
+      if (!res.ok) return { ok: false, error: res.error };
+      await transactions.refresh();
+      return { ok: true };
+    },
+
     // Recharge de portefeuille — remplace la version locale par
     // api/orders_recharge.php (vérifie le verrou maintenance serveur lui-
     // même). `user_id` toujours transmis comme cible : le serveur l'honore

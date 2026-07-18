@@ -153,6 +153,8 @@ function toggleTxnRowMenu(btn, txnId) {
     (t.statut === 'en_attente' || t.statut === 'terminé') && { label: 'Rembourser', icon: 'fa-hand-holding-dollar', fn: `refundTxn('${txnId}')`, danger: true },
     (t.statut === 'en_attente' || t.statut === 'terminé') && { label: 'Suspendre', icon: 'fa-ban', fn: `openSuspendModal('${txnId}')` },
     t.statut === 'suspendue' && { label: 'Réactiver', icon: 'fa-arrow-rotate-right', fn: `reactivateTxn('${txnId}')` },
+    currentUser.admin_level === 'super' && ['en_attente', 'suspendue', 'remboursé'].includes(t.statut) &&
+      { label: 'Supprimer', icon: 'fa-trash', fn: `deleteTxn('${txnId}')`, danger: true },
     cabine && { label: 'Contacter la cabine (WhatsApp)', icon: 'fa-brands fa-whatsapp', fn: `adminContactWhatsapp('${cabine.whatsapp || cabine.telephone}','${cabine.prenom}')` },
     cabine && { label: 'Appeler la cabine', icon: 'fa-phone', fn: `adminCallPhone('${cabine.telephone}')` },
     cabine && { label: 'Voir le profil de la cabine', icon: 'fa-eye', fn: `viewUser('${cabine.id}')` },
@@ -1312,6 +1314,7 @@ function loadExchangeAdmin(query = '', statusFilter = 'all') {
     const canRefund     = t.statut === 'en_attente' || t.statut === 'terminé';
     const canSuspend    = t.statut === 'en_attente' || t.statut === 'terminé';
     const canReactivate = t.statut === 'suspendue';
+    const canDelete      = currentUser.admin_level === 'super' && ['en_attente', 'suspendue', 'remboursé'].includes(t.statut);
     const rc = Fmt.rowColors(t);
     return `<tr style="background:${rc.bg};">
       <td style="box-shadow:inset 3px 0 0 ${rc.line};"><code style="font-size:.72rem;color:var(--primary)">${Fmt.ref(t.id)}</code></td>
@@ -1322,7 +1325,7 @@ function loadExchangeAdmin(query = '', statusFilter = 'all') {
       <td><strong>${Fmt.money(t.montant)}</strong></td>
       <td>${Fmt.status(t.statut)}${t.statut === 'suspendue' && t.motif_suspension ? `<div style="font-size:.62rem;color:var(--gray-400);margin-top:2px;font-style:italic;">${t.motif_suspension}</div>` : ''}</td>
       <td>${Fmt.datetime(t.date)}</td>
-      <td>${(canReassign || canRefund || canSuspend || canReactivate) ? `<button class="menu-btn-row" onclick="toggleTxnRowMenu(this,'${t.id}')" title="Actions"><i class="fa-solid fa-ellipsis-vertical"></i></button>` : '<span style="color:var(--gray-400);font-size:.7rem;">—</span>'}</td>
+      <td>${(canReassign || canRefund || canSuspend || canReactivate || canDelete) ? `<button class="menu-btn-row" onclick="toggleTxnRowMenu(this,'${t.id}')" title="Actions"><i class="fa-solid fa-ellipsis-vertical"></i></button>` : '<span style="color:var(--gray-400);font-size:.7rem;">—</span>'}</td>
     </tr>`;
   }).join('');
 }
@@ -1344,6 +1347,7 @@ function renderCommandeRow(t) {
   const canRefund     = t.statut === 'en_attente' || t.statut === 'terminé';
   const canSuspend    = t.statut === 'en_attente' || t.statut === 'terminé';
   const canReactivate = t.statut === 'suspendue';
+  const canDelete      = currentUser.admin_level === 'super' && ['en_attente', 'suspendue', 'remboursé'].includes(t.statut);
   const rc = Fmt.rowColors(t);
   return `<tr style="background:${rc.bg};">
     <td style="box-shadow:inset 3px 0 0 ${rc.line};"><code style="font-size:.72rem;color:var(--primary)">${Fmt.ref(t.id)}</code></td>
@@ -1354,7 +1358,7 @@ function renderCommandeRow(t) {
     <td><strong>${Fmt.money(t.montant)}</strong></td>
     <td>${Fmt.status(t.statut)}${t.statut === 'suspendue' && t.motif_suspension ? `<div style="font-size:.62rem;color:var(--gray-400);margin-top:2px;font-style:italic;">${t.motif_suspension}</div>` : ''}</td>
     <td>${Fmt.datetime(t.date)}</td>
-    <td>${(client || canReassign || canRefund || canSuspend || canReactivate) ? `<button class="menu-btn-row" onclick="toggleCommandeRowMenu(this,'${t.id}')" title="Actions"><i class="fa-solid fa-ellipsis-vertical"></i></button>` : '<span style="color:var(--gray-400);font-size:.7rem;">—</span>'}</td>
+    <td>${(client || canReassign || canRefund || canSuspend || canReactivate || canDelete) ? `<button class="menu-btn-row" onclick="toggleCommandeRowMenu(this,'${t.id}')" title="Actions"><i class="fa-solid fa-ellipsis-vertical"></i></button>` : '<span style="color:var(--gray-400);font-size:.7rem;">—</span>'}</td>
   </tr>`;
 }
 
@@ -1371,6 +1375,8 @@ function toggleCommandeRowMenu(btn, txnId) {
     (t.statut === 'en_attente' || t.statut === 'terminé') && { label: 'Rembourser', icon: 'fa-hand-holding-dollar', fn: `refundTxn('${txnId}')`, danger: true },
     (t.statut === 'en_attente' || t.statut === 'terminé') && { label: 'Suspendre', icon: 'fa-ban', fn: `openSuspendModal('${txnId}')` },
     t.statut === 'suspendue' && { label: 'Réactiver', icon: 'fa-arrow-rotate-right', fn: `reactivateTxn('${txnId}')` },
+    currentUser.admin_level === 'super' && ['en_attente', 'suspendue', 'remboursé'].includes(t.statut) &&
+      { label: 'Supprimer', icon: 'fa-trash', fn: `deleteTxn('${txnId}')`, danger: true },
   ]);
 }
 
@@ -1462,7 +1468,8 @@ function loadTransactions(query = '', statusFilter = 'all') {
     const canRefund     = t.statut === 'en_attente' || t.statut === 'terminé';
     const canSuspend    = t.statut === 'en_attente' || t.statut === 'terminé';
     const canReactivate = t.statut === 'suspendue';
-    const hasActions    = canReassign || canRefund || canSuspend || canReactivate;
+    const canDelete      = currentUser.admin_level === 'super' && ['en_attente', 'suspendue', 'remboursé'].includes(t.statut);
+    const hasActions    = canReassign || canRefund || canSuspend || canReactivate || canDelete;
     const op = OP_COLORS[t.operateur] || { fg: 'var(--gray-600)', bg: 'var(--gray-100)' };
     // Code couleur de ligne par statut (+ "en retard" dérivé) — voir
     // Fmt.rowColors()/STATUS_COLORS dans js/auth.js, source unique
@@ -1836,6 +1843,18 @@ async function reactivateTxn(txnId) {
   const res = await DB.business.reactivateTransaction(txnId);
   if (!res.ok) { Toast.error(res.error); return; }
   Toast.success('Commande réactivée.');
+  loadTransactions();
+  loadCabines();
+}
+
+/* Super admin uniquement — voir api/orders_delete.php (bloqué côté serveur
+   pour une commande 'terminé', la rembourser d'abord). */
+async function deleteTxn(txnId) {
+  if (currentUser.admin_level !== 'super') { Toast.error('Seul le super administrateur peut supprimer une commande.'); return; }
+  if (!confirm('Supprimer définitivement cette commande ? Cette action est irréversible et effacera aussi sa réclamation éventuelle.')) return;
+  const res = await DB.business.deleteTransaction(txnId);
+  if (!res.ok) { Toast.error(res.error); return; }
+  Toast.success('Commande supprimée.');
   loadTransactions();
   loadCabines();
 }

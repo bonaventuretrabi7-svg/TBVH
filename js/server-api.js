@@ -326,6 +326,14 @@ const ServerAPI = (() => {
     return { ok: true };
   }
 
+  // Suppression définitive — réservée au super admin, voir
+  // api/orders_delete.php (bloquée pour une commande 'terminé').
+  async function ordersDelete(transactionId) {
+    const { res, data } = await _call('orders_delete.php', { auth: true, body: { transaction_id: transactionId } });
+    if (!res.ok || !data || data.error) return { ok: false, error: (data && data.error) || 'Échec de la suppression.' };
+    return { ok: true };
+  }
+
   async function cabineSuspendManual(cabineId, motif) {
     const { res, data } = await _call('cabine_suspend_manual.php', { auth: true, body: { cabine_id: cabineId, motif } });
     if (!res.ok || !data || data.error) return { ok: false, error: (data && data.error) || 'Échec de la suspension.' };
@@ -454,7 +462,7 @@ const ServerAPI = (() => {
     maintenanceLogsList, maintenanceLogsCreate, presencePing, presenceOnline,
     ordersCreate, ordersAccept, ordersRefuse, ordersAssignPending, ordersReassign,
     ordersSweep, ordersSweepUnsuspend, ordersList, retardsList,
-    ordersRecharge, ordersRefund, ordersSuspend, ordersReactivate, cabineSuspendManual,
+    ordersRecharge, ordersRefund, ordersSuspend, ordersReactivate, ordersDelete, cabineSuspendManual,
     cabineSelfRecharge, cabineResubscribe, adminSetAbonnement, cabineTransfer,
     forfaitsList, forfaitsCreate, forfaitsUpdate, forfaitsRemove, commissionsList, commissionsUpdateRate,
     reclamationsList, reclamationsCreate, reclamationsResolve, reclamationsConfirmReceived,
