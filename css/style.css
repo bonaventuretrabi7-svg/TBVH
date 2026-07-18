@@ -655,12 +655,12 @@ body.dark .modal-footer { border-color: var(--dark-border); }
 
 /* Toast de bienvenue (1re visite uniquement, voir js/client.js) : agrandi
    pour bien se démarquer des toasts normaux, plus discrets. */
-.toast--welcome .toast-inner { padding: 18px 18px 18px 22px; gap: 14px; }
-.toast--welcome .toast-logo-badge { width: 52px; height: 52px; }
-.toast--welcome .toast-logo-img { width: 34px; height: 34px; }
-.toast--welcome .toast-type { font-size: .62rem; margin-bottom: 5px; }
-.toast--welcome .toast-msg { font-size: .95rem; font-weight: 700; }
-.toast--welcome .toast-close { width: 26px; height: 26px; font-size: .6rem; }
+.toast--welcome .toast-inner { padding: 13px 13px 13px 16px; gap: 10px; }
+.toast--welcome .toast-logo-badge { width: 40px; height: 40px; }
+.toast--welcome .toast-logo-img { width: 26px; height: 26px; }
+.toast--welcome .toast-type { font-size: .56rem; margin-bottom: 4px; }
+.toast--welcome .toast-msg { font-size: .8rem; font-weight: 700; }
+.toast--welcome .toast-close { width: 22px; height: 22px; font-size: .55rem; }
 .toast-progress {
   position: absolute; bottom: 0; left: 0; right: 0; height: 2px;
   animation: toastProgress linear forwards;
@@ -8747,7 +8747,7 @@ body.dark .rh-card-ref { color: var(--dark-text, #F1F3F9); }
   position: relative; z-index: 160;
   width: fit-content; margin: -108px auto 0;
   padding: 22px;
-  background: #FF6200;
+  background: #FFCC99;
   border-radius: 28px;
   box-shadow: 0 16px 34px rgba(0,0,0,.22), 0 3px 8px rgba(0,0,0,.08);
   /* Même correctif que .pgc-hero-card juste au-dessus (couche de
@@ -8786,7 +8786,8 @@ body.dark .rh-card-ref { color: var(--dark-text, #F1F3F9); }
   box-shadow: 0 10px 26px rgba(0,0,0,.35);
   transition: transform .25s ease, opacity .25s ease;
 }
-.hfb-bar #hfb-amount { font-size: 1.3rem; }
+.hfb-bar #hfb-amount { font-size: 1.6rem; color: #fff; }
+.hfb-bar #hfb-amount .pgc-amount-cur { font-size: .75rem; font-weight: 700; opacity: .8; }
 .hfb-bar i { color: rgba(255,255,255,.7); font-size: .95rem; }
 .hfb-bar.hfb-visible { transform: translateY(0); opacity: 1; pointer-events: auto; }
 .hfb-eye-btn {

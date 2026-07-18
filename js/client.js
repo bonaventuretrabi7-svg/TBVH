@@ -661,6 +661,8 @@ function renderSidebar() {
     const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
     const isPhone = /^0[0-9]{9}$/.test(u.prenom);
     set('cn-avatar-top', isPhone ? u.telephone.slice(-2) : Fmt.initials(u.nom, u.prenom));
+    const footEyeBtn = document.getElementById('hfb-eye-icon')?.closest('.hfb-eye-btn');
+    if (footEyeBtn) footEyeBtn.style.display = '';
     _setBalanceValue(Fmt.money(u.solde));
     renderMyQrCode(u.telephone);
   } else {
@@ -670,6 +672,10 @@ function renderSidebar() {
     if (hbcGuest)   hbcGuest.style.display   = 'block';
     if (userPanel)  userPanel.style.display  = 'none';
     if (guestPanel) guestPanel.style.display = 'flex';
+    const footAmount = document.getElementById('hfb-amount');
+    const footEyeBtn  = document.getElementById('hfb-eye-icon')?.closest('.hfb-eye-btn');
+    if (footAmount) footAmount.textContent = '•• •••';
+    if (footEyeBtn) footEyeBtn.style.display = 'none';
   }
 }
 
@@ -4497,7 +4503,7 @@ function _amountHtml(text, masked) {
 function _syncFloatBalance(display, masked) {
   const el = document.getElementById('hfb-amount');
   if (!el) return;
-  el.textContent = masked ? _maskMoney(display) : display;
+  el.innerHTML = _amountHtml(display, masked);
 }
 
 function _setBalanceValue(formatted) {
@@ -4544,7 +4550,8 @@ document.addEventListener('DOMContentLoaded', initBalanceVisibility);
    permanence pendant qu'on défile — cette pilule ne fait que réapparaître
    par-dessus, en haut de l'écran, une fois qu'on a fait défiler assez
    loin la page d'accueil, pour resituer le solde sans avoir à remonter.
-   Sur l'accueil, la page
+   Visible aussi côté invité (montant masqué "•• •••", bouton œil masqué
+   — voir renderSidebar). Sur l'accueil, la page
    défile via la fenêtre (pas de conteneur interne, voir showSection) :
    on écoute donc window.scroll et on vérifie body.on-home à chaque appel
    (la barre est aussi masquée par showSection sur les autres onglets via
@@ -4554,7 +4561,7 @@ function _initHomeFloatBalance() {
   if (!bar) return;
   const THRESHOLD = 320;
   window.addEventListener('scroll', () => {
-    if (!document.body.classList.contains('on-home') || !currentUser) {
+    if (!document.body.classList.contains('on-home')) {
       bar.classList.remove('hfb-visible');
       return;
     }
