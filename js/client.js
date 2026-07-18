@@ -30,6 +30,47 @@ function forgetRememberedClient() {
   switchAuthGateTab('login');
 }
 
+/* Reprise "rester connecté" SANS redemander le PIN — même patron que
+   _tryRememberMeRestore() côté cabine (js/cabine.js), désormais étendu au
+   client (demande explicite : éviter d'avoir à retaper son code à chaque
+   ouverture). Le jeton (voir Auth._applyDeviceBookkeeping, js/auth.js) est
+   toujours le jeton de session SERVEUR, revérifié par api/session_whoami.php
+   avant d'ouvrir quoi que ce soit — jamais une session ouverte depuis des
+   données purement locales. Retourne l'utilisateur restauré, ou null si
+   rien n'a pu être repris (hors ligne, jeton invalide/expiré, compte
+   bloqué/suspendu...) : le panneau de déverrouillage classique
+   (ag-panel-unlock, PIN seul) prend alors le relais, voir boot(). */
+async function _tryRememberMeClientRestore() {
+  const token = localStorage.getItem(Auth.REMEMBER_TOKEN_KEY);
+  if (!token) return null;
+  const rec = DB.partnerDevices.findByToken(Auth.getDeviceId(), token);
+  if (!rec) { localStorage.removeItem(Auth.REMEMBER_TOKEN_KEY); return null; }
+
+  const res = await Auth.resumeSession(token);
+  if (!res.ok) {
+    // Hors ligne (networkError) : on retente au prochain démarrage, le
+    // jeton reste valable — le panneau de déverrouillage (PIN) prend le
+    // relais pour cette fois. Jeton réellement invalide/expiré ou compte
+    // suspendu/bloqué : on l'oublie pour ne plus jamais réessayer avec un
+    // jeton mort.
+    if (!res.networkError) {
+      DB.partnerDevices.remove(rec.id);
+      localStorage.removeItem(Auth.REMEMBER_TOKEN_KEY);
+    }
+    return null;
+  }
+  if (res.user.role !== 'client') {
+    // Jeton valide mais lié à un autre rôle (ex. appareil partagé) —
+    // n'ouvre jamais l'espace client avec une session mal typée.
+    sessionStorage.removeItem('cbp_session');
+    DB.partnerDevices.remove(rec.id);
+    localStorage.removeItem(Auth.REMEMBER_TOKEN_KEY);
+    return null;
+  }
+  DB.partnerDevices.touch(rec.id, true, token);
+  return res.user;
+}
+
 /* ── Reprise d'état au rechargement (voir ResumeState dans auth.js) ──
    Un seul objet en mémoire, sauvegardé à chaque mutation et relu une
    fois au boot (restoreClientState()). */
@@ -376,7 +417,7 @@ function returnFromImpersonation() {
 /* ================================================================
    BOOT
    ================================================================ */
-function boot() {
+async function boot() {
   // Filet de sécurité : le loader disparaît toujours dans 3s max
   const loaderSafety = setTimeout(hideLoader, 3000);
 
@@ -399,7 +440,12 @@ function boot() {
     // un ancien réglage "cbp_dark" partagé avec cabine/admin réactivait
     // silencieusement le thème sombre (fond bleu nuit) au chargement.
 
-    const session = Auth.current();
+    let session = Auth.current();
+    // Aucune session active sur cet onglet, mais un jeton "rester connecté"
+    // existe peut-être pour cet appareil (voir _tryRememberMeClientRestore()
+    // ci-dessus) — tenté AVANT le panneau de déverrouillage classique, pour
+    // ne jamais redemander le PIN quand ce n'est pas nécessaire.
+    if (!session) session = await _tryRememberMeClientRestore();
     if (session) {
       if (session.role === 'admin') {
         window.location.href = 'admin.html';  return;
