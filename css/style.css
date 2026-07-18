@@ -653,14 +653,6 @@ body.dark .modal-footer { border-color: var(--dark-border); }
 }
 .toast-close:hover { background: rgba(36,28,18,.1); color: #241C12; }
 
-/* Toast de bienvenue (1re visite uniquement, voir js/client.js) : agrandi
-   pour bien se démarquer des toasts normaux, plus discrets. */
-.toast--welcome .toast-inner { padding: 13px 13px 13px 16px; gap: 10px; }
-.toast--welcome .toast-logo-badge { width: 40px; height: 40px; }
-.toast--welcome .toast-logo-img { width: 26px; height: 26px; }
-.toast--welcome .toast-type { font-size: .56rem; margin-bottom: 4px; }
-.toast--welcome .toast-msg { font-size: .8rem; font-weight: 700; }
-.toast--welcome .toast-close { width: 22px; height: 22px; font-size: .55rem; }
 .toast-progress {
   position: absolute; bottom: 0; left: 0; right: 0; height: 2px;
   animation: toastProgress linear forwards;
