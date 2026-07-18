@@ -121,11 +121,6 @@ function showCabineLoginGate() {
   if (!gate) return;
   gate.style.display = 'flex';
 
-  const useBio = BiometricAuth.isEnabled('cabine');
-  document.getElementById('cab-login-slide-bio').style.display  = useBio ? 'block' : 'none';
-  document.getElementById('cab-login-slide-form').style.display = useBio ? 'none' : 'block';
-  if (useBio) BiometricAuth.resetAttempts('cabine');
-
   const boxes = document.querySelectorAll('#cab-login-pin-row .pln-pin-box');
   boxes.forEach((box, idx) => {
     box.oninput = () => {
@@ -141,30 +136,7 @@ function showCabineLoginGate() {
     };
   });
 
-  setTimeout(() => {
-    (useBio ? null : document.getElementById('cab-login-email'))?.focus();
-  }, 120);
-}
-
-function cabLoginGateShowCodeForm() {
-  document.getElementById('cab-login-slide-bio').style.display  = 'none';
-  document.getElementById('cab-login-slide-form').style.display = 'block';
   setTimeout(() => document.getElementById('cab-login-email')?.focus(), 120);
-}
-
-async function attemptCabineGateBiometricLogin() {
-  const res = await BiometricAuth.loginWithBiometric('cabine');
-  if (res.ok) {
-    if (res.rememberToken) localStorage.setItem(Auth.REMEMBER_TOKEN_KEY, res.rememberToken);
-    window.location.reload();
-    return;
-  }
-  if (res.fallback) {
-    cabLoginGateShowCodeForm();
-    Toast.warning(res.error || 'Utilisez votre code pour vous connecter.');
-  } else {
-    Toast.error(res.error || 'Empreinte non reconnue.');
-  }
 }
 
 async function submitCabineLoginGate() {
@@ -189,12 +161,6 @@ async function submitCabineLoginGate() {
 
   if (res.rememberToken) localStorage.setItem(Auth.REMEMBER_TOKEN_KEY, res.rememberToken);
 
-  if (res.evictedDevice) {
-    Toast.warning(`Votre appareil le plus ancien (${res.evictedDevice}) a été déconnecté — limite de 2 appareils atteinte.`);
-    setTimeout(() => window.location.reload(), 1800);
-    return;
-  }
-
   window.location.reload();
 }
 
@@ -215,7 +181,6 @@ function boot() {
   _refreshCabPauseUI();
   _refreshCabNotifSoundUI();
   _refreshImpersonationBanner();
-  refreshCabBiometricToggle();
 
   // Restore network toggles from localStorage
   const saved = localStorage.getItem('kbine_cab_nets');
@@ -1245,48 +1210,6 @@ function selectCabSoundPreset(key, role = 'commande') {
   const label = document.getElementById(`cab-sound-current${suffix}`);
   const preset = CAB_SOUND_PRESETS.find(p => p.key === key);
   if (label && preset) label.textContent = preset.label;
-}
-
-/* Interrupteur "Connexion par empreinte digitale" — masqué si aucun
-   capteur biométrique, désactivé (avec message) si un capteur existe mais
-   aucune empreinte/visage n'est enregistré sur le téléphone. Toute
-   activation/désactivation redemande le code (voir toggleCabBiometric). */
-async function refreshCabBiometricToggle() {
-  const block  = document.getElementById('cab-biometric-block');
-  const toggle = document.getElementById('cab-biometric-toggle');
-  const status = document.getElementById('cab-biometric-status');
-  const hint   = document.getElementById('cab-biometric-not-enrolled-hint');
-  if (!block || !toggle) return;
-
-  const avail = await BiometricAuth.checkAvailability();
-  if (avail.reason === 'no-hardware') { block.style.display = 'none'; return; }
-
-  block.style.display = '';
-  const enabled = BiometricAuth.isEnabled('cabine');
-  toggle.classList.toggle('active', enabled);
-  toggle.setAttribute('aria-checked', enabled);
-  if (status) status.textContent = enabled ? 'Activée' : 'Désactivée';
-
-  const notEnrolled = avail.reason === 'not-enrolled';
-  toggle.disabled = notEnrolled;
-  if (hint) hint.style.display = notEnrolled ? 'block' : 'none';
-}
-
-async function toggleCabBiometric() {
-  const wantEnable = !BiometricAuth.isEnabled('cabine');
-  const pin = prompt(`Ressaisissez votre code à 4 chiffres pour ${wantEnable ? 'activer' : 'désactiver'} la connexion par empreinte :`);
-  if (pin === null) return;
-  if (!DB.users.checkPwd(currentUser, pin)) { Toast.error('Code incorrect.'); return; }
-
-  if (wantEnable) {
-    const res = await BiometricAuth.enroll(currentUser, 'cabine');
-    if (!res.ok) { Toast.error(res.error || 'Activation impossible.'); return; }
-    Toast.success('Connexion par empreinte activée.');
-  } else {
-    await BiometricAuth.disable('cabine');
-    Toast.info('Connexion par empreinte désactivée.');
-  }
-  await refreshCabBiometricToggle();
 }
 
 function _refreshCabNotifSoundUI() {

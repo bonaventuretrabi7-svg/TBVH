@@ -13,7 +13,7 @@
    WebView, et ce module gère par-dessus le geste personnalisé avec sa
    propre résistance progressive.
 
-   Chargé après js/biometric.js, avant js/client.js (voir index.html). */
+   Chargé avant js/client.js (voir index.html). */
 const PullToRefresh = (() => {
   const MAX_PULL  = 100; // px, distance visuelle maximale de l'indicateur
   const THRESHOLD = 64;  // px (après amortissement) pour déclencher le refresh

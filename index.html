@@ -887,30 +887,6 @@
         </a>
       </div>
 
-      <!-- Sécurité : connexion biométrique (masqué si aucun capteur, voir
-           refreshClientBiometricToggle() dans js/client.js) -->
-      <div class="crd2-panel" id="cs-profile-biometric-panel" style="display:none;">
-        <div class="crd2-head">
-          <i class="fa-solid fa-fingerprint"></i>
-          <span>Sécurité</span>
-        </div>
-        <div class="crd2-row">
-          <div class="crd2-ico" style="background:rgba(99,102,241,.1);">
-            <i class="fa-solid fa-fingerprint" style="color:#6366f1;"></i>
-          </div>
-          <div class="crd2-info">
-            <div class="crd2-lbl">Connexion par empreinte digitale</div>
-            <div class="crd2-val" id="cs-biometric-status" style="font-size:.68rem;">Désactivée</div>
-          </div>
-          <input type="checkbox" id="cs-biometric-toggle" onchange="toggleClientBiometric(this)" style="width:20px;height:20px;">
-        </div>
-        <div class="crd2-row" id="cs-biometric-not-enrolled-row" style="display:none;">
-          <div class="crd2-info">
-            <div class="crd2-val" style="font-size:.68rem;color:var(--gray-400);">Configurez une empreinte dans les réglages de votre téléphone pour activer cette option.</div>
-          </div>
-        </div>
-      </div>
-
       <!-- Déconnexion -->
       <div class="lgout3-wrap">
         <div class="lgout3-session">
@@ -1658,20 +1634,6 @@
     <!-- Slides -->
     <div class="pln-slides" id="prt-slides">
 
-      <!-- Étape biométrique (affichée en priorité si activée) -->
-      <div class="pln-slide" id="prt-slide-bio" style="display:none;">
-        <div class="pln-hero">
-          <div class="pln-hero-ring" id="prt-bio-btn" onclick="attemptPartnerBiometricLogin()" role="button" tabindex="0" style="cursor:pointer;">
-            <div class="pln-hero-ico"><i class="fa-solid fa-fingerprint"></i></div>
-          </div>
-          <div class="pln-hero-title">Toucher le capteur</div>
-          <div class="pln-hero-sub">Pour accéder à votre espace partenaire</div>
-        </div>
-        <div class="ag-switch-line">
-          <button type="button" onclick="prtShowCodeForm()">Se connecter avec mon code</button>
-        </div>
-      </div>
-
       <!-- Étape 1 : Téléphone -->
       <div class="pln-slide" id="prt-slide-1">
         <div class="pln-hero">
@@ -2248,19 +2210,6 @@
     <!-- Slides -->
     <div class="adx-slides">
 
-      <!-- Étape biométrique (affichée en priorité si activée) -->
-      <div class="adx-slide" id="adx-slide-bio" style="display:none;">
-        <div class="adx-hero">
-          <div class="adx-hero-ring" id="adx-bio-btn" onclick="attemptAdminBiometricLogin()" role="button" tabindex="0" style="cursor:pointer;">
-            <div class="adx-hero-ico"><i class="fa-solid fa-fingerprint"></i></div>
-          </div>
-          <div class="adx-hero-title">Toucher le capteur</div>
-          <div class="adx-hero-sub">Pour accéder au tableau de bord</div>
-        </div>
-        <div class="ag-switch-line">
-          <button type="button" onclick="admShowCodeForm()">Se connecter avec mon code</button>
-        </div>
-      </div>
 
       <!-- Étape 1 : Téléphone -->
       <div class="adx-slide" id="adx-slide-1">
@@ -2364,19 +2313,6 @@
       </div>
     </div>
 
-    <!-- -- CONNEXION BIOMÉTRIQUE (affichée en priorité si activée) --- -->
-    <div id="ag-panel-biometric" style="display:none;">
-      <div class="ag-success-wrap">
-        <div class="ag-success-circle" id="ag-bio-btn" onclick="attemptClientBiometricLogin()" role="button" tabindex="0" style="cursor:pointer;">
-          <i class="fa-solid fa-fingerprint"></i>
-        </div>
-        <div class="ag-success-title">Toucher le capteur</div>
-        <div class="ag-success-sub">Pour vous connecter à votre compte</div>
-      </div>
-      <div class="ag-switch-line">
-        <button type="button" onclick="switchAuthGateTab(_rememberedClient ? 'unlock' : 'login')">Se connecter avec mon code</button>
-      </div>
-    </div>
 
     <!-- -- DÉVERROUILLAGE (identifiant mémorisé, code seul) ---------- -->
     <div id="ag-panel-unlock" style="display:none;">
@@ -3189,9 +3125,7 @@
 <script src="js/server-config.js"></script>
 <script src="js/server-api.js"></script>
 <script src="js/db.js?v=3"></script>
-<script src="js/auth.js?v=3"></script>
-<script src="js/biometric.js?v=1"></script>
-<script src="js/pull-to-refresh.js?v=1"></script>
+<script src="js/auth.js?v=3"></script><script src="js/pull-to-refresh.js?v=1"></script>
 <script src="js/update-notifier.js?v=1"></script>
 <script src="js/vendor-qrcode.js?v=1"></script>
 <script src="js/client.js"></script>

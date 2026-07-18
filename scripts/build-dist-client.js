@@ -14,7 +14,7 @@ const root = path.join(__dirname, '..');
 const outDir = path.join(root, 'dist-client');
 
 const JS_FILES = [
-  'server-config.js', 'server-api.js', 'db.js', 'auth.js', 'biometric.js',
+  'server-config.js', 'server-api.js', 'db.js', 'auth.js',
   'pull-to-refresh.js', 'update-notifier.js', 'vendor-qrcode.js', 'client.js',
 ];
 const DIRS = ['css', 'img'];

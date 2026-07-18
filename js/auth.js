@@ -17,8 +17,9 @@ const Auth = (() => {
   const REMEMBER_TOKEN_KEY = 'kbine_remember_token';
 
   // Identifiant stable de ce navigateur (pas un fingerprint — un simple
-  // jeton généré une fois et conservé en localStorage), utilisé pour la
-  // limite de 2 appareils sur les comptes partenaire (voir DB.partnerDevices).
+  // jeton généré une fois et conservé en localStorage), utilisé pour
+  // reconnaître cet appareil dans "Mes appareils connectés" et pour
+  // "rester connecté" (voir DB.partnerDevices) — aucune limite de nombre.
   function getDeviceId() {
     let id = localStorage.getItem(DEVICE_ID_KEY);
     if (!id) { id = crypto.randomUUID(); localStorage.setItem(DEVICE_ID_KEY, id); }
@@ -43,8 +44,11 @@ const Auth = (() => {
     return `${browser} sur ${os}`;
   }
 
-  // Limite de 2 appareils simultanés (feature 4) — cabine de longue date,
-  // étendue à client et administrateur simple (jamais au super admin).
+  // Rôles suivis dans "Mes appareils connectés"/éligibles à "rester
+  // connecté" (cabine de longue date, étendu à client et administrateur
+  // simple, jamais au super admin) — aucune limite de nombre d'appareils
+  // simultanés (l'ancienne limite de 2 avec éviction automatique a été
+  // retirée).
   function _hasDeviceLimit(user) {
     return user.role === 'cabine' || user.role === 'client' || (user.role === 'admin' && user.admin_level === 'simple');
   }
@@ -60,9 +64,7 @@ const Auth = (() => {
 
   // Vérifications de statut de compte (bloqué / suspension expirée /
   // suspendu / inactif / programmation admin simple) — extraites de
-  // login() pour être réutilisées telles quelles par la connexion
-  // biométrique (js/biometric.js), qui ne repasse jamais par le code mais
-  // doit appliquer exactement les mêmes règles de statut. Retourne
+  // login() en fonction dédiée pour rester lisible. Retourne
   // { ok:false, error } ou { ok:true, user } (user éventuellement
   // rafraîchi si une suspension auto vient d'être levée).
   async function _checkAccountGates(user) {
@@ -115,8 +117,7 @@ const Auth = (() => {
   // (voir admin.js/cabine.js logoutReturnToClient()). Ne se déclenche
   // qu'au moment de la bascule elle-même — une session déjà admin/cabine
   // qui se reconnecte à un autre compte du même type ne touche pas à une
-  // sauvegarde déjà en place. Extraite pour être réutilisée par la
-  // connexion biométrique (js/biometric.js).
+  // sauvegarde déjà en place.
   function _backupClientSessionIfSwitching(user) {
     if (user.role === 'admin' || user.role === 'cabine') {
       const previous = get();
@@ -126,11 +127,10 @@ const Auth = (() => {
     }
   }
 
-  // Limite de 2 appareils simultanés + "rester connecté" (voir
-  // DB.partnerDevices dans js/db.js et _hasDeviceLimit ci-dessus). Extraite
-  // pour être réutilisée par la connexion biométrique (js/biometric.js) —
-  // un déverrouillage par empreinte doit compter comme une connexion pour
-  // cette limite, exactement comme une connexion au code.
+  // Enregistre cet appareil dans "Mes appareils connectés" + "rester
+  // connecté" (voir DB.partnerDevices dans js/db.js et _hasDeviceLimit
+  // ci-dessus) — aucune limite de nombre, aucune éviction automatique
+  // d'un appareil plus ancien.
   function _applyDeviceBookkeeping(user, remember) {
     const result = {};
     if (_hasDeviceLimit(user)) {
@@ -140,10 +140,6 @@ const Auth = (() => {
         const rec = DB.partnerDevices.touch(known.id, !!remember);
         if (rec.remember_token) result.rememberToken = rec.remember_token;
       } else {
-        if (DB.partnerDevices.forUser(user.id).length >= 2) {
-          const evicted = DB.partnerDevices.evictOldest(user.id);
-          if (evicted) result.evictedDevice = evicted.label;
-        }
         const rec = DB.partnerDevices.register(user.id, deviceId, _deviceLabel(), !!remember);
         if (rec.remember_token) result.rememberToken = rec.remember_token;
       }
@@ -364,10 +360,11 @@ const Auth = (() => {
   // showCabineLoginGate()/showAdminLoginGate()) plutôt que d'être bouché
   // vers index.html sans explication (voir le diagnostic : un lien direct
   // vers /cabine ou /admin sans session active ne faisait jamais "sortir"
-  // l'espace demandé). Une session déjà active mais évincée en cours de
-  // route (limite de 2 appareils) redirige toujours vers index.html quel
-  // que soit ce drapeau — ce n'est pas le même cas ("jamais connecté ici")
-  // et le message d'éviction affiché là-bas doit rester atteint.
+  // l'espace demandé). Une session déjà active mais déconnectée en cours de
+  // route (voir plus bas — retrait manuel depuis "Mes appareils connectés")
+  // redirige toujours vers index.html quel que soit ce drapeau — ce n'est
+  // pas le même cas ("jamais connecté ici") et le message affiché là-bas
+  // doit rester atteint.
   function require(role, opts) {
     const silent = !!(opts && opts.silent);
     let user = get();
@@ -378,12 +375,13 @@ const Auth = (() => {
     const fresh = DB.users.byId(user.id);
     if (fresh) { user = fresh; save(user); }
     if (role && user.role !== role) { if (!silent) window.location.href = 'index.html'; return null; }
-    // Un compte partenaire évincé (limite de 2 appareils atteinte depuis un
-    // autre appareil) doit être déconnecté ici dès sa prochaine action —
-    // aucun push temps réel n'existe dans cette maquette (voir cabine.js boot()).
-    // Ignoré pendant une impersonation admin : l'appareil de l'admin n'est
-    // jamais enregistré dans DB.partnerDevices, il serait sinon détecté
-    // comme "non reconnu" et immédiatement éjecté.
+    // Un appareil retiré manuellement de "Mes appareils connectés" (par
+    // son propriétaire ou par l'admin, voir loadAppareilsAdmin()/
+    // js/cabine.js) doit être déconnecté ici dès sa prochaine action —
+    // aucun push temps réel n'existe dans cette maquette. Ignoré pendant
+    // une impersonation admin : l'appareil de l'admin n'est jamais
+    // enregistré dans DB.partnerDevices, il serait sinon détecté comme
+    // "non reconnu" et immédiatement déconnecté.
     if (_hasDeviceLimit(user) && !isImpersonating()) {
       const stillKnown = DB.partnerDevices.forUser(user.id).some(d => d.device_id === getDeviceId());
       if (!stillKnown) {
@@ -405,7 +403,7 @@ const Auth = (() => {
     return fresh;
   }
 
-  return { login, logout, current, require, refresh, save, hasClientBackup, restoreClientBackup, getDeviceId, REMEMBER_TOKEN_KEY, startImpersonation, endImpersonation, isImpersonating, impersonationInfo, isValidGmail, isValidPin, _checkAccountGates, _backupClientSessionIfSwitching, _applyDeviceBookkeeping };
+  return { login, logout, current, require, refresh, save, hasClientBackup, restoreClientBackup, getDeviceId, REMEMBER_TOKEN_KEY, startImpersonation, endImpersonation, isImpersonating, impersonationInfo, isValidGmail, isValidPin };
 })();
 
 /* Persistance d'état "reprendre où j'en étais" — un seul instantané JSON

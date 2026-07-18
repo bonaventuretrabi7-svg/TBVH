@@ -209,11 +209,6 @@ function showAdminLoginGate() {
   if (!gate) return;
   gate.style.display = 'flex';
 
-  const useBio = BiometricAuth.isEnabled('admin');
-  document.getElementById('admin-login-slide-bio').style.display  = useBio ? 'block' : 'none';
-  document.getElementById('admin-login-slide-form').style.display = useBio ? 'none' : 'block';
-  if (useBio) BiometricAuth.resetAttempts('admin');
-
   const boxes = document.querySelectorAll('#admin-login-pin-row .adx-pin-box');
   boxes.forEach((box, idx) => {
     box.oninput = () => {
@@ -229,26 +224,7 @@ function showAdminLoginGate() {
     };
   });
 
-  setTimeout(() => {
-    (useBio ? null : document.getElementById('admin-login-email'))?.focus();
-  }, 120);
-}
-
-function adminLoginGateShowCodeForm() {
-  document.getElementById('admin-login-slide-bio').style.display  = 'none';
-  document.getElementById('admin-login-slide-form').style.display = 'block';
   setTimeout(() => document.getElementById('admin-login-email')?.focus(), 120);
-}
-
-async function attemptAdminGateBiometricLogin() {
-  const res = await BiometricAuth.loginWithBiometric('admin');
-  if (res.ok) { window.location.reload(); return; }
-  if (res.fallback) {
-    adminLoginGateShowCodeForm();
-    Toast.warning(res.error || 'Utilisez votre code pour vous connecter.');
-  } else {
-    Toast.error(res.error || 'Empreinte non reconnue.');
-  }
 }
 
 async function submitAdminLoginGate() {
@@ -1940,53 +1916,6 @@ function adminCallPhone(phone) {
   window.location.href = 'tel:' + digits;
 }
 
-/* Interrupteur "Connexion par empreinte digitale" injecté dans la vue
-   "Mon profil" (viewUser, uniquement pour soi-même) — masqué si aucun
-   capteur, désactivé (avec message) si aucune empreinte/visage enregistré
-   sur le téléphone. Toute activation/désactivation redemande le code. */
-async function refreshAdminBiometricRow() {
-  const row = document.getElementById('admin-self-biometric-row');
-  if (!row) return;
-  const avail = await BiometricAuth.checkAvailability();
-  if (avail.reason === 'no-hardware') { row.style.display = 'none'; return; }
-
-  const enabled = BiometricAuth.isEnabled('admin');
-  const notEnrolled = avail.reason === 'not-enrolled';
-  row.style.display = 'block';
-  row.innerHTML = `
-    <div class="cab-notif-row" style="background:rgba(255,255,255,.04);border-radius:10px;padding:10px 12px;">
-      <span class="cab-settings-row-ic cab-settings-row-ic--green cab-settings-row-ic--lg"><i class="fa-solid fa-fingerprint"></i></span>
-      <div class="cab-notif-row-text">
-        <div class="cab-notif-row-title" style="margin-bottom:2px;">Connexion par empreinte digitale</div>
-        <div class="cab-notif-row-status">${enabled ? 'Activée' : 'Désactivée'}</div>
-      </div>
-      <button type="button" class="cab-notif-toggle${enabled ? ' active' : ''}" id="admin-biometric-toggle"
-              onclick="toggleAdminBiometric()" role="switch" aria-checked="${enabled}"
-              ${notEnrolled ? 'disabled' : ''} title="Activer / désactiver la connexion par empreinte">
-        <span class="cab-notif-toggle-knob"></span>
-      </button>
-    </div>
-    ${notEnrolled ? '<div class="cab-devices-hint">Configurez une empreinte dans les réglages de votre téléphone pour activer cette option.</div>' : ''}
-  `;
-}
-
-async function toggleAdminBiometric() {
-  const wantEnable = !BiometricAuth.isEnabled('admin');
-  const pin = prompt(`Ressaisissez votre code à 4 chiffres pour ${wantEnable ? 'activer' : 'désactiver'} la connexion par empreinte :`);
-  if (pin === null) return;
-  if (!DB.users.checkPwd(currentUser, pin)) { Toast.error('Code incorrect.'); return; }
-
-  if (wantEnable) {
-    const res = await BiometricAuth.enroll(currentUser, 'admin');
-    if (!res.ok) { Toast.error(res.error || 'Activation impossible.'); return; }
-    Toast.success('Connexion par empreinte activée.');
-  } else {
-    await BiometricAuth.disable('admin');
-    Toast.info('Connexion par empreinte désactivée.');
-  }
-  await refreshAdminBiometricRow();
-}
-
 function viewUser(id) {
   const u = DB.users.byId(id);
   if (!u) return;
@@ -2031,14 +1960,12 @@ function viewUser(id) {
           <div class="profile-dark-row"><div class="ico"><i class="fa-solid fa-location-dot"></i></div><div><div class="k">Localisation</div><div class="v${localisation ? '' : ' dim'}">${localisation || '—'}</div></div></div>
           <div class="profile-dark-row"><div class="ico"><i class="fa-solid fa-circle-check"></i></div><div><div class="k">Statut</div><div class="v${u.statut === 'actif' ? ' status-active' : ''}">${u.statut}</div></div></div>
         </div>
-        ${isSelf ? `<div id="admin-self-biometric-row" style="display:none;margin-top:10px;"></div>` : ''}
         ${isSelfSuper ? `
         <button class="profile-dark-edit-btn" onclick="closeModal('modal-view-user');openEditAdminProfileModal('${u.id}')">
           <i class="fa-solid fa-pen"></i> Modifier mon profil
         </button>` : ''}
       </div>`;
     openModal('modal-view-user');
-    if (isSelf) refreshAdminBiometricRow();
     return;
   }
 

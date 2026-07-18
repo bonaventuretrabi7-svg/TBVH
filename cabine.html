@@ -112,20 +112,6 @@
       <div class="pln-brand"><span class="pln-brand-dot"></span> Espace Partenaire</div>
     </div>
 
-    <!-- Étape biométrique (affichée en priorité si activée) -->
-    <div class="pln-slide" id="cab-login-slide-bio" style="display:none;">
-      <div class="pln-hero">
-        <div class="pln-hero-ring" id="cab-login-bio-btn" onclick="attemptCabineGateBiometricLogin()" role="button" tabindex="0" style="cursor:pointer;">
-          <div class="pln-hero-ico"><i class="fa-solid fa-fingerprint"></i></div>
-        </div>
-        <div class="pln-hero-title">Toucher le capteur</div>
-        <div class="pln-hero-sub">Pour accéder à votre espace partenaire</div>
-      </div>
-      <div class="ag-switch-line">
-        <button type="button" onclick="cabLoginGateShowCodeForm()">Se connecter avec mon code</button>
-      </div>
-    </div>
-
     <!-- Formulaire code -->
     <div class="pln-slide" id="cab-login-slide-form">
       <div class="pln-hero">
@@ -1040,23 +1026,6 @@
         </div>
       </div>
 
-      <!-- Connexion par empreinte digitale (masqué si aucun capteur) -->
-      <div class="cab-form-block" id="cab-biometric-block" style="display:none;">
-        <div class="cab-notif-row">
-          <span class="cab-settings-row-ic cab-settings-row-ic--green cab-settings-row-ic--lg"><i class="fa-solid fa-fingerprint"></i></span>
-          <div class="cab-notif-row-text">
-            <div class="cab-notif-row-title" style="margin-bottom:2px;">Connexion par empreinte digitale</div>
-            <div class="cab-notif-row-status" id="cab-biometric-status">Désactivée</div>
-          </div>
-          <button type="button" class="cab-notif-toggle" id="cab-biometric-toggle"
-                  onclick="toggleCabBiometric()" role="switch" aria-checked="false"
-                  title="Activer / désactiver la connexion par empreinte">
-            <span class="cab-notif-toggle-knob"></span>
-          </button>
-        </div>
-        <div class="cab-devices-hint" id="cab-biometric-not-enrolled-hint" style="display:none;">Configurez une empreinte dans les réglages de votre téléphone pour activer cette option.</div>
-      </div>
-
       <!-- Mes appareils connectés (accordéon) -->
       <div class="cab-form-block" style="padding:0;overflow:hidden;">
         <button type="button" class="cab-pinfo-head" id="cab-devices-btn" onclick="toggleCabDevicesSection()">
@@ -1064,7 +1033,7 @@
           <i class="fa-solid fa-chevron-down ph5-why-icon" id="cab-devices-icon"></i>
         </button>
         <div id="cab-devices-body" style="display:none;padding:14px;">
-          <div class="cab-devices-hint">Maximum 2 appareils simultanés. La connexion d'un 3ᵉ appareil déconnecte automatiquement le plus ancien.</div>
+          <div class="cab-devices-hint">Retirez un appareil de la liste pour le déconnecter.</div>
           <div id="cab-devices-list"></div>
         </div>
       </div>
@@ -1502,8 +1471,6 @@
 <script src="js/server-config.js"></script>
 <script src="js/server-api.js"></script>
 <script src="js/db.js?v=3"></script>
-<script src="js/auth.js?v=3"></script>
-<script src="js/biometric.js?v=1"></script>
-<script src="js/cabine.js?v=5"></script>
+<script src="js/auth.js?v=3"></script><script src="js/cabine.js?v=5"></script>
 </body>
 </html>

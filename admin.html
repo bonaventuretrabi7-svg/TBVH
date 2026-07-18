@@ -708,20 +708,6 @@
 
     <div class="adx-slides">
 
-      <!-- Étape biométrique (affichée en priorité si activée) -->
-      <div class="adx-slide" id="admin-login-slide-bio" style="display:none;">
-        <div class="adx-hero">
-          <div class="adx-hero-ring" id="admin-login-bio-btn" onclick="attemptAdminGateBiometricLogin()" role="button" tabindex="0" style="cursor:pointer;">
-            <div class="adx-hero-ico"><i class="fa-solid fa-fingerprint"></i></div>
-          </div>
-          <div class="adx-hero-title">Toucher le capteur</div>
-          <div class="adx-hero-sub">Pour accéder au tableau de bord</div>
-        </div>
-        <div class="ag-switch-line">
-          <button type="button" onclick="adminLoginGateShowCodeForm()">Se connecter avec mon code</button>
-        </div>
-      </div>
-
       <!-- Formulaire code -->
       <div class="adx-slide" id="admin-login-slide-form">
         <div class="adx-hero">
@@ -1967,7 +1953,7 @@
         <div class="page-header">
           <div class="breadcrumb">Admin › <span>Appareils connectés</span></div>
           <h2>Appareils connectés</h2>
-          <p>Appareils connectés pour les comptes Client et Administrateur simple (limite de 2 par compte).</p>
+          <p>Appareils connectés pour les comptes Client et Administrateur simple.</p>
         </div>
         <div class="card">
           <div class="card-header">
@@ -3268,9 +3254,7 @@
 <script src="js/server-config.js"></script>
 <script src="js/server-api.js"></script>
 <script src="js/db.js?v=3"></script>
-<script src="js/auth.js?v=3"></script>
-<script src="js/biometric.js?v=1"></script>
-<script src="js/admin.js"></script>
+<script src="js/auth.js?v=3"></script><script src="js/admin.js"></script>
 <script>
   function printReport() {
     const stats = DB.transactions.stats();

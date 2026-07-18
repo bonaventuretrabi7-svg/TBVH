@@ -652,10 +652,11 @@ const DB = (() => {
   };
 
   /* ── Appareils connectés (comptes partenaire uniquement) ──────────
-     Limite de 2 appareils simultanés + support "rester connecté" (token
-     opaque, jamais le mot de passe). Un enregistrement par appareil connu
-     pour un compte ; voir Auth.login()/require()/logout() dans auth.js
-     pour l'application de la limite et la reprise de session. */
+     Aucune limite de nombre : support "Mes appareils connectés" (retrait
+     manuel, par le titulaire du compte ou par l'admin) + "rester connecté"
+     (token opaque, jamais le mot de passe). Un enregistrement par appareil
+     connu pour un compte ; voir Auth.login()/require()/logout() dans
+     auth.js pour la reprise de session et la déconnexion sur retrait. */
   const partnerDevices = {
     all:  ()   => get(KEY.partnerDevices),
     save: (l)  => set(KEY.partnerDevices, l),
@@ -696,14 +697,6 @@ const DB = (() => {
       if (rec.remember_token) rec.expires_at = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
       partnerDevices.save(list);
       return rec;
-    },
-
-    evictOldest(userId) {
-      const active = partnerDevices.forUser(userId).sort((a, b) => new Date(a.last_seen) - new Date(b.last_seen));
-      const oldest = active[0];
-      if (!oldest) return null;
-      partnerDevices.save(partnerDevices.all().filter(d => d.id !== oldest.id));
-      return oldest;
     },
 
     remove(deviceRecordId) {

@@ -27,8 +27,8 @@ const UpdateNotifier = (() => {
   let _pendingShow = false; // détectée mais reportée (modale ouverte)
   let _el = null;
 
-  // Même détection que window.Capacitor.Plugins ailleurs (js/biometric.js) :
-  // n'existe que dans l'app empaquetée, jamais dans un navigateur classique.
+  // window.Capacitor n'existe que dans l'app empaquetée, jamais dans un
+  // navigateur classique.
   function _isNativeApp() {
     return typeof window !== 'undefined' && !!window.Capacitor;
   }

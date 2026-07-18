@@ -22,14 +22,11 @@ function _lookupRememberedClient() {
   return (user && user.role === 'client') ? user : null;
 }
 
-// "Ce n'est pas vous ?" (panneau ag-panel-unlock ou écran empreinte) :
-// un autre client va utiliser cet appareil — on oublie l'identité
-// mémorisée ET l'empreinte enregistrée (elle était liée au compte
-// précédent, jamais au nouvel utilisateur de l'appareil).
+// "Ce n'est pas vous ?" (panneau ag-panel-unlock) : un autre client va
+// utiliser cet appareil — on oublie l'identité mémorisée.
 function forgetRememberedClient() {
   localStorage.removeItem(Auth.REMEMBER_TOKEN_KEY);
   _rememberedClient = null;
-  BiometricAuth.disable('client');
   switchAuthGateTab('login');
 }
 
@@ -454,10 +451,10 @@ function boot() {
     } else {
       renderLockedSections(true);
       // Un client mémorisé sur cet appareil (jeton "rester connecté")
-      // revient : on lui propose de déverrouiller (empreinte ou code
-      // seul) plutôt que de tout ressaisir — voir openAuthModal() plus
-      // bas, qui choisit automatiquement le bon panneau. Fermable (×) :
-      // rien n'empêche de continuer en invité si ce n'est pas lui.
+      // revient : on lui propose de déverrouiller (code seul) plutôt que
+      // de tout ressaisir — voir openAuthModal() plus bas, qui choisit
+      // automatiquement le bon panneau. Fermable (×) : rien n'empêche de
+      // continuer en invité si ce n'est pas lui.
       _rememberedClient = _lookupRememberedClient();
       if (_rememberedClient) openAuthModal();
     }
@@ -483,12 +480,12 @@ function boot() {
       if (autoLogin === 'cabine') openPartnerLoginModal();
     }
 
-    // Ce compte partenaire s'est connecté sur un 3e appareil ailleurs :
-    // celui-ci vient d'être évincé (limite de 2 atteinte, voir Auth.require()
-    // dans js/auth.js et cabine.js boot()).
+    // Cet appareil vient d'être retiré de "Mes appareils connectés" (par
+    // son propriétaire ou par l'admin — voir Auth.require() dans js/auth.js
+    // et cabine.js boot()).
     if (sessionStorage.getItem('cbp_device_evicted')) {
       sessionStorage.removeItem('cbp_device_evicted');
-      Toast.error('Vous avez été déconnecté(e) : votre compte s\'est connecté sur un nouvel appareil (limite de 2 atteinte).');
+      Toast.error('Vous avez été déconnecté(e) : cet appareil a été retiré de vos appareils connectés.');
     }
 
     // Synchronisation temps réel avec les autres onglets (partenaire,
@@ -950,13 +947,9 @@ function showLoginSuccess(user, callback) {
    ================================================================ */
 function openAuthModal(tab) {
   // Priorité (sauf si un onglet précis est explicitement demandé, ex.
-  // "register" depuis "Créer un compte") : empreinte si activée, sinon
-  // déverrouillage PIN seul si un client est mémorisé sur cet appareil,
-  // sinon le formulaire complet. Un lien de repli reste toujours
-  // accessible depuis les deux premiers cas (voir switchAuthGateTab).
-  if (!tab && BiometricAuth.isEnabled('client')) {
-    switchAuthGateTab('biometric');
-  } else if (!tab && _rememberedClient) {
+  // "register" depuis "Créer un compte") : déverrouillage PIN seul si un
+  // client est mémorisé sur cet appareil, sinon le formulaire complet.
+  if (!tab && _rememberedClient) {
     switchAuthGateTab('unlock');
   } else {
     switchAuthGateTab(tab || 'login');
@@ -1001,15 +994,9 @@ function closeAuthModal() {
 }
 
 function switchAuthGateTab(tab) {
-  document.getElementById('ag-panel-biometric').style.display = tab === 'biometric' ? 'block' : 'none';
   document.getElementById('ag-panel-unlock').style.display    = tab === 'unlock'    ? 'block' : 'none';
   document.getElementById('ag-panel-login').style.display    = tab === 'login'    ? 'block' : 'none';
   document.getElementById('ag-panel-register').style.display = tab === 'register' ? 'block' : 'none';
-  // Compteur d'échecs remis à zéro à chaque (ré)affichage de l'écran
-  // empreinte — sinon, 3 échecs lors d'une ouverture précédente du modal
-  // bloqueraient définitivement toute nouvelle tentative pour le reste de
-  // la session (le compteur ne vit qu'en mémoire, voir js/biometric.js).
-  if (tab === 'biometric') BiometricAuth.resetAttempts('client');
   if (tab === 'unlock') {
     clearPinRow('pin-unlock-row');
     const nameEl = document.getElementById('ag-unlock-name');
@@ -1024,22 +1011,6 @@ function switchAuthGateTab(tab) {
   } else if (tab === 'register') {
     clearPinRow('pin-register-row');
     clearPinRow('pin-register-confirm-row');
-  }
-}
-
-async function attemptClientBiometricLogin() {
-  const res = await BiometricAuth.loginWithBiometric('client');
-  if (res.ok) {
-    if (res.user.role === 'admin')  { window.location.href = 'admin.html';  return; }
-    if (res.user.role === 'cabine') { window.location.href = 'cabine.html'; return; }
-    closeAuthModalAnimated(() => afterLogin(res.user, true));
-    return;
-  }
-  if (res.fallback) {
-    switchAuthGateTab('login');
-    Toast.warning(res.error || 'Utilisez votre code pour vous connecter.');
-  } else {
-    Toast.error(res.error || 'Empreinte non reconnue.');
   }
 }
 
@@ -1126,53 +1097,6 @@ function initPinRows() {
   });
 }
 
-// Confirmation non bloquante (remplace window.confirm()) — observé en
-// conditions réelles : sur certains navigateurs mobiles, confirm() ne
-// s'affiche jamais visuellement mais reste en attente d'une réponse qui ne
-// viendra jamais, bloquant tout le reste du script (ici : toute la suite de
-// la connexion, y compris la redirection finale) pendant de longues
-// secondes avant qu'un mécanisme interne du navigateur ne l'abandonne.
-// Une modale HTML classique (déjà utilisée partout ailleurs dans l'app)
-// n'a pas ce risque : elle est toujours visible, ou reste simplement
-// fermée — jamais un blocage invisible.
-function _confirmModal(message) {
-  return new Promise(resolve => {
-    const overlay = document.createElement('div');
-    overlay.className = 'modal-overlay open';
-    overlay.innerHTML = `
-      <div class="modal" style="max-width:340px;padding:24px;text-align:center;">
-        <p style="margin:0 0 18px;font-size:.85rem;line-height:1.5;">${message}</p>
-        <div style="display:flex;gap:10px;justify-content:center;">
-          <button type="button" class="btn btn-outline" id="cm-no">Non merci</button>
-          <button type="button" class="btn btn-primary" id="cm-yes">Activer</button>
-        </div>
-      </div>`;
-    document.body.appendChild(overlay);
-    const cleanup = (value) => { overlay.remove(); resolve(value); };
-    overlay.querySelector('#cm-yes').onclick = () => cleanup(true);
-    overlay.querySelector('#cm-no').onclick = () => cleanup(false);
-  });
-}
-
-/* Validation dynamique : appelée dès que le 4e chiffre PIN est saisi */
-/* Propose l'activation de la connexion par empreinte juste après une
-   connexion normale au code réussie — jamais si déjà activée, jamais si
-   aucun capteur/aucune empreinte enregistrée sur le téléphone (option
-   simplement absente). Refus possible (_confirmModal), réactivable plus
-   tard depuis les Paramètres. */
-async function _maybeOfferBiometricEnrollment(user, role) {
-  if (BiometricAuth.isEnabled(role)) return;
-  // checkAvailability() applique déjà son propre délai de sécurité (voir
-  // js/biometric.js) — jamais bloquant au-delà de ~1.5s même si l'API
-  // WebAuthn du navigateur reste en suspens.
-  const avail = await BiometricAuth.checkAvailability();
-  if (!avail.available) return;
-  const wants = await _confirmModal('Activer la connexion par empreinte digitale ? Vous n\'aurez plus à saisir votre code à chaque ouverture (activable plus tard depuis les Paramètres).');
-  if (!wants) return;
-  const res = await BiometricAuth.enroll(user, role);
-  Toast[res.ok ? 'success' : 'error'](res.ok ? 'Connexion par empreinte activée.' : (res.error || 'Activation impossible.'));
-}
-
 async function checkLoginLive() {
   const modal   = document.querySelector('#modal-auth-gate .ag-modal');
   const tel     = (document.getElementById('ag-login-tel')?.value || '').replace(/\s/g, '');
@@ -1187,13 +1111,12 @@ async function checkLoginLive() {
   // remember:true — le client est désormais toujours mémorisé sur cet
   // appareil dès sa connexion (voir _lookupRememberedClient()/le panneau
   // "ag-panel-unlock" : au prochain retour, plus besoin de ressaisir le
-  // téléphone, juste le code ou l'empreinte).
+  // téléphone, juste le code).
   const res = await Auth.login(tel, pin, true, 'client');
 
   if (res.ok) {
     if (res.user.role === 'admin')  { window.location.href = 'admin.html';  return; }
     if (res.user.role === 'cabine') { window.location.href = 'cabine.html'; return; }
-    await _maybeOfferBiometricEnrollment(res.user, 'client');
     closeAuthModalAnimated(() => afterLogin(res.user, true));
   } else {
     modal.classList.add('login-error');
@@ -1218,7 +1141,6 @@ async function handleAuthGateLogin(e) {
   if (res.ok) {
     if (res.user.role === 'admin')  { window.location.href = 'admin.html';  return; }
     if (res.user.role === 'cabine') { window.location.href = 'cabine.html'; return; }
-    await _maybeOfferBiometricEnrollment(res.user, 'client');
     closeAuthModalAnimated(() => afterLogin(res.user, true));
   } else {
     Toast.error(res.error || 'Numéro ou code incorrect.');
@@ -1243,7 +1165,6 @@ async function handleAuthGateUnlock(e) {
   if (res.ok) {
     if (res.user.role === 'admin')  { window.location.href = 'admin.html';  return; }
     if (res.user.role === 'cabine') { window.location.href = 'cabine.html'; return; }
-    await _maybeOfferBiometricEnrollment(res.user, 'client');
     closeAuthModalAnimated(() => afterLogin(res.user, true));
   } else {
     Toast.error(res.error || 'Code incorrect.');
@@ -1894,7 +1815,7 @@ function tfConfirmFromRecap() {
     document.getElementById('ag-order-detail').textContent =
       `${emojis[tf.operator]} ${tf.operator} · ${tf.displayAmount} → ${tf.recipient}`;
     document.getElementById('ag-pending-order').style.display = 'flex';
-    switchAuthGateTab(BiometricAuth.isEnabled('client') ? 'biometric' : 'login');
+    switchAuthGateTab(_rememberedClient ? 'unlock' : 'login');
     openModal('modal-auth-gate');
     return;
   }
@@ -2003,7 +1924,7 @@ function tfSubmit() {
     document.getElementById('ag-order-detail').textContent =
       `${emojis[tf.operator]} ${tf.operator} · ${tf.displayAmount} → ${tf.recipient}`;
     document.getElementById('ag-pending-order').style.display = 'flex';
-    switchAuthGateTab(BiometricAuth.isEnabled('client') ? 'biometric' : 'login');
+    switchAuthGateTab(_rememberedClient ? 'unlock' : 'login');
     openModal('modal-auth-gate');
     return;
   }
@@ -2817,17 +2738,6 @@ function openPartnerLoginModal() {
   document.getElementById('prt-dot-1').classList.add('pln-step--active');
   document.getElementById('prt-dot-1').classList.remove('pln-step--done');
   document.getElementById('prt-dot-2').classList.remove('pln-step--active');
-  // Écran empreinte affiché en priorité si activée sur cet appareil — "Se
-  // connecter avec mon code" (prtShowCodeForm) reste toujours accessible.
-  const bioSlide = document.getElementById('prt-slide-bio');
-  if (bioSlide) {
-    const useBio = BiometricAuth.isEnabled('cabine');
-    bioSlide.style.display = useBio ? 'block' : 'none';
-    s1.style.display = useBio ? 'none' : '';
-    // Compteur d'échecs remis à zéro à chaque (ré)ouverture — voir le même
-    // correctif dans switchAuthGateTab() (js/client.js) pour le détail.
-    if (useBio) BiometricAuth.resetAttempts('cabine');
-  }
   openModal('modal-partner-login');
   // Init PIN nav
   const boxes = document.querySelectorAll('#prt-pin-row .pln-pin-box');
@@ -2846,27 +2756,6 @@ function openPartnerLoginModal() {
     };
   });
   setTimeout(() => document.getElementById('prt-tel')?.focus(), 120);
-}
-
-function prtShowCodeForm() {
-  document.getElementById('prt-slide-bio').style.display = 'none';
-  document.getElementById('prt-slide-1').style.display = '';
-  setTimeout(() => document.getElementById('prt-tel')?.focus(), 120);
-}
-
-async function attemptPartnerBiometricLogin() {
-  const res = await BiometricAuth.loginWithBiometric('cabine');
-  if (res.ok) {
-    if (res.rememberToken) localStorage.setItem(Auth.REMEMBER_TOKEN_KEY, res.rememberToken);
-    window.location.href = 'cabine.html';
-    return;
-  }
-  if (res.fallback) {
-    prtShowCodeForm();
-    Toast.warning(res.error || 'Utilisez votre code pour vous connecter.');
-  } else {
-    Toast.error(res.error || 'Empreinte non reconnue.');
-  }
 }
 
 function prtGoStep(step) {
@@ -2966,13 +2855,6 @@ async function submitPartnerLogin() {
 
   if (res.rememberToken) localStorage.setItem(Auth.REMEMBER_TOKEN_KEY, res.rememberToken);
 
-  if (res.evictedDevice) {
-    Toast.warning(`Votre appareil le plus ancien (${res.evictedDevice}) a été déconnecté — limite de 2 appareils atteinte.`);
-    setTimeout(() => { window.location.href = 'cabine.html'; }, 1800);
-    return;
-  }
-
-  await _maybeOfferBiometricEnrollment(res.user, 'cabine');
   window.location.href = 'cabine.html';
 }
 
@@ -2987,17 +2869,6 @@ function openAdminAuthModal() {
   s2.style.display = 'none'; s2.classList.remove('adx-slide--enter','adx-slide--exit');
   document.getElementById('adx-dot-1').className = 'adx-step adx-step--active';
   document.getElementById('adx-dot-2').className = 'adx-step';
-  // Écran empreinte affiché en priorité si activée sur cet appareil — "Se
-  // connecter avec mon code" (admShowCodeForm) reste toujours accessible.
-  const bioSlide = document.getElementById('adx-slide-bio');
-  if (bioSlide) {
-    const useBio = BiometricAuth.isEnabled('admin');
-    bioSlide.style.display = useBio ? 'block' : 'none';
-    s1.style.display = useBio ? 'none' : '';
-    // Compteur d'échecs remis à zéro à chaque (ré)ouverture — voir le même
-    // correctif dans switchAuthGateTab() (js/client.js) pour le détail.
-    if (useBio) BiometricAuth.resetAttempts('admin');
-  }
   openModal('modal-admin-auth');
   // Init PIN nav
   const boxes = document.querySelectorAll('#adm-pin-row .adx-pin-box');
@@ -3010,26 +2881,6 @@ function openAdminAuthModal() {
     box.onkeydown = e => { if (e.key === 'Backspace' && !box.value && idx > 0) boxes[idx - 1].focus(); };
   });
   setTimeout(() => document.getElementById('adm-tel')?.focus(), 120);
-}
-
-function admShowCodeForm() {
-  document.getElementById('adx-slide-bio').style.display = 'none';
-  document.getElementById('adx-slide-1').style.display = '';
-  setTimeout(() => document.getElementById('adm-tel')?.focus(), 120);
-}
-
-async function attemptAdminBiometricLogin() {
-  const res = await BiometricAuth.loginWithBiometric('admin');
-  if (res.ok) {
-    window.location.href = 'admin.html';
-    return;
-  }
-  if (res.fallback) {
-    admShowCodeForm();
-    Toast.warning(res.error || 'Utilisez votre code pour vous connecter.');
-  } else {
-    Toast.error(res.error || 'Empreinte non reconnue.');
-  }
 }
 
 function admGoStep(step) {
@@ -3078,7 +2929,6 @@ async function submitAdminLogin() {
     return;
   }
 
-  await _maybeOfferBiometricEnrollment(res.user, 'admin');
   window.location.href = 'admin.html';
 }
 
@@ -3519,10 +3369,10 @@ async function rclHubQuickReply(reclaId, kind) {
 }
 
 /* ── Répertoire du téléphone ────────────────────────────────────── */
-// Un plugin Capacitor natif ne se charge pas via <script src> (voir même
-// remarque dans js/biometric.js) : une fois installé, Capacitor l'expose
-// lui-même au runtime sur window.Capacitor.Plugins.<Nom>. undefined dans un
-// navigateur desktop classique ou sous Node (tests).
+// Un plugin Capacitor natif ne se charge pas via <script src> : une fois
+// installé, Capacitor l'expose lui-même au runtime sur
+// window.Capacitor.Plugins.<Nom>. undefined dans un navigateur desktop
+// classique ou sous Node (tests).
 function _contactsPlugin() {
   return (typeof window !== 'undefined' && window.Capacitor && window.Capacitor.Plugins)
     ? window.Capacitor.Plugins.Contacts
@@ -4133,49 +3983,6 @@ function applyProfilePhoto(b64) {
   }
 }
 
-/* Interrupteur "Connexion par empreinte digitale" (section Profil) —
-   masqué si aucun capteur biométrique, désactivé (avec message) si un
-   capteur existe mais aucune empreinte/visage n'est enregistré sur le
-   téléphone. Toute activation/désactivation redemande le code. */
-async function refreshClientBiometricToggle() {
-  const panel  = document.getElementById('cs-profile-biometric-panel');
-  const toggle = document.getElementById('cs-biometric-toggle');
-  const status = document.getElementById('cs-biometric-status');
-  const notEnrolledRow = document.getElementById('cs-biometric-not-enrolled-row');
-  if (!panel || !toggle || !currentUser) return;
-
-  const avail = await BiometricAuth.checkAvailability();
-  if (avail.reason === 'no-hardware') { panel.style.display = 'none'; return; }
-
-  panel.style.display = 'block';
-  const enabled = BiometricAuth.isEnabled('client');
-  toggle.checked = enabled;
-  if (status) status.textContent = enabled ? 'Activée' : 'Désactivée';
-
-  const notEnrolled = avail.reason === 'not-enrolled';
-  toggle.disabled = notEnrolled;
-  if (notEnrolledRow) notEnrolledRow.style.display = notEnrolled ? 'flex' : 'none';
-}
-
-async function toggleClientBiometric(checkboxEl) {
-  const wantEnable = checkboxEl.checked;
-  checkboxEl.checked = !wantEnable; // ne reflète le nouvel état qu'après vérification du code
-  const user = DB.users.byId(currentUser.id);
-  const pin = prompt(`Ressaisissez votre code à 4 chiffres pour ${wantEnable ? 'activer' : 'désactiver'} la connexion par empreinte :`);
-  if (pin === null) return;
-  if (!DB.users.checkPwd(user, pin)) { Toast.error('Code incorrect.'); return; }
-
-  if (wantEnable) {
-    const res = await BiometricAuth.enroll(user, 'client');
-    if (!res.ok) { Toast.error(res.error || 'Activation impossible.'); return; }
-    Toast.success('Connexion par empreinte activée.');
-  } else {
-    await BiometricAuth.disable('client');
-    Toast.info('Connexion par empreinte désactivée.');
-  }
-  await refreshClientBiometricToggle();
-}
-
 function loadProfit() {
   const pLocked  = document.getElementById('cs-profit-locked');
   const pContent = document.getElementById('cs-profit-content');
@@ -4189,7 +3996,6 @@ function loadProfit() {
   if (pLocked)  pLocked.style.display  = 'none';
   if (pContent) pContent.style.display = '';
   if (pBar)     pBar.style.display     = '';
-  refreshClientBiometricToggle();
   const u   = DB.users.byId(currentUser.id);
   const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
 
