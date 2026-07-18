@@ -937,6 +937,13 @@ const DB = (() => {
      Gérable depuis l'onglet Super Admin "Forfaits" (ajout/suppression) ;
      l'espace Client relit cette collection à chaque rendu de l'étape
      Forfait, donc toute modification y est visible sans redéploiement. */
+  // Ligne serveur (snake_case, voir api/forfaits_*.php) → forme locale
+  // (camelCase pour ussdTemplate, seule divergence de nommage).
+  function forfaitFromRow(row) {
+    const { ussd_template, ...rest } = row;
+    return { ...rest, ussdTemplate: ussd_template ?? null };
+  }
+
   const forfaits = {
     all: () => get(KEY.forfaits),
     byOperator: (op) => forfaits.all().filter(f => f.operateur === op),
@@ -949,25 +956,41 @@ const DB = (() => {
       return out;
     },
 
-    create(data) {
+    // Rafraîchit depuis le serveur (catalogue partagé, lecture publique —
+    // voir api/forfaits_list.php) : remplacement total plutôt qu'un upsert,
+    // un forfait supprimé côté admin doit disparaître ici aussi.
+    async refresh() {
+      if (!ServerAPI.isConfigured || !Net.isOnline()) return;
+      const res = await ServerAPI.forfaitsList();
+      if (res.ok) set(KEY.forfaits, res.forfaits.map(forfaitFromRow));
+    },
+
+    async create(data) {
+      const res = await ServerAPI.forfaitsCreate(data);
+      if (!res.ok) return { ok: false, error: res.error };
+      const f = forfaitFromRow(res.forfait);
       const list = forfaits.all();
-      const f = { id: 'frf_' + uid(), ussdTemplate: null, verified: true, ...data };
       list.push(f);
       set(KEY.forfaits, list);
-      return f;
+      return { ok: true, forfait: f };
     },
 
-    update(id, updates) {
+    async update(id, updates) {
+      const res = await ServerAPI.forfaitsUpdate(id, updates);
+      if (!res.ok) return { ok: false, error: res.error };
+      const f = forfaitFromRow(res.forfait);
       const list = forfaits.all();
-      const idx  = list.findIndex(f => f.id === id);
-      if (idx === -1) return null;
-      list[idx] = { ...list[idx], ...updates };
+      const idx  = list.findIndex(x => x.id === id);
+      if (idx !== -1) list[idx] = f; else list.push(f);
       set(KEY.forfaits, list);
-      return list[idx];
+      return { ok: true, forfait: f };
     },
 
-    remove(id) {
+    async remove(id) {
+      const res = await ServerAPI.forfaitsRemove(id);
+      if (!res.ok) return { ok: false, error: res.error };
       set(KEY.forfaits, forfaits.all().filter(f => f.id !== id));
+      return { ok: true };
     },
   };
 
@@ -1301,10 +1324,15 @@ const DB = (() => {
     },
   };
 
-  /* ── Commissions ───────────────────────────────────────────────── */
+  /* ── Commissions ───────────────────────────────────────────────────────
+     Synchronisé de bout en bout (Phase 6, priorité la plus basse) — voir
+     api/commissions_list.php/commissions_update_rate.php. calc() reste une
+     estimation purement locale (utile pour un aperçu instantané avant
+     confirmation, voir tfUpdateSummary()/js/client.js) : la commission
+     RÉELLE d'une commande est déjà calculée côté serveur depuis la Phase 4
+     (calcCommission(), api/orders_common.php), qui lit cette même table. */
   const commissions = {
     all:  ()   => get(KEY.commissions),
-    save: (l)  => set(KEY.commissions, l),
     active: () => get(KEY.commissions).find(c => c.actif) || { pourcentage: 5 },
 
     calc(montant) {
@@ -1312,10 +1340,20 @@ const DB = (() => {
       return Math.round(montant * (rule.pourcentage / 100));
     },
 
-    update(id, updates) {
-      const list = get(KEY.commissions);
-      const idx  = list.findIndex(c => c.id === id);
-      if (idx !== -1) { list[idx] = { ...list[idx], ...updates }; set(KEY.commissions, list); }
+    async refresh() {
+      if (!ServerAPI.isConfigured || !Net.isOnline()) return;
+      const res = await ServerAPI.commissionsList();
+      if (res.ok) set(KEY.commissions, res.commissions);
+    },
+
+    // Applique le même taux à TOUTES les règles existantes (voir
+    // api/commissions_update_rate.php — en pratique une seule règle,
+    // jamais plusieurs créées par l'interface admin).
+    async updateRate(pourcentage) {
+      const res = await ServerAPI.commissionsUpdateRate(pourcentage);
+      if (!res.ok) return { ok: false, error: res.error };
+      set(KEY.commissions, res.commissions);
+      return { ok: true };
     },
   };
 

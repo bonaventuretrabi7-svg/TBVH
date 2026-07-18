@@ -197,6 +197,8 @@ CREATE TABLE IF NOT EXISTS forfaits (
   operateur      VARCHAR(32)  NOT NULL,
   categorie      VARCHAR(64)  NULL,
   nom            VARCHAR(190) NULL,
+  detail         TEXT         NULL,
+  duree          VARCHAR(64)  NULL,
   prix           BIGINT       NULL,
   ussd_template  VARCHAR(255) NULL,
   verified       TINYINT(1)   NOT NULL DEFAULT 1,
@@ -274,9 +276,16 @@ CREATE TABLE IF NOT EXISTS favoris (
 -- ── Règle de commission active ──────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS commissions (
   id           CHAR(36)      NOT NULL PRIMARY KEY,
+  label        VARCHAR(190)  NULL,
   pourcentage  DECIMAL(6,2)  NOT NULL DEFAULT 5,
-  actif        TINYINT(1)    NOT NULL DEFAULT 1
+  montant_min  BIGINT        NULL,
+  montant_max  BIGINT        NULL,
+  actif        TINYINT(1)    NOT NULL DEFAULT 1,
+  date         DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT IGNORE INTO commissions (id, label, pourcentage, montant_min, montant_max, actif, date)
+VALUES (UUID(), 'Commission standard', 5, 0, 99999, 1, '2024-01-01 00:00:00');
 
 -- ── Journal des accès admin (impersonation) — lecture seule ─────────────
 CREATE TABLE IF NOT EXISTS access_logs (

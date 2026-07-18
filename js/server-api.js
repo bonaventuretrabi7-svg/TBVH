@@ -407,6 +407,46 @@ const ServerAPI = (() => {
     return { ok: true, refundRequests: data.refundRequests };
   }
 
+  /* Catalogue forfaits + règles de commission (Phase 6) — lecture publique
+     (même patron que getSettings() ci-dessus), écriture réservée au super
+     administrateur. Voir DB.forfaits/DB.commissions (js/db.js) et
+     api/forfaits_*.php, commissions_*.php. */
+  async function forfaitsList() {
+    const { res, data } = await _call('forfaits_list.php', {});
+    if (!res.ok || !data || data.error) return { ok: false, error: (data && data.error) || 'Échec de la synchronisation.' };
+    return { ok: true, forfaits: data.forfaits };
+  }
+
+  async function forfaitsCreate(payload) {
+    const { res, data } = await _call('forfaits_create.php', { auth: true, body: payload });
+    if (!res.ok || !data || data.error) return { ok: false, error: (data && data.error) || 'Échec de l\'ajout du forfait.' };
+    return { ok: true, forfait: data.forfait };
+  }
+
+  async function forfaitsUpdate(id, payload) {
+    const { res, data } = await _call('forfaits_update.php', { auth: true, body: { id, ...payload } });
+    if (!res.ok || !data || data.error) return { ok: false, error: (data && data.error) || 'Échec de la modification du forfait.' };
+    return { ok: true, forfait: data.forfait };
+  }
+
+  async function forfaitsRemove(id) {
+    const { res, data } = await _call('forfaits_remove.php', { auth: true, body: { id } });
+    if (!res.ok || !data || data.error) return { ok: false, error: (data && data.error) || 'Échec de la suppression du forfait.' };
+    return { ok: true };
+  }
+
+  async function commissionsList() {
+    const { res, data } = await _call('commissions_list.php', {});
+    if (!res.ok || !data || data.error) return { ok: false, error: (data && data.error) || 'Échec de la synchronisation.' };
+    return { ok: true, commissions: data.commissions };
+  }
+
+  async function commissionsUpdateRate(pourcentage) {
+    const { res, data } = await _call('commissions_update_rate.php', { auth: true, body: { pourcentage } });
+    if (!res.ok || !data || data.error) return { ok: false, error: (data && data.error) || 'Échec de la mise à jour du taux.' };
+    return { ok: true, commissions: data.commissions };
+  }
+
   return {
     login, logout, createAccount, adminCreateAccount, getSettings, updateSettings, listProfiles,
     isConfigured, getToken, setToken, whoami, favorisList, favorisCreate, favorisRemove,
@@ -416,6 +456,7 @@ const ServerAPI = (() => {
     ordersSweep, ordersSweepUnsuspend, ordersList, retardsList,
     ordersRecharge, ordersRefund, ordersSuspend, ordersReactivate, cabineSuspendManual,
     cabineSelfRecharge, cabineResubscribe, adminSetAbonnement, cabineTransfer,
+    forfaitsList, forfaitsCreate, forfaitsUpdate, forfaitsRemove, commissionsList, commissionsUpdateRate,
     reclamationsList, reclamationsCreate, reclamationsResolve, reclamationsConfirmReceived,
     reclamationsRelance, reclamationsRequestRefund, ordersProcessRefund, refundRequestsList,
   };

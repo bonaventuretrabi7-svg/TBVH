@@ -388,6 +388,12 @@ function boot() {
     // l'app reste utilisable hors ligne quoi qu'il arrive ici.
     if (DB.Net.isOnline()) DB.drainSyncQueue();
     DB.Net.onChange(() => { if (DB.Net.isOnline()) DB.drainSyncQueue(); });
+    // Catalogue forfaits + taux de commission (lecture publique, voir
+    // api/forfaits_list.php/commissions_list.php) : rafraîchi en tâche de
+    // fond dès le démarrage, invité ou non, pour que l'étape "Forfait" du
+    // transfert (quelques clics plus tard) lise déjà des données à jour.
+    DB.forfaits.refresh();
+    DB.commissions.refresh();
     // Pas d'appel à Theme.init() ici : le mode sombre est retiré de
     // l'espace client (voir plus bas, nettoyage de l'ancien flag) — sinon
     // un ancien réglage "cbp_dark" partagé avec cabine/admin réactivait

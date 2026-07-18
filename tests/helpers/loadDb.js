@@ -153,6 +153,13 @@ function loadDb(opts = {}) {
       reclamationsRequestRefund: options.serverReclamationsRequestRefund || (async () => ({ ok: false, error: 'not mocked' })),
       ordersProcessRefund: options.serverOrdersProcessRefund || (async () => ({ ok: false, error: 'not mocked' })),
       refundRequestsList: options.serverRefundRequestsList || (async () => ({ ok: true, refundRequests: [] })),
+      // Catalogue forfaits + commissions (Phase 6).
+      forfaitsList: options.serverForfaitsList || (async () => ({ ok: true, forfaits: [] })),
+      forfaitsCreate: options.serverForfaitsCreate || (async () => ({ ok: false, error: 'not mocked' })),
+      forfaitsUpdate: options.serverForfaitsUpdate || (async () => ({ ok: false, error: 'not mocked' })),
+      forfaitsRemove: options.serverForfaitsRemove || (async () => ({ ok: false, error: 'not mocked' })),
+      commissionsList: options.serverCommissionsList || (async () => ({ ok: true, commissions: [] })),
+      commissionsUpdateRate: options.serverCommissionsUpdateRate || (async () => ({ ok: false, error: 'not mocked' })),
     },
   };
   vm.createContext(sandbox);

@@ -22,6 +22,11 @@ présentes). Colle plutôt le contenu de
 **`api/migration_phase2_1_foundations.sql`** (à n'exécuter qu'une seule
 fois) dans le même onglet SQL.
 
+**Base déjà en place (mise à jour Phase 6) :** colle aussi le contenu de
+**`api/migration_phase6_forfaits_commissions.sql`** (une seule fois) —
+colonnes manquantes sur `forfaits`/`commissions`, dont le schéma exact
+n'était pas encore connu à la Phase 1.
+
 ## 3. Déposer les fichiers PHP sur l'hébergement
 
 hPanel → Sites web → ton domaine → **Gestionnaire de fichiers** → ouvre le
@@ -76,6 +81,12 @@ Crée-y un dossier **`api`**, et dépose DANS ce dossier tous les fichiers de
 - `reclamations_request_refund.php`
 - `orders_process_refund.php`
 - `refund_requests_list.php`
+- `forfaits_list.php`
+- `forfaits_create.php`
+- `forfaits_update.php`
+- `forfaits_remove.php`
+- `commissions_list.php`
+- `commissions_update_rate.php`
 - `config.example.php`
 - `.htaccess`
 

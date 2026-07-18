@@ -1842,6 +1842,11 @@ async function reactivateTxn(txnId) {
 
 /* â”€â”€ Commission settings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function loadCommissionsAdmin() {
+  _renderCommissionsAdmin();
+  DB.commissions.refresh().then(_renderCommissionsAdmin);
+}
+
+function _renderCommissionsAdmin() {
   const rule = DB.commissions.active();
   document.getElementById('comm-rate-input').value = rule.pourcentage;
   const tbody = document.getElementById('admin-comm-tbody');
@@ -1855,12 +1860,12 @@ function loadCommissionsAdmin() {
     </tr>`).join('');
 }
 
-function saveCommissionRate(e) {
+async function saveCommissionRate(e) {
   e.preventDefault();
   const rate = parseFloat(document.getElementById('comm-rate-input').value);
   if (isNaN(rate) || rate < 0 || rate > 50) { Toast.error('Taux invalide (0–50%).'); return; }
-  const rules = DB.commissions.all();
-  rules.forEach(r => DB.commissions.update(r.id, { pourcentage: rate }));
+  const res = await DB.commissions.updateRate(rate);
+  if (!res.ok) { Toast.error(res.error); return; }
   Toast.success(`Taux de commission mis à jour à ${rate}%.`);
   loadCommissionsAdmin();
   loadDashboard();
@@ -2308,6 +2313,7 @@ async function loadForfaits() {
   populateForfaitCatSelect(op);
   updateForfaitUssdPlaceholders(op);
   renderForfaitsList();
+  DB.forfaits.refresh().then(() => { populateForfaitCatSelect(op); renderForfaitsList(); });
   await loadUssdTemplates();
 }
 
@@ -2422,7 +2428,7 @@ function toggleForfaitNewCatField(val) {
   if (field) field.style.display = val === '__new__' ? 'block' : 'none';
 }
 
-function addForfait(event) {
+async function addForfait(event) {
   event.preventDefault();
   if (currentUser.admin_level !== 'super') { Toast.error('Seul le super administrateur peut gérer les forfaits.'); return; }
 
@@ -2440,11 +2446,13 @@ function addForfait(event) {
   if (!nom || !detail || !duree || prix <= 0) { Toast.error('Veuillez remplir tous les champs obligatoires.'); return; }
 
   if (_editingForfaitId) {
-    DB.forfaits.update(_editingForfaitId, { operateur, categorie, nom, detail, duree, prix, ussdTemplate: ussd || null });
+    const res = await DB.forfaits.update(_editingForfaitId, { operateur, categorie, nom, detail, duree, prix, ussdTemplate: ussd || null });
+    if (!res.ok) { Toast.error(res.error); return; }
     Toast.success(`Forfait "${nom}" modifié.`);
     cancelEditForfait();
   } else {
-    DB.forfaits.create({ operateur, categorie, nom, detail, duree, prix, ussdTemplate: ussd || null, verified: true });
+    const res = await DB.forfaits.create({ operateur, categorie, nom, detail, duree, prix, ussdTemplate: ussd || null, verified: true });
+    if (!res.ok) { Toast.error(res.error); return; }
     Toast.success(`Forfait "${nom}" ajouté.`);
     event.target.reset();
     document.getElementById('frf-add-op').value = operateur;
@@ -2493,12 +2501,13 @@ function cancelEditForfait() {
   document.getElementById('frf-cancel-edit-btn').style.display = 'none';
 }
 
-function deleteForfait(id) {
+async function deleteForfait(id) {
   if (currentUser.admin_level !== 'super') { Toast.error('Seul le super administrateur peut gérer les forfaits.'); return; }
   const f = DB.forfaits.all().find(x => x.id === id);
   if (!f) return;
   if (!confirm(`Supprimer le forfait "${f.nom}" ? Cette action est irréversible.`)) return;
-  DB.forfaits.remove(id);
+  const res = await DB.forfaits.remove(id);
+  if (!res.ok) { Toast.error(res.error); return; }
   if (_editingForfaitId === id) cancelEditForfait();
   Toast.success('Forfait supprimé.');
   renderForfaitsList();
