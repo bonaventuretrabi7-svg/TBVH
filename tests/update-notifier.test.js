@@ -67,6 +67,20 @@ function load({ dom, fetchImpl, isNativeApp = true, open = () => {} }) {
   return sandbox.UpdateNotifier;
 }
 
+// isNative() (js/client.js, boot()) : décide si l'écran de chargement doit
+// afficher "Vérification de mise à jour…" et attendre la fin de init()
+// avant de révéler l'écran de connexion — uniquement pertinent dans l'app.
+test('isNative() : reflète window.Capacitor sans appel réseau', () => {
+  const dom = makeFakeDom();
+  const fetchImpl = makeFakeFetch();
+  const nativeApp = load({ dom, fetchImpl, isNativeApp: true });
+  assert.strictEqual(nativeApp.isNative(), true);
+  assert.strictEqual(fetchImpl.calls.length, 0);
+
+  const webApp = load({ dom, fetchImpl, isNativeApp: false });
+  assert.strictEqual(webApp.isNative(), false);
+});
+
 test('site web (pas d\'app native) : init() ne fait rien, aucun appel réseau', async () => {
   const dom = makeFakeDom();
   const fetchImpl = makeFakeFetch({ local: 1, remote: 2 });

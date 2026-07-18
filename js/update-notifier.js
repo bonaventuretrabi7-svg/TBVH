@@ -88,5 +88,5 @@ const UpdateNotifier = (() => {
     if (_el) _el.classList.remove('upb-show');
   }
 
-  return { init, applyUpdate, dismiss };
+  return { init, applyUpdate, dismiss, isNative: _isNativeApp };
 })();

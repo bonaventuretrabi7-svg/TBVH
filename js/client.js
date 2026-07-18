@@ -402,6 +402,19 @@ function returnFromImpersonation() {
 async function boot() {
   // Filet de sécurité : le loader disparaît toujours dans 3s max
   const loaderSafety = setTimeout(hideLoader, 3000);
+  // Dans l'app Android empaquetée : démarre tout de suite la vérification
+  // de mise à jour (voir js/update-notifier.js) EN PARALLÈLE du reste du
+  // démarrage ci-dessous, avec son propre libellé sur l'écran de chargement
+  // déjà présent (#page-loader) — seul le masquage du loader, dans le
+  // `finally` plus bas, attend sa fin (bornée par loaderSafety ci-dessus,
+  // donc jamais plus de 3s même hors ligne). Aucun effet sur le site web
+  // (voir UpdateNotifier.isNative()) : le loader y garde son libellé
+  // "Chargement…" par défaut.
+  if (UpdateNotifier.isNative()) {
+    const loaderLabel = document.querySelector('#page-loader .pl-label');
+    if (loaderLabel) loaderLabel.textContent = 'Vérification de mise à jour…';
+  }
+  const updateCheck = UpdateNotifier.init();
 
   try {
     DB.init();
@@ -477,10 +490,6 @@ async function boot() {
     PullToRefresh.register('profit',       loadProfit);
     PullToRefresh.register('partenaires',  loadPartenaires);
     PullToRefresh.init();
-
-    // Notification de nouvelle version disponible (voir sw.js +
-    // js/update-notifier.js) — n'a d'effet réel que sur le site web.
-    UpdateNotifier.init();
 
     if (currentUser) {
       loadHistory();
@@ -562,6 +571,7 @@ async function boot() {
   } catch (err) {
     console.error('[KBINE PLUS] Erreur au démarrage :', err);
   } finally {
+    await updateCheck;
     clearTimeout(loaderSafety);
     setTimeout(hideLoader, 800);
   }
