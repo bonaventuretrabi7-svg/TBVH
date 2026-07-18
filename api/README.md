@@ -49,6 +49,16 @@ Crée-y un dossier **`api`**, et dépose DANS ce dossier tous les fichiers de
 - `maintenance_logs_create.php`
 - `presence_ping.php`
 - `presence_online.php`
+- `orders_common.php`
+- `orders_create.php`
+- `orders_accept.php`
+- `orders_refuse.php`
+- `orders_assign_pending.php`
+- `orders_reassign.php`
+- `orders_sweep.php`
+- `orders_sweep_unsuspend.php`
+- `orders_list.php`
+- `retards_list.php`
 - `config.example.php`
 - `.htaccess`
 

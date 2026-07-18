@@ -330,6 +330,13 @@ function boot() {
 
     DB.business.sweepStaleOrders();
     DB.business.sweepAutoUnsuspensions();
+    // Cache local affiché immédiatement par les chargements ci-dessous
+    // (jamais bloquant) ; resynchronise les commandes/retards en tâche de
+    // fond (voir DB.transactions.refresh()/DB.retards.refresh(), js/db.js
+    // — le moteur de commandes, Phase 4, écrit désormais côté serveur) et
+    // rafraîchit ces mêmes vues une fois reçu.
+    DB.transactions.refresh().then(() => { loadDashboard(); loadTransactions(); loadCabines(); });
+    DB.retards.refresh().then(loadRetardsAdmin);
 
     loadDashboard();
     loadClients();
@@ -365,17 +372,18 @@ function boot() {
     // Présence en ligne (voir DB.presence, même mécanisme que cabine.js/client.js)
     DB.presence.ping(currentUser.id);
     DB.presence.refresh().then(loadDashboard);
-    setInterval(() => {
+    setInterval(async () => {
       DB.presence.ping(currentUser.id);
       DB.presence.refresh().then(loadDashboard);
       refreshUsersFromServer();
-      const sweep = DB.business.sweepStaleOrders();
+      DB.transactions.refresh();
+      const sweep = await DB.business.sweepStaleOrders();
       if (sweep.staleCount > 0) {
         loadCabines();
         loadTransactions();
         loadRetardsAdmin();
       }
-      const unsuspended = DB.business.sweepAutoUnsuspensions();
+      const unsuspended = await DB.business.sweepAutoUnsuspensions();
       if (unsuspended.liftedCount > 0 || sweep.suspendedCabineIds.length > 0) {
         loadCabinesSuspenduesAdmin();
       }
@@ -1521,11 +1529,11 @@ function openBulkReassignModal() {
 
 let _bulkReassignIds = [];
 
-function confirmBulkReassign() {
+async function confirmBulkReassign() {
   const newCabineId = document.getElementById('bulk-reassign-cabine-select').value;
   if (!newCabineId) { Toast.error('Sélectionnez une cabine.'); return; }
 
-  const res = DB.business.bulkReassign(_bulkReassignIds, newCabineId);
+  const res = await DB.business.bulkReassign(_bulkReassignIds, newCabineId);
   closeModal('modal-bulk-reassign');
   Toast.success(`${res.okCount} réassignée(s)${res.failCount ? `, ${res.failCount} échec(s)` : ''}.`);
   loadTransactions();
@@ -1558,10 +1566,10 @@ function openReassignModal(txnId) {
   openModal('modal-reassign-txn');
 }
 
-function confirmReassign() {
+async function confirmReassign() {
   const newCabineId = document.getElementById('reassign-cabine-select').value;
   if (!newCabineId) { Toast.error('Sélectionnez une cabine.'); return; }
-  const res = DB.business.reassignTransaction(_reassignTxnId, newCabineId);
+  const res = await DB.business.reassignTransaction(_reassignTxnId, newCabineId);
   if (!res.ok) { Toast.error(res.error); return; }
   Toast.success('Commande réassignée.');
   closeModal('modal-reassign-txn');

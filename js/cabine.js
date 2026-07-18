@@ -226,15 +226,20 @@ async function boot() {
   renderTopbarUser();
   renderTopbarAvatar();
   startCabPresence();
-  // Dès la connexion, reprend les commandes en attente non assignées
-  // (pool "administration") — voir DB.business.assignPendingToCabine().
-  DB.business.assignPendingToCabine(currentUser.id);
+  // Dès la connexion, synchronise les commandes depuis le serveur (voir
+  // DB.transactions.refresh(), js/db.js) : le cache local peut être
+  // obsolète (une commande traitée sur un autre appareil pendant que
+  // celui-ci était fermé).
+  await DB.transactions.refresh();
+  // Reprend les commandes en attente non assignées (pool "administration")
+  // — voir DB.business.assignPendingToCabine().
+  await DB.business.assignPendingToCabine(currentUser.id);
   // Doit tourner avant loadCabHome() : sinon une commande déjà en retard
   // (>3min) au moment de l'ouverture de la page est encore comptée "en
   // cours" dans les stats, alors qu'elle est sur le point d'être
   // réattribuée ailleurs.
-  DB.business.sweepStaleOrders();
-  DB.business.sweepAutoUnsuspensions();
+  await DB.business.sweepStaleOrders();
+  await DB.business.sweepAutoUnsuspensions();
   updateNotifBadge();
   loadCabHome();
   restoreCabState();
@@ -249,9 +254,10 @@ async function boot() {
   });
 
   // Auto-refresh pending every 30 sec
-  setInterval(() => {
-    DB.business.sweepStaleOrders();
-    DB.business.sweepAutoUnsuspensions();
+  setInterval(async () => {
+    await DB.transactions.refresh();
+    await DB.business.sweepStaleOrders();
+    await DB.business.sweepAutoUnsuspensions();
     currentUser = Auth.refresh();
     // Compte supprimé entre-temps : déconnexion. Une suspension (auto ou
     // manuelle) ne déconnecte plus le partenaire — il doit rester connecté
@@ -1498,11 +1504,11 @@ function holdRequest(txnId) {
   showToast('Commande réservée pour 5 minutes', 'success');
 }
 
-function acceptRequest(txnId) {
+async function acceptRequest(txnId) {
   const card = document.getElementById('req-' + txnId);
   if (card) { card.style.opacity = '.5'; card.style.pointerEvents = 'none'; }
 
-  const res = DB.business.acceptRequest(txnId, currentUser.id);
+  const res = await DB.business.acceptRequest(txnId, currentUser.id);
   if (res.ok) {
     Toast.success('Transfert marqué comme terminé ! Commission créditée.');
     CabSound.notify();
@@ -1540,14 +1546,14 @@ function handleFactureProofSelect(txnId, input) {
   reader.readAsDataURL(file);
 }
 
-function submitFactureProofAndComplete(txnId) {
+async function submitFactureProofAndComplete(txnId) {
   const proof = _facturePendingProofs[txnId];
   if (!proof) { Toast.error("Veuillez téléverser une capture d'écran de preuve de paiement."); return; }
 
   const card = document.getElementById('req-' + txnId);
   if (card) { card.style.opacity = '.5'; card.style.pointerEvents = 'none'; }
 
-  const res = DB.business.acceptRequest(txnId, currentUser.id, proof);
+  const res = await DB.business.acceptRequest(txnId, currentUser.id, proof);
   if (res.ok) {
     delete _facturePendingProofs[txnId];
     Toast.success('Commande terminée ! Preuve transmise au client. Commission créditée.');
@@ -1620,7 +1626,7 @@ function onCabRefuseReasonChange() {
   if (otherTxt)  otherTxt.required = isOther;
 }
 
-function confirmCabRefuse(event) {
+async function confirmCabRefuse(event) {
   event.preventDefault();
   if (!_cabRefuseTxnId) return;
   const select = document.getElementById('cab-refuse-motif');
@@ -1633,7 +1639,7 @@ function confirmCabRefuse(event) {
     if (!justification) { Toast.error('Merci de préciser le motif du renvoi.'); return; }
   }
 
-  const res = DB.business.refuseRequest(_cabRefuseTxnId, currentUser.id, motif, justification);
+  const res = await DB.business.refuseRequest(_cabRefuseTxnId, currentUser.id, motif, justification);
   closeModal('modal-cab-refuse');
   _cabRefuseTxnId = null;
   if (res.ok) {

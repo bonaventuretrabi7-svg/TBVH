@@ -766,6 +766,24 @@ const DB = (() => {
     byCabine: (cid) => get(KEY.transactions).filter(t => t.cabine_id === cid).sort((a,b) => new Date(b.date)-new Date(a.date)),
     pending:  ()    => get(KEY.transactions).filter(t => t.statut === 'en_attente').sort((a,b) => new Date(a.date)-new Date(b.date)),
 
+    // Rafraîchit depuis le serveur (voir api/orders_list.php, portée par
+    // rôle — un client ne reçoit que les siennes, une cabine celles qui
+    // lui sont assignées, un admin tout) — sans ceci, un appareil ne
+    // verrait jamais une commande créée/traitée ailleurs malgré les
+    // endpoints d'écriture. Upsert par id plutôt qu'un remplacement total
+    // : une commande est très rarement supprimée, jamais par ce chemin.
+    async refresh() {
+      if (!ServerAPI.isConfigured || !Net.isOnline()) return;
+      const res = await ServerAPI.ordersList();
+      if (!res.ok) return;
+      const list = get(KEY.transactions);
+      res.transactions.forEach(row => {
+        const idx = list.findIndex(t => t.id === row.id);
+        if (idx !== -1) list[idx] = row; else list.push(row);
+      });
+      set(KEY.transactions, list);
+    },
+
     create(data) {
       const list = get(KEY.transactions);
       const txn  = { id: 'txn_' + uid(), date: now(), commission: 0, ...data };
@@ -866,14 +884,17 @@ const DB = (() => {
   const retards = {
     all:  ()   => get(KEY.retards),
     byCabine: (cid) => get(KEY.retards).filter(r => r.cabine_id === cid).sort((a,b) => new Date(b.date)-new Date(a.date)),
-    countSince: (cid, sinceMs) => get(KEY.retards).filter(r => r.cabine_id === cid && new Date(r.date).getTime() >= sinceMs).length,
 
-    create(data) {
-      const list = get(KEY.retards);
-      const r = { id: 'rtd_' + uid(), date: now(), reassigned_to_cabine_id: null, triggered_suspension: false, ...data };
-      list.push(r);
-      set(KEY.retards, list);
-      return r;
+    // Rafraîchit depuis le serveur (voir api/retards_list.php) — seule
+    // écriture désormais côté serveur (api/orders_sweep.php, Phase 4) ;
+    // sans ceci l'affichage local resterait figé. Portée par rôle côté
+    // serveur (une cabine ne reçoit que les siennes) : remplacement total
+    // du cache local plutôt qu'un upsert, cohérent avec cette portée déjà
+    // filtrée en amont.
+    async refresh() {
+      if (!ServerAPI.isConfigured || !Net.isOnline()) return;
+      const res = await ServerAPI.retardsList();
+      if (res.ok) set(KEY.retards, res.retards);
     },
   };
 
@@ -1451,26 +1472,26 @@ const DB = (() => {
 
   /* â”€â”€ Business logic â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   const business = {
-    /* Client creates transfer request */
-    createTransfer({ client_id, operateur, numero_beneficiaire, montant, service, moyen_paiement, numero_paiement, details }) {
-      const FRAIS_SERVICE = 15;
-      const client = users.byId(client_id);
-      const totalDebit = montant + FRAIS_SERVICE;
-      if (!client || client.solde < totalDebit) return { ok: false, error: 'Solde insuffisant (montant + 15 F de frais de service).' };
+    /* Client crée une demande de transfert — remplace l'ancienne version
+       100% locale (débit du solde, calcul de commission, création,
+       attribution initiale) par un seul appel serveur atomique (voir
+       api/orders_create.php) : le débit y est un compare-and-swap sur le
+       solde, jamais une lecture-puis-écriture séparée comme ci-dessous
+       auparavant. Exige désormais une connexion internet active (plus de
+       repli/mise en file hors ligne, voir le plan Phase 2) : le solde
+       local peut être obsolète (débité depuis un autre appareil), seule
+       la réponse du serveur fait foi. `client_id` n'est plus utilisé (le
+       serveur l'infère du jeton d'authentification, jamais d'une valeur
+       fournie par l'appelant) — conservé en paramètre pour ne pas casser
+       les appels existants. */
+    async createTransfer({ client_id, operateur, numero_beneficiaire, montant, service, moyen_paiement, numero_paiement, details }) {
+      const res = await ServerAPI.ordersCreate({ operateur, numero_beneficiaire, montant, service, moyen_paiement, numero_paiement, details });
+      if (!res.ok) return { ok: false, error: res.error || 'Échec de la création de la commande.' };
 
-      // Debit client (montant + frais)
-      users.updateSolde(client_id, -totalDebit);
-
-      // Compute commission
-      const commission = commissions.calc(montant);
-
-      // Create transaction
-      const txn = transactions.create({ client_id, operateur, numero_beneficiaire, montant, frais_service: FRAIS_SERVICE, commission, statut: 'en_attente', cabine_id: null, service: service || 'Transfert direct', moyen_paiement: moyen_paiement || null, numero_paiement: numero_paiement || null, details: details || null });
-
-      // Auto-assign to available cabine
-      business.assignCabine(txn.id);
-
-      notifications.create(client_id, `Votre demande de ${montant.toLocaleString()} F (${operateur}) est en attente de traitement.`, 'info');
+      const txn = res.transaction;
+      const list = get(KEY.transactions);
+      list.push(txn);
+      set(KEY.transactions, list);
 
       return { ok: true, txn };
     },
@@ -1548,21 +1569,6 @@ const DB = (() => {
       return eligible[0];
     },
 
-    /* Auto-assign transaction to an available cabine (sous sa limite de commandes) */
-    assignCabine(txnId) {
-      const txn = transactions.byId(txnId);
-      if (!txn) return;
-      const cabs = users.byRole('cabine').filter(c =>
-        c.statut === 'actif' && !c.en_pause && !business.isCabineAtLimit(c.id) &&
-        !business.hasBlockingReclamation(c.id) && business.cabineAcceptsNetwork(c.id, txn.operateur) &&
-        business.cabineAcceptsService(c.id, txn.type)
-      );
-      if (!cabs.length) return;
-      const cab = cabs[Math.floor(Math.random() * cabs.length)];
-      transactions.update(txnId, { cabine_id: cab.id, date_assignation: now() });
-      notifications.create(cab.id, `Nouvelle demande de transfert ${txn.operateur} ${txn.montant.toLocaleString()} F.`, 'new_request');
-    },
-
     /* Calcul pur, sans effet de bord — utilisé par cabine.js pour
        afficher le récapitulatif AVANT que le paiement ne soit confirmé
        (voir cabUvShowRecap, js/cabine.js). Le frais est le même que
@@ -1619,118 +1625,76 @@ const DB = (() => {
       return { ok: true, transaction: transactions.byId(txn.id), assignedTo: target ? target.id : null, frais, total };
     },
 
-    /* Cabine accepts request */
-    acceptRequest(txnId, cabine_id, proof) {
-      const txn = transactions.byId(txnId);
-      if (!txn || txn.statut !== 'en_attente') return { ok: false, error: 'Demande introuvable ou déjà traitée.' };
+    /* Cabine accepte une commande — remplace l'ancienne version locale
+       (voir historique Git) par un appel serveur atomique (voir
+       api/orders_accept.php) qui corrige la faille de concurrence
+       historique : l'ancienne version ne vérifiait jamais que la commande
+       appartenait bien à la cabine qui agit (seul le statut était
+       contrôlé). Le crédit de commission est reflété localement tout de
+       suite (le cabiniste doit voir son solde à jour sans délai) à partir
+       des données déjà connues avant l'appel — un éventuel écart mineur
+       est résorbé par le prochain rafraîchissement (transactions.refresh()
+       ci-dessous, ou un futur cycle de présence/statut). */
+    async acceptRequest(txnId, cabine_id, proof) {
+      const txnBefore = transactions.byId(txnId);
+      const res = await ServerAPI.ordersAccept(txnId, proof);
+      if (!res.ok) return { ok: false, error: res.error || 'Échec de la validation.' };
 
-      transactions.update(txnId, {
-        statut: 'terminé', cabine_id, date_fin: now(),
-        ...(proof ? { preuve_paiement: proof } : {}),
-      });
-
-      // Credit commission to cabine
-      users.updateSolde(cabine_id, txn.commission);
-      const cab = users.byId(cabine_id);
-      const newCommTotal = (cab.commissions_total || 0) + txn.commission;
-      users.update(cabine_id, {
-        commissions_total: newCommTotal,
-        transferts_total:  (cab.transferts_total  || 0) + 1,
-      });
-
-      notifications.create(txn.client_id, `Votre transfert de ${txn.montant.toLocaleString()} F (${txn.operateur} ${txn.numero_beneficiaire}) est terminé !`, 'success');
-      notifications.create(cabine_id, `Commission de ${txn.commission.toLocaleString()} F créditée.`, 'commission');
-
-      // Quota de commission du forfait atteint â†’ fin anticipée de l'abonnement
-      const plan  = cab.abonnement || 'Premium';
-      const quota = SUBSCRIPTION_QUOTAS[plan];
-      if (quota && cab.statut === 'actif' && newCommTotal >= quota) {
-        users.update(cabine_id, { statut: 'inactif' });
-        notifications.create(cabine_id, `Quota de commission du forfait ${plan} atteint (${quota.toLocaleString()} F). Votre abonnement a pris fin.`, 'warning');
+      if (txnBefore) {
+        const cab = users.byId(cabine_id);
+        if (cab) {
+          const newCommTotal = (cab.commissions_total || 0) + txnBefore.commission;
+          const updates = {
+            solde: (cab.solde || 0) + txnBefore.commission,
+            commissions_total: newCommTotal,
+            transferts_total: (cab.transferts_total || 0) + 1,
+          };
+          const quota = SUBSCRIPTION_QUOTAS[cab.abonnement || 'Premium'];
+          if (quota && cab.statut === 'actif' && newCommTotal >= quota) updates.statut = 'inactif';
+          users.update(cabine_id, updates);
+        }
       }
 
+      await transactions.refresh();
       return { ok: true };
     },
 
-    /* Cabine refuses (renvoi manuel motivé) — même logique de réattribution
-       que le timeout (sweepStaleOrders) : réassignée à une cabine connectée
-       la moins chargée si disponible (findReassignmentTarget), sinon
-       repasse en attente non assignée côté administration — jamais de
-       refus/remboursement automatique. */
-    refuseRequest(txnId, cabine_id, motif, justification) {
-      const txn = transactions.byId(txnId);
-      if (!txn || txn.statut !== 'en_attente') return { ok: false, error: 'Demande introuvable.' };
+    /* Cabine refuse (renvoi manuel motivé) — remplace l'ancienne version
+       locale par api/orders_refuse.php, même correctif CAS de propriété
+       qu'acceptRequest ci-dessus. La réattribution (cible + notifications)
+       est entièrement décidée côté serveur ; transactions.refresh()
+       ci-dessous récupère l'état final (réassignée ou repassée en attente
+       non assignée). */
+    async refuseRequest(txnId, cabine_id, motif, justification) {
+      const res = await ServerAPI.ordersRefuse(txnId, motif, justification);
+      if (!res.ok) return { ok: false, error: res.error || 'Échec du renvoi.' };
 
-      // Compte le renvoi, quelle que soit l'issue.
-      const refusingCab = users.byId(cabine_id);
-      if (refusingCab) users.update(cabine_id, { commandes_renvoyees: (refusingCab.commandes_renvoyees || 0) + 1 });
+      const cab = users.byId(cabine_id);
+      if (cab) users.update(cabine_id, { commandes_renvoyees: (cab.commandes_renvoyees || 0) + 1 });
 
-      // Fenêtre glissante de 2 min : 5 renvois → suspension automatique 24h
-      // (voir DB.cabineRefusals et business.suspendCabineAuto ci-dessus).
-      cabineRefusals.create(cabine_id);
-      if (cabineRefusals.countSince(cabine_id, Date.now() - 120000) >= 5) {
-        business.suspendCabineAuto(cabine_id, '5 commandes renvoyées en moins de 2 minutes');
-      }
-
-      transactions.update(txnId, {
-        dernier_renvoi_motif: motif || null,
-        dernier_renvoi_justification: motif === 'autre' ? (justification || '') : null,
-        dernier_renvoi_date: now(),
-        dernier_renvoi_cabine_id: cabine_id,
-      });
-
-      const target = business.findReassignmentTarget(cabine_id, txn.operateur, txn.type);
-      if (target) {
-        transactions.update(txnId, { cabine_id: target.id, date_assignation: now() });
-        notifications.create(target.id, `Nouvelle demande de transfert ${txn.operateur} ${txn.montant.toLocaleString()} F (réaffectée).`, 'new_request');
-      } else {
-        transactions.update(txnId, { cabine_id: null });
-        notifications.create(cabine_id, `La commande ${Fmt.ref(txnId)} que vous avez renvoyée reste en attente côté administration — aucune autre cabine connectée disponible.`, 'info');
-      }
-
-      return { ok: true, reassignedTo: target ? target.id : null };
+      await transactions.refresh();
+      return { ok: true, reassignedTo: res.reassignedTo };
     },
 
     /* Dès qu'une cabine se connecte (voir cabine.js boot()), lui réassigne
        automatiquement les commandes en attente non assignées (pool
-       "administration", cabine_id: null) — la plus ancienne d'abord
-       ("premier arrivé"), jusqu'à ce que sa limite de commandes soit
-       atteinte. Retourne le nombre de commandes reprises. */
-    assignPendingToCabine(cabineId) {
-      const cab = users.byId(cabineId);
-      if (!cab || cab.role !== 'cabine' || cab.statut !== 'actif' || cab.en_pause) return 0;
-      if (business.hasBlockingReclamation(cabineId)) return 0;
-
-      // t.client_id !== cabineId : une cabine ne peut jamais reprendre elle-même
-      // une commande qu'elle a elle-même initiée (voir business.cabineSelfRecharge)
-      // — sans effet sur les commandes clients, où client_id n'est jamais un id de cabine.
-      const pool = transactions.pending()
-        .filter(t => !t.cabine_id && t.client_id !== cabineId && business.cabineAcceptsNetwork(cabineId, t.operateur) && business.cabineAcceptsService(cabineId, t.type))
-        .sort((a, b) => new Date(a.date) - new Date(b.date));
-
-      let count = 0;
-      for (const t of pool) {
-        if (business.isCabineAtLimit(cabineId)) break;
-        transactions.update(t.id, { cabine_id: cabineId, date_assignation: now() });
-        notifications.create(cabineId, `Nouvelle commande assignée : ${t.operateur} ${t.montant.toLocaleString()} F.`, 'new_request');
-        count++;
-      }
-      return count;
+       "administration") — remplace la version locale par
+       api/orders_assign_pending.php (chaque revendication y est un CAS
+       individuel). Retourne le nombre de commandes reprises. */
+    async assignPendingToCabine(cabineId) {
+      const res = await ServerAPI.ordersAssignPending();
+      if (res.ok && res.count > 0) await transactions.refresh();
+      return res.count;
     },
 
-    /* Admin : réassigne manuellement une commande en attente vers une autre cabine */
-    reassignTransaction(txnId, newCabineId) {
-      const txn = transactions.byId(txnId);
-      if (!txn || txn.statut !== 'en_attente') return { ok: false, error: 'Commande introuvable ou déjà traitée.' };
-      const newCab = users.byId(newCabineId);
-      if (!newCab || newCab.role !== 'cabine') return { ok: false, error: 'Cabine invalide.' };
-      if (business.isCabineAtLimit(newCabineId)) return { ok: false, error: 'Cette cabine a atteint sa limite de commandes.' };
-
-      const oldCabineId = txn.cabine_id;
-      transactions.update(txnId, { cabine_id: newCabineId, date_assignation: now() });
-      if (oldCabineId) notifications.create(oldCabineId, `La commande ${Fmt.ref(txnId)} a été réassignée à une autre cabine par l'administration.`, 'info');
-      notifications.create(newCabineId, `Nouvelle commande assignée par l'administration : ${txn.operateur} ${txn.montant.toLocaleString()} F.`, 'new_request');
-      return { ok: true };
+    /* Admin : réassigne manuellement une commande en attente vers une
+       autre cabine — remplace la version locale par api/orders_reassign.php. */
+    async reassignTransaction(txnId, newCabineId) {
+      const res = await ServerAPI.ordersReassign([txnId], newCabineId);
+      if (!res.ok) return { ok: false, error: res.error };
+      await transactions.refresh();
+      const single = res.results && res.results[0];
+      return single ? { ok: single.ok, error: single.error } : { ok: false, error: 'Réponse serveur inattendue.' };
     },
 
     /* Admin : rembourse le client pour une commande en attente ou terminée.
@@ -1864,23 +1828,16 @@ const DB = (() => {
     },
 
     /* Parcourt toutes les cabines actuellement suspendues automatiquement
-       et lève celles dont l'échéance de 24h est dépassée — contrairement
-       à checkAutoUnsuspend() (appelé ponctuellement pour UNE cabine),
-       celle-ci couvre aussi une cabine suspendue qui n'a plus aucune
-       commande en attente (le cas normal), donc jamais visitée par
-       sweepStaleOrders ci-dessous. Appelée depuis les mêmes points de
-       sondage périodiques que sweepStaleOrders (client.js/cabine.js/admin.js). */
-    sweepAutoUnsuspensions() {
-      try {
-        let liftedCount = 0;
-        users.byRole('cabine')
-          .filter(c => c.statut === 'suspendu' && c.suspendu_auto)
-          .forEach(c => { if (business.checkAutoUnsuspend(c.id)) liftedCount++; });
-        return { liftedCount };
-      } catch (e) {
-        console.error('[DB] sweepAutoUnsuspensions failed:', e);
-        return { liftedCount: 0 };
-      }
+       et lève celles dont l'échéance de 24h est dépassée — remplace la
+       version locale par api/orders_sweep_unsuspend.php (couvre aussi une
+       cabine suspendue sans commande en attente, donc jamais visitée par
+       sweepStaleOrders ci-dessous). checkAutoUnsuspend() ci-dessus reste
+       local : utilisée uniquement à la connexion (Auth._checkAccountGates,
+       js/auth.js) sur le profil qui vient d'être vérifié par le serveur. */
+    async sweepAutoUnsuspensions() {
+      const res = await ServerAPI.ordersSweepUnsuspend();
+      if (res.ok && res.liftedCount > 0) await transactions.refresh();
+      return { liftedCount: res.liftedCount };
     },
 
     /* Suspension automatique 24h (retards, renvois répétés, demandes de
@@ -2032,84 +1989,27 @@ const DB = (() => {
       return { ok: true, recipient: to, transfert };
     },
 
-    /* Réassignation groupée (feature 2) — boucle reassignTransaction et
-       retourne le détail par id pour un toast récapitulatif côté admin. */
-    bulkReassign(txnIds, newCabineId) {
-      const results = txnIds.map(id => ({ id, ...business.reassignTransaction(id, newCabineId) }));
-      return {
-        okCount: results.filter(r => r.ok).length,
-        failCount: results.filter(r => !r.ok).length,
-        results,
-      };
+    /* Réassignation groupée (feature 2) — remplace la version locale par
+       un seul appel à api/orders_reassign.php (transaction_ids accepte
+       déjà un tableau). */
+    async bulkReassign(txnIds, newCabineId) {
+      const res = await ServerAPI.ordersReassign(txnIds, newCabineId);
+      if (!res.ok) return { okCount: 0, failCount: txnIds.length, results: txnIds.map(id => ({ id, ok: false, error: res.error })) };
+      await transactions.refresh();
+      return { okCount: res.okCount, failCount: res.failCount, results: res.results };
     },
 
-    /* Balayage périodique (features 4 et 5) — simule, sans backend, la
-       réattribution automatique après RETARD_MS et la suspension après 3
-       retards en 24h. Voir le plan pour le détail de chaque étape. */
-    sweepStaleOrders() {
-      try {
-        const nowTs = Date.now();
-        let staleCount = 0;
-        const suspendedCabineIds = [];
-
-        transactions.pending().forEach(t => {
-          if (!t.cabine_id) return;
-          const assignedAt = new Date(t.date_assignation || t.date).getTime();
-          if (nowTs - assignedAt <= RETARD_MS) return;
-          if (t.retard_logged_cabine_id === t.cabine_id) return; // déjà logué pour cette période d'attribution
-
-          const cabineId = t.cabine_id;
-          business.checkAutoUnsuspend(cabineId);
-
-          // Écrit le garde-fou en premier pour réduire la fenêtre de course
-          // entre plusieurs onglets (limitation acceptée sans backend).
-          transactions.update(t.id, { retard_logged_cabine_id: cabineId });
-          staleCount++;
-
-          const retardRow = retards.create({ transaction_id: t.id, cabine_id: cabineId });
-
-          let triggeredSuspension = false;
-          // Journée calendaire (minuit local), pas une fenêtre glissante de 24h —
-          // cohérent avec le compteur déjà affiché à la cabine (loadCabRealtimeStats,
-          // js/cabine.js) et avec checkRefundRequestSuspension ci-dessous.
-          const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
-          if (retards.countSince(cabineId, todayStart.getTime()) >= 3) {
-            business.suspendCabineAuto(cabineId, '3 retards de traitement au cours de la journée');
-            suspendedCabineIds.push(cabineId);
-            triggeredSuspension = true;
-          }
-
-          const target = business.findReassignmentTarget(cabineId, t.operateur, t.type);
-
-          let reassignedToCabineId = null;
-          if (target) {
-            transactions.update(t.id, { cabine_id: target.id, date_assignation: now() });
-            notifications.create(target.id, `Nouvelle commande assignée automatiquement (réattribution pour retard) : ${t.operateur} ${t.montant.toLocaleString()} F.`, 'new_request');
-            notifications.create(cabineId, `La commande ${Fmt.ref(t.id)} a été réattribuée automatiquement suite à un retard.`, 'reassigned');
-            reassignedToCabineId = target.id;
-          } else {
-            // Aucune cabine connectée disponible : la commande repasse dans
-            // le pool "en attente, non assignée" côté administration au lieu
-            // de rester collée à la cabine en retard (voir assignCabine() /
-            // assignPendingToCabine() qui la reprendront dès qu'une cabine
-            // sera disponible).
-            transactions.update(t.id, { cabine_id: null });
-          }
-
-          const list = get(KEY.retards);
-          const idx = list.findIndex(r => r.id === retardRow.id);
-          if (idx !== -1) {
-            list[idx].reassigned_to_cabine_id = reassignedToCabineId;
-            list[idx].triggered_suspension = triggeredSuspension;
-            set(KEY.retards, list);
-          }
-        });
-
-        return { staleCount, suspendedCabineIds };
-      } catch (e) {
-        console.error('[DB] sweepStaleOrders failed:', e);
-        return { staleCount: 0, suspendedCabineIds: [] };
+    /* Balayage périodique (features 4 et 5) — remplace la version locale
+       par api/orders_sweep.php : chaque étape sensible y est un CAS qui
+       élimine (pas seulement réduit) la course entre plusieurs onglets/
+       appareils qui balaient au même instant. */
+    async sweepStaleOrders() {
+      const res = await ServerAPI.ordersSweep();
+      if (res.ok && res.staleCount > 0) {
+        await transactions.refresh();
+        await retards.refresh();
       }
+      return { staleCount: res.staleCount, suspendedCabineIds: res.suspendedCabineIds };
     },
   };
 

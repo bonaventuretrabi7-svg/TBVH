@@ -120,6 +120,20 @@ function loadDb(opts = {}) {
       // continuer de fonctionner sans erreur.
       presencePing: options.serverPresencePing || (async () => ({ ok: true })),
       presenceOnline: options.serverPresenceOnline || (async () => ({ ok: true, presence: [] })),
+      // Moteur de commandes (Phase 4, voir tests/orders-business.test.js) —
+      // la logique métier réelle vit désormais côté PHP (api/orders_*.php,
+      // non testable depuis ce harnais JS) : ces mocks vérifient seulement
+      // que DB.business.* transporte correctement la requête/réponse, pas
+      // les règles elles-mêmes (retards, suspension, réattribution...).
+      ordersCreate: options.serverOrdersCreate || (async () => ({ ok: false, error: 'not mocked' })),
+      ordersAccept: options.serverOrdersAccept || (async () => ({ ok: false, error: 'not mocked' })),
+      ordersRefuse: options.serverOrdersRefuse || (async () => ({ ok: false, error: 'not mocked' })),
+      ordersAssignPending: options.serverOrdersAssignPending || (async () => ({ ok: true, count: 0 })),
+      ordersReassign: options.serverOrdersReassign || (async () => ({ ok: false, error: 'not mocked' })),
+      ordersSweep: options.serverOrdersSweep || (async () => ({ ok: true, staleCount: 0, suspendedCabineIds: [] })),
+      ordersSweepUnsuspend: options.serverOrdersSweepUnsuspend || (async () => ({ ok: true, liftedCount: 0 })),
+      ordersList: options.serverOrdersList || (async () => ({ ok: true, transactions: [] })),
+      retardsList: options.serverRetardsList || (async () => ({ ok: true, retards: [] })),
     },
   };
   vm.createContext(sandbox);

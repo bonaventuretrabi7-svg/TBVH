@@ -47,7 +47,20 @@ function db(): PDO {
     $pdo = new PDO(
       'mysql:host=' . DB_HOST . ';dbname=' . DB_NAME . ';charset=utf8mb4',
       DB_USER, DB_PASS,
-      [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]
+      [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        // Requêtes préparées natives (pas émulées) : avec l'émulation par
+        // défaut de PDO, TOUTE colonne numérique revient sous forme de
+        // chaîne de texte (ex. "1000" au lieu de 1000), y compris dans le
+        // JSON renvoyé au client — un bug latent depuis la Phase 1, jamais
+        // visible tant que rien côté JS ne faisait d'arithmétique directe
+        // sur un champ serveur fraîchement synchronisé (Fmt.money()
+        // coerce déjà via Math.round(), masquant le symptôme). Devient
+        // bloquant avec le moteur de commandes (Phase 4) : une somme comme
+        // `0 + t.montant` deviendrait une concaténation de texte ("01000")
+        // au lieu d'une addition si `montant` restait une chaîne.
+        PDO::ATTR_EMULATE_PREPARES => false,
+      ]
     );
   }
   return $pdo;
@@ -117,4 +130,15 @@ function decodeJsonColumns(array $row, array $columns): array {
     if (isset($row[$col]) && is_string($row[$col])) $row[$col] = json_decode($row[$col], true);
   }
   return $row;
+}
+
+// Crée une notification pour un utilisateur — équivalent serveur de
+// DB.notifications.create() (js/db.js), utilisé par tous les endpoints du
+// moteur de commandes (Phase 4). Best-effort intentionnel : jamais dans la
+// même transaction PDO qu'une mutation financière (voir orders_accept.php
+// etc.) pour qu'un échec d'écriture de notification ne fasse jamais annuler
+// un débit/crédit déjà validé.
+function createNotification(string $userId, string $message, string $type = 'info'): void {
+  db()->prepare('INSERT INTO notifications (id, utilisateur_id, message, lu, date, type) VALUES (?, ?, ?, 0, NOW(), ?)')
+      ->execute([uuid4(), $userId, $message, $type]);
 }

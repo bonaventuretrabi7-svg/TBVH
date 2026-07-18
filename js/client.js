@@ -448,6 +448,11 @@ function boot() {
       loadRecentRecap();
       renderLockedSections(false);
       startClientPresence();
+      // Cache local affiché immédiatement ci-dessus ; resynchronise ses
+      // propres commandes en tâche de fond (voir DB.transactions.refresh(),
+      // js/db.js — le moteur de commandes, Phase 4, écrit désormais côté
+      // serveur) et rafraîchit ces mêmes vues une fois reçu.
+      DB.transactions.refresh().then(() => { loadHistory(); loadWallet(); loadRecentRecap(); });
     } else {
       renderLockedSections(true);
       // Un client mémorisé sur cet appareil (jeton "rester connecté")
@@ -538,6 +543,10 @@ function startClientPresence() {
   setInterval(() => {
     DB.presence.ping(currentUser.id);
     DB.presence.refresh();
+    // Synchronise ses propres commandes (voir api/orders_list.php) — un
+    // suivi de commande ouvert doit refléter une acceptation/un renvoi
+    // fait côté cabine sans attendre un rechargement manuel.
+    DB.transactions.refresh().then(() => { if (typeof loadHistory === 'function') loadHistory(); });
     // Élargit la couverture du balayage de commandes en retard (features
     // 4/5) — les onglets client sont typiquement les plus nombreux ouverts.
     DB.business.sweepStaleOrders();
@@ -1809,7 +1818,7 @@ function tfBuildInlineRecap() {
   ).join('');
 }
 
-function tfConfirmFromRecap() {
+async function tfConfirmFromRecap() {
   if (!tf.isValid()) return;
   if (!currentUser) {
     pendingOrder = true;
@@ -1827,7 +1836,7 @@ function tfConfirmFromRecap() {
     openModal('modal-recharge');
     return;
   }
-  const res = DB.business.createTransfer({
+  const res = await DB.business.createTransfer({
     client_id:           currentUser.id,
     operateur:           tf.operator,
     numero_beneficiaire: tf.recipient,
@@ -1961,8 +1970,8 @@ function tfSubmitConfirm() {
 
   openModal('modal-confirm-transfer');
 
-  document.getElementById('btn-confirm-send').onclick = () => {
-    const res = DB.business.createTransfer({
+  document.getElementById('btn-confirm-send').onclick = async () => {
+    const res = await DB.business.createTransfer({
       client_id:           currentUser.id,
       operateur:           tf.operator,
       numero_beneficiaire: tf.recipient,

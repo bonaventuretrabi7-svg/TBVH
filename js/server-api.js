@@ -236,10 +236,73 @@ const ServerAPI = (() => {
     return { ok: true, presence: data.presence };
   }
 
+  /* Moteur de commandes (Phase 4) — voir DB.business.* (js/db.js) et
+     api/orders_*.php. Chaque endpoint est un CAS atomique côté serveur
+     (voir le commentaire en tête de chaque fichier PHP) ; ces wrappers ne
+     font que transporter la requête/réponse, aucune logique métier ici. */
+  async function ordersCreate(payload) {
+    const { res, data, networkError } = await _call('orders_create.php', { auth: true, body: payload });
+    if (networkError) return { ok: false, networkError: true, error: 'Connexion Internet requise.' };
+    if (!res.ok || !data || data.error) return { ok: false, error: (data && data.error) || 'Échec de la création de la commande.' };
+    return { ok: true, transaction: data.transaction };
+  }
+
+  async function ordersAccept(transactionId, proof) {
+    const { res, data, networkError } = await _call('orders_accept.php', { auth: true, body: { transaction_id: transactionId, proof: proof || null } });
+    if (networkError) return { ok: false, networkError: true, error: 'Connexion Internet requise.' };
+    if (!res.ok || !data || data.error) return { ok: false, error: (data && data.error) || 'Échec de la validation.' };
+    return { ok: true };
+  }
+
+  async function ordersRefuse(transactionId, motif, justification) {
+    const { res, data, networkError } = await _call('orders_refuse.php', { auth: true, body: { transaction_id: transactionId, motif: motif || null, justification: justification || null } });
+    if (networkError) return { ok: false, networkError: true, error: 'Connexion Internet requise.' };
+    if (!res.ok || !data || data.error) return { ok: false, error: (data && data.error) || 'Échec du renvoi.' };
+    return { ok: true, reassignedTo: data.reassignedTo };
+  }
+
+  async function ordersList() {
+    const { res, data } = await _call('orders_list.php', { auth: true });
+    if (!res.ok || !data || data.error) return { ok: false, error: (data && data.error) || 'Échec de la synchronisation.' };
+    return { ok: true, transactions: data.transactions };
+  }
+
+  async function ordersAssignPending() {
+    const { res, data } = await _call('orders_assign_pending.php', { auth: true });
+    return (res.ok && data && !data.error) ? { ok: true, count: data.count } : { ok: false, count: 0 };
+  }
+
+  async function ordersReassign(transactionIds, cabineId) {
+    const { res, data } = await _call('orders_reassign.php', { auth: true, body: { transaction_ids: transactionIds, cabine_id: cabineId } });
+    if (!res.ok || !data || data.error) return { ok: false, error: (data && data.error) || 'Échec de la réassignation.' };
+    return { ok: true, okCount: data.okCount, failCount: data.failCount, results: data.results };
+  }
+
+  async function ordersSweep() {
+    const { res, data } = await _call('orders_sweep.php', { auth: true });
+    return (res.ok && data && !data.error) ? { ok: true, staleCount: data.staleCount, suspendedCabineIds: data.suspendedCabineIds } : { ok: false, staleCount: 0, suspendedCabineIds: [] };
+  }
+
+  async function ordersSweepUnsuspend() {
+    const { res, data } = await _call('orders_sweep_unsuspend.php', { auth: true });
+    return (res.ok && data && !data.error) ? { ok: true, liftedCount: data.liftedCount } : { ok: false, liftedCount: 0 };
+  }
+
+  // Historique des retards — lecture seule (voir DB.retards, js/db.js et
+  // api/retards_list.php), sa seule écriture se fait désormais côté
+  // serveur (orders_sweep.php).
+  async function retardsList() {
+    const { res, data } = await _call('retards_list.php', { auth: true });
+    if (!res.ok || !data || data.error) return { ok: false, error: (data && data.error) || 'Échec de la synchronisation.' };
+    return { ok: true, retards: data.retards };
+  }
+
   return {
     login, logout, createAccount, adminCreateAccount, getSettings, updateSettings, listProfiles,
     isConfigured, getToken, setToken, whoami, favorisList, favorisCreate, favorisRemove,
     accessLogsList, accessLogsCreate, permissionLogsList, permissionLogsCreate,
     maintenanceLogsList, maintenanceLogsCreate, presencePing, presenceOnline,
+    ordersCreate, ordersAccept, ordersRefuse, ordersAssignPending, ordersReassign,
+    ordersSweep, ordersSweepUnsuspend, ordersList, retardsList,
   };
 })();
