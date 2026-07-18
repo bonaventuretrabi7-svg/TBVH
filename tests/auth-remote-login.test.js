@@ -1,11 +1,13 @@
 'use strict';
-// Reproduit et vérifie la correction du bug rapporté : un client/cabiniste/
-// administrateur déjà connecté sur un premier appareil ne pouvait plus se
-// connecter avec ses identifiants (pourtant corrects) sur un second appareil,
-// parce que DB.users vivait 100% en local, par appareil (voir js/db.js). Ces
-// tests vérifient le nouveau repli serveur de Auth.login() (js/auth.js) :
-// ServerAPI.login() est mocké ici (pas de vrai réseau), voir
-// tests/helpers/loadApp.js pour le mock injectable.
+// Vérifie la suppression de la connexion hors ligne : Auth.login() (écran
+// PIN) et Auth.resumeSession() ("rester connecté", voir js/cabine.js
+// _tryRememberMeRestore()) exigent désormais TOUS LES DEUX une vérification
+// serveur réussie avant d'ouvrir la moindre session — un compte déjà
+// "onboardé" localement (voir js/db.js DB.users.cacheFromServer) ne suffit
+// plus à lui seul, et une panne réseau réelle (networkError, voir
+// js/server-api.js _call()) est distinguée d'un refus applicatif (mauvais
+// PIN, compte bloqué...) renvoyé par le serveur. Voir tests/helpers/loadApp.js
+// pour les mocks ServerAPI injectables.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { loadApp } = require('./helpers/loadApp');
@@ -23,7 +25,9 @@ function serverProfile(overrides = {}) {
   };
 }
 
-test('nouvel appareil, compte jamais vu localement : le repli serveur ouvre la session et met le profil en cache local', async () => {
+/* ── Auth.login() (écran PIN) ─────────────────────────────────────── */
+
+test('connexion réussie : ouvre la session et met le profil à jour en cache local', async () => {
   const calls = [];
   const serverLogin = async (identifiant, pin, role) => {
     calls.push({ identifiant, pin, role });
@@ -35,18 +39,15 @@ test('nouvel appareil, compte jamais vu localement : le repli serveur ouvre la s
   const res = await Auth.login('0711223344', '1234', false, 'client');
   assert.equal(res.ok, true);
   assert.equal(res.user.id, 'uuid-server-1');
-  assert.equal(res.user.telephone, '0711223344');
   assert.equal(res.user.solde, 5000);
   assert.equal(calls.length, 1);
   assert.deepEqual(calls[0], { identifiant: '0711223344', pin: '1234', role: 'client' });
 
-  // Compte désormais "onboardé" sur cet appareil, hors ligne y compris.
   const cached = DB.users.byId('uuid-server-1');
   assert.ok(cached);
-  assert.equal(DB.users.checkPwd(cached, '1234'), true);
 });
 
-test('compte inconnu localement ET côté serveur : "Compte introuvable.", jamais de session', async () => {
+test('compte introuvable côté serveur : erreur, aucune session', async () => {
   const serverLogin = async () => ({ ok: false, error: 'Compte introuvable.' });
   const { DB, Auth } = loadApp({ serverLogin });
   DB.init();
@@ -54,56 +55,10 @@ test('compte inconnu localement ET côté serveur : "Compte introuvable.", jamai
   const res = await Auth.login('0799999999', '1234', false, 'client');
   assert.equal(res.ok, false);
   assert.equal(res.error, 'Compte introuvable.');
+  assert.equal(Auth.current(), null);
 });
 
-test('compte déjà connu localement sous un ancien id : la fusion serveur met à jour les champs mais conserve l\'id local (ne casse pas les données déjà liées)', async () => {
-  const serverLogin = async () => ({ ok: true, profile: serverProfile({ solde: 12000 }) });
-  const { DB, Auth } = loadApp({ serverLogin });
-  DB.init();
-  // Simule exactement le bug rapporté : un compte créé localement (ex. par
-  // l'admin sur SON appareil) avec un mot de passe local qui ne correspond
-  // plus à ce que le serveur considère correct.
-  const localUser = DB.users.create({
-    prenom: 'Awa', nom: 'Traoré', telephone: '0711223344',
-    mot_de_passe: '0000', role: 'client', statut: 'actif',
-  });
-
-  const res = await Auth.login('0711223344', '1234', false, 'client');
-  assert.equal(res.ok, true);
-  assert.equal(res.user.id, localUser.id);
-  assert.equal(res.user.solde, 12000);
-  assert.equal(DB.users.checkPwd(DB.users.byId(localUser.id), '1234'), true);
-});
-
-test('compte bloqué localement : refus immédiat, aucun appel au serveur', async () => {
-  let called = false;
-  const serverLogin = async () => { called = true; return { ok: true, profile: serverProfile() }; };
-  const { DB, Auth } = loadApp({ serverLogin });
-  DB.init();
-  DB.users.create({
-    prenom: 'Awa', nom: 'Traoré', telephone: '0711223344',
-    mot_de_passe: '1234', role: 'client', statut: 'bloqué',
-  });
-
-  const res = await Auth.login('0711223344', '1234', false, 'client');
-  assert.equal(res.ok, false);
-  assert.match(res.error, /bloqué/);
-  assert.equal(called, false);
-});
-
-test('hors ligne : Auth.login() ne tente jamais ServerAPI.login, comportement local existant conservé', async () => {
-  let called = false;
-  const serverLogin = async () => { called = true; return { ok: true, profile: serverProfile() }; };
-  const { DB, Auth } = loadApp({ serverLogin, online: false });
-  DB.init();
-
-  const res = await Auth.login('0711223344', '1234', false, 'client');
-  assert.equal(res.ok, false);
-  assert.equal(res.error, 'Compte introuvable.');
-  assert.equal(called, false);
-});
-
-test('mot de passe local ET serveur incorrects : compteur d\'échecs local incrémenté, bloqué au 3e essai', async () => {
+test('identifiants incorrects côté serveur : erreur renvoyée telle quelle, aucun compteur local', async () => {
   const serverLogin = async () => ({ ok: false, error: 'Identifiant ou PIN incorrect.' });
   const { DB, Auth } = loadApp({ serverLogin });
   DB.init();
@@ -112,17 +67,58 @@ test('mot de passe local ET serveur incorrects : compteur d\'échecs local incr�
     mot_de_passe: '1234', role: 'client', statut: 'actif',
   });
 
-  await Auth.login('0711223344', '0000', false, 'client');
-  await Auth.login('0711223344', '0000', false, 'client');
-  const res3 = await Auth.login('0711223344', '0000', false, 'client');
-  assert.equal(res3.ok, false);
-  assert.match(res3.error, /bloqué/);
-
+  const res = await Auth.login('0711223344', '0000', false, 'client');
+  assert.equal(res.ok, false);
+  assert.equal(res.error, 'Identifiant ou PIN incorrect.');
+  // Le blocage après 3 essais est désormais entièrement géré par
+  // api/login.php (voir tentatives_echouees côté serveur) — plus de
+  // compteur local dupliqué qui pourrait bloquer un compte que le serveur
+  // considère encore valide.
   const stored = DB.users.byPhoneAndRole('0711223344', 'client');
-  assert.equal(stored.statut, 'bloqué');
+  assert.equal(stored.statut, 'actif');
 });
 
-test('reconnexion suivante sur le même appareil après un repli serveur réussi : entièrement locale (ServerAPI.login non rappelé)', async () => {
+test('compte marqué "bloqué" en cache local mais actif côté serveur : la connexion réussit quand même (le serveur fait foi, pas le cache)', async () => {
+  const serverLogin = async () => ({ ok: true, profile: serverProfile({ statut: 'actif' }) });
+  const { DB, Auth } = loadApp({ serverLogin });
+  DB.init();
+  DB.users.create({
+    prenom: 'Awa', nom: 'Traoré', telephone: '0711223344',
+    mot_de_passe: '1234', role: 'client', statut: 'bloqué',
+  });
+
+  const res = await Auth.login('0711223344', '1234', false, 'client');
+  assert.equal(res.ok, true);
+});
+
+test('panne réseau réelle : "Connexion Internet requise", même si le compte est déjà connu localement', async () => {
+  let called = false;
+  const serverLogin = async () => { called = true; return { ok: false, networkError: true, error: 'Connexion Internet requise pour vous connecter.' }; };
+  const { DB, Auth } = loadApp({ serverLogin });
+  DB.init();
+  DB.users.create({
+    prenom: 'Awa', nom: 'Traoré', telephone: '0711223344',
+    mot_de_passe: '1234', role: 'client', statut: 'actif',
+  });
+
+  const res = await Auth.login('0711223344', '1234', false, 'client');
+  assert.equal(res.ok, false);
+  assert.match(res.error, /Connexion Internet requise/);
+  assert.equal(called, true); // l'appel a bien été tenté, c'est sa réponse qui signale la panne
+});
+
+test('rôle de connexion manquant : erreur explicite, aucun appel serveur', async () => {
+  let called = false;
+  const serverLogin = async () => { called = true; return { ok: true, profile: serverProfile() }; };
+  const { DB, Auth } = loadApp({ serverLogin });
+  DB.init();
+
+  const res = await Auth.login('0711223344', '1234', false, undefined);
+  assert.equal(res.ok, false);
+  assert.equal(called, false);
+});
+
+test('deux connexions successives sur le même appareil : le serveur est revérifié à chaque fois, jamais de repli local', async () => {
   let calls = 0;
   const serverLogin = async () => { calls++; return { ok: true, profile: serverProfile() }; };
   const { DB, Auth } = loadApp({ serverLogin });
@@ -134,41 +130,66 @@ test('reconnexion suivante sur le même appareil après un repli serveur réussi
 
   const second = await Auth.login('0711223344', '1234', false, 'client');
   assert.equal(second.ok, true);
-  assert.equal(calls, 1); // pas de second appel réseau : le mot de passe local suffit désormais
+  assert.equal(calls, 2); // pas de repli local : chaque connexion revérifie le serveur
 });
 
-test('connexion admin réussie via le chemin local : établit une session serveur en arrière-plan (jamais bloquant)', async () => {
-  const calls = [];
-  const serverEstablishSession = async (identifiant, pin, role) => {
-    calls.push({ identifiant, pin, role });
-    return { ok: true };
-  };
-  const { DB, Auth } = loadApp({ serverEstablishSession });
+test('compte déjà connu localement sous un ancien id : la fusion serveur met à jour les champs mais conserve l\'id local (ne casse pas les données déjà liées)', async () => {
+  const serverLogin = async () => ({ ok: true, profile: serverProfile({ solde: 12000 }) });
+  const { DB, Auth } = loadApp({ serverLogin });
   DB.init();
-  DB.users.create({
-    prenom: 'Admin', nom: 'Super', email: 'admin.super@gmail.com',
-    mot_de_passe: '1234', role: 'admin', admin_level: 'super', statut: 'actif',
+  const localUser = DB.users.create({
+    prenom: 'Awa', nom: 'Traoré', telephone: '0711223344',
+    mot_de_passe: '0000', role: 'client', statut: 'actif',
   });
 
-  const res = await Auth.login('admin.super@gmail.com', '1234', false, 'admin');
+  const res = await Auth.login('0711223344', '1234', false, 'client');
   assert.equal(res.ok, true);
-  // Invoquée de façon synchrone (avant même le retour de login()), même si
-  // elle-même ne bloque jamais la connexion — voir Auth.login() (js/auth.js).
-  assert.equal(calls.length, 1);
-  assert.deepEqual(calls[0], { identifiant: 'admin.super@gmail.com', pin: '1234', role: 'admin' });
+  assert.equal(res.user.id, localUser.id);
+  assert.equal(res.user.solde, 12000);
 });
 
-test('connexion client réussie via le chemin local : n\'établit jamais de session en arrière-plan (réservé aux admins)', async () => {
-  let called = false;
-  const serverEstablishSession = async () => { called = true; return { ok: true }; };
-  const { DB, Auth } = loadApp({ serverEstablishSession });
-  DB.init();
-  DB.users.create({
-    prenom: 'Jean', nom: 'Client', telephone: '0700000001',
-    mot_de_passe: '1234', role: 'client', statut: 'actif',
-  });
+/* ── Auth.resumeSession() ("rester connecté", voir js/cabine.js) ────── */
 
-  const res = await Auth.login('0700000001', '1234', false, 'client');
+test('resumeSession : jeton valide, rouvre la session avec le profil à jour', async () => {
+  const serverWhoami = async () => ({ ok: true, profile: serverProfile({ solde: 7000 }) });
+  const { DB, Auth } = loadApp({ serverWhoami });
+  DB.init();
+
+  const res = await Auth.resumeSession('un-jeton-serveur-valide');
   assert.equal(res.ok, true);
-  assert.equal(called, false);
+  assert.equal(res.user.solde, 7000);
+  assert.equal(Auth.current().id, 'uuid-server-1');
+});
+
+test('resumeSession : jeton invalide/expiré, ok:false sans networkError (à oublier côté appelant)', async () => {
+  const serverWhoami = async () => ({ ok: false, error: 'Session expirée, reconnectez-vous.' });
+  const { DB, Auth } = loadApp({ serverWhoami });
+  DB.init();
+
+  const res = await Auth.resumeSession('un-vieux-jeton');
+  assert.equal(res.ok, false);
+  assert.ok(!res.networkError);
+  assert.equal(Auth.current(), null);
+});
+
+test('resumeSession : panne réseau, ok:false avec networkError:true (jeton à conserver, réessayer plus tard)', async () => {
+  const serverWhoami = async () => ({ ok: false, networkError: true, error: 'Connexion Internet requise.' });
+  const { DB, Auth } = loadApp({ serverWhoami });
+  DB.init();
+
+  const res = await Auth.resumeSession('un-jeton-quelconque');
+  assert.equal(res.ok, false);
+  assert.equal(res.networkError, true);
+  assert.equal(Auth.current(), null);
+});
+
+test('resumeSession : jeton valide mais compte bloqué entre-temps, refusé malgré la vérification serveur réussie', async () => {
+  const serverWhoami = async () => ({ ok: true, profile: serverProfile({ statut: 'bloqué' }) });
+  const { DB, Auth } = loadApp({ serverWhoami });
+  DB.init();
+
+  const res = await Auth.resumeSession('un-jeton-valide');
+  assert.equal(res.ok, false);
+  assert.match(res.error, /bloqué/);
+  assert.equal(Auth.current(), null);
 });

@@ -81,11 +81,14 @@ function uuid4(): string {
 
 // Vérifie l'en-tête "Authorization: Bearer <jeton>" émis par login.php (voir
 // la table `sessions`) — remplace la vérification de session Supabase Auth
-// (RLS + current_profile_role()). Retourne le profil admin appelant ou
-// arrête la requête (401/403) si absent/expiré/pas un admin. Utilisé par
-// les actions réservées à un administrateur authentifié (créer un compte
-// cabine/admin, modifier les réglages globaux).
-function requireAdminToken(): array {
+// (RLS + current_profile_role()). Retourne le profil appelant ou arrête la
+// requête (401/403) si absent/expiré/rôle non autorisé.
+//
+// $roles : null = n'importe quel rôle authentifié suffit ; sinon un tableau
+// des rôles autorisés (ex. ['cabine','admin']) — utilisé par les nouveaux
+// endpoints Phase 2 (favoris, transactions, présence...) où client/cabine/
+// admin doivent chacun pouvoir agir sur leurs propres données.
+function requireAuth(?array $roles = null): array {
   $header = $_SERVER['HTTP_AUTHORIZATION'] ?? ($_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '');
   if (!preg_match('/^Bearer\s+(.+)$/i', $header, $m)) fail('Authentification requise.', 401);
   $tokenHash = hash('sha256', trim($m[1]));
@@ -93,12 +96,17 @@ function requireAdminToken(): array {
   $stmt->execute([$tokenHash]);
   $row = $stmt->fetch();
   if (!$row || strtotime($row['expires_at']) < time()) fail('Session expirée, reconnectez-vous.', 401);
-  if ($row['role'] !== 'admin') fail("Accès réservé à l'administration.", 403);
+  if ($roles !== null && !in_array($row['role'], $roles, true)) fail('Accès refusé pour ce rôle.', 403);
   $stmt = db()->prepare('SELECT * FROM profiles WHERE id = ?');
   $stmt->execute([$row['profile_id']]);
-  $admin = $stmt->fetch();
-  if (!$admin) fail('Compte administrateur introuvable.', 401);
-  return $admin;
+  $profile = $stmt->fetch();
+  if (!$profile) fail('Compte introuvable.', 401);
+  return $profile;
+}
+
+// Alias historique — réservé à l'administration (voir requireAuth ci-dessus).
+function requireAdminToken(): array {
+  return requireAuth(['admin']);
 }
 
 // Décode les colonnes JSON (stockées en texte par MySQL, contrairement à

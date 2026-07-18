@@ -89,23 +89,44 @@ function restoreCabState() {
 }
 
 /* ── Boot ──────────────────────────────────────────────────────── */
-// Reprise silencieuse d'une session "rester connecté" : si aucun onglet
-// actif n'a de session mais qu'un token valide existe pour cet appareil,
-// on reconstruit la session sans redemander le code PIN (voir
-// DB.partnerDevices.findByToken et Auth.login() dans js/auth.js).
-function _tryRememberMeRestore() {
+// Reprise "rester connecté" : si aucun onglet actif n'a de session mais
+// qu'un jeton existe pour cet appareil, on tente de rouvrir la session sans
+// redemander le code PIN — mais ce jeton (voir Auth._applyDeviceBookkeeping,
+// js/auth.js) est désormais le jeton de session SERVEUR lui-même, toujours
+// revérifié par api/session_whoami.php avant d'ouvrir quoi que ce soit.
+// Plus aucune session ne s'ouvre depuis des données purement locales : hors
+// ligne, ou jeton expiré/invalide, l'écran de connexion s'affiche comme si
+// "rester connecté" n'était pas activé.
+async function _tryRememberMeRestore() {
   if (Auth.current()) return;
   const token = localStorage.getItem(Auth.REMEMBER_TOKEN_KEY);
   if (!token) return;
   const rec = DB.partnerDevices.findByToken(Auth.getDeviceId(), token);
   if (!rec) { localStorage.removeItem(Auth.REMEMBER_TOKEN_KEY); return; }
-  const user = DB.users.byId(rec.user_id);
-  if (!user || user.role !== 'cabine' || user.statut === 'suspendu' || user.statut === 'inactif') {
+
+  const res = await Auth.resumeSession(token);
+  if (!res.ok) {
+    // Hors ligne (networkError) : on retente au prochain démarrage, le
+    // jeton reste valable. Jeton réellement invalide/expiré ou compte
+    // suspendu/bloqué : on l'oublie pour ne plus jamais réessayer avec un
+    // jeton mort.
+    if (!res.networkError) {
+      DB.partnerDevices.remove(rec.id);
+      localStorage.removeItem(Auth.REMEMBER_TOKEN_KEY);
+    }
+    return;
+  }
+  if (res.user.role !== 'cabine') {
+    // Jeton valide mais lié à un autre rôle (ex. appareil partagé) — même
+    // repli que submitCabineLoginGate() : on efface juste la session tout
+    // juste ouverte, sans les à-côtés d'une vraie déconnexion (pas
+    // d'appel serveur, pas de redirection en plein démarrage).
+    sessionStorage.removeItem('cbp_session');
+    DB.partnerDevices.remove(rec.id);
     localStorage.removeItem(Auth.REMEMBER_TOKEN_KEY);
     return;
   }
-  Auth.save(user);
-  DB.partnerDevices.touch(rec.id, true);
+  DB.partnerDevices.touch(rec.id, true, token);
 }
 
 /* ── Écran de connexion (aucune session cabine valide sur cet appareil) ──
@@ -164,7 +185,7 @@ async function submitCabineLoginGate() {
   window.location.reload();
 }
 
-function boot() {
+async function boot() {
   DB.init();
   // Rattrape une file de synchronisation laissée en attente (voir
   // DB.syncQueue) si la connexion est déjà là au lancement, et
@@ -172,7 +193,7 @@ function boot() {
   // l'app reste utilisable hors ligne quoi qu'il arrive ici.
   if (DB.Net.isOnline()) DB.drainSyncQueue();
   DB.Net.onChange(() => { if (DB.Net.isOnline()) DB.drainSyncQueue(); });
-  _tryRememberMeRestore();
+  await _tryRememberMeRestore();
   currentUser = Auth.require('cabine', { silent: true });
   if (!currentUser) { showCabineLoginGate(); return; }
 

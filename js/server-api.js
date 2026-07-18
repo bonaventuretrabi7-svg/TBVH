@@ -46,14 +46,22 @@ const ServerAPI = (() => {
       try { data = await res.json(); } catch (e) { /* réponse non-JSON (ex. erreur serveur brute) */ }
       return { res, data };
     } catch (e) {
-      return { res: { ok: false }, data: null };
+      // Distingue une vraie panne réseau (fetch n'a jamais atteint le
+      // serveur) d'un refus applicatif (identifiants incorrects, etc.) —
+      // voir Auth.login()/Auth.resumeSession() dans js/auth.js, qui doivent
+      // afficher "connexion Internet requise" uniquement dans ce cas, pas
+      // pour un vrai mot de passe erroné.
+      return { res: { ok: false }, data: null, networkError: true };
     }
   }
 
   /* Vérifie identifiant+PIN côté serveur (voir api/login.php), obtient un
-     jeton d'accès en cas de succès. */
+     jeton d'accès en cas de succès. Plus aucun repli local : voir
+     Auth.login() (js/auth.js), qui exige désormais ce résultat pour toute
+     connexion, y compris sur un appareil déjà "onboardé". */
   async function login(identifiant, pin, role) {
-    const { res, data } = await _call('login.php', { body: { identifiant, pin, role } });
+    const { res, data, networkError } = await _call('login.php', { body: { identifiant, pin, role } });
+    if (networkError) return { ok: false, networkError: true, error: 'Connexion Internet requise pour vous connecter.' };
     if (!res.ok || !data || data.error) {
       return { ok: false, error: (data && data.error) || 'Identifiant ou PIN incorrect.' };
     }
@@ -61,15 +69,28 @@ const ServerAPI = (() => {
     return { ok: true, profile: data.profile };
   }
 
-  /* Mode "silent" (voir api/login.php) — établit/rafraîchit un jeton en
-     arrière-plan sans jamais faire progresser le compteur de tentatives
-     en cas d'échec. Utilisé par Auth.login() (js/auth.js) après une
-     connexion admin réussie via le chemin local rapide. */
-  async function establishSession(identifiant, pin, role) {
-    const { res, data } = await _call('login.php', { body: { identifiant, pin, role, silent: true } });
-    if (!res.ok || !data || data.error) return { ok: false };
-    _setToken(data.token);
-    return { ok: true };
+  /* Jeton actuellement actif (voir Auth._applyDeviceBookkeeping, js/auth.js)
+     — persisté en localStorage sous "rester connecté" pour permettre une
+     reprise de session vérifiée par le serveur au prochain démarrage
+     (voir resumeSession/whoami ci-dessous), sans jamais stocker le PIN. */
+  function getToken() { return _token; }
+
+  // Réhydrate un jeton persisté (localStorage, "rester connecté") dans ce
+  // module avant d'appeler whoami() — voir Auth.resumeSession().
+  function setToken(token) { _setToken(token); }
+
+  /* Reprise de session "rester connecté" (voir api/session_whoami.php) —
+     valide le jeton persisté contre le serveur et renvoie le profil à
+     jour. Remplace toute reconnexion silencieuse purement locale : sans
+     réseau ou jeton expiré/invalide, échoue plutôt que d'ouvrir une
+     session non vérifiée (voir Auth.resumeSession(), js/auth.js). */
+  async function whoami() {
+    const { res, data, networkError } = await _call('session_whoami.php', { auth: true });
+    if (networkError) return { ok: false, networkError: true, error: 'Connexion Internet requise.' };
+    if (!res.ok || !data || data.error) {
+      return { ok: false, error: (data && data.error) || 'Session expirée, reconnectez-vous.' };
+    }
+    return { ok: true, profile: data.profile };
   }
 
   async function logout() {
@@ -139,5 +160,5 @@ const ServerAPI = (() => {
     return { ok: true, profiles: data.profiles };
   }
 
-  return { login, establishSession, logout, createAccount, adminCreateAccount, getSettings, updateSettings, listProfiles, isConfigured };
+  return { login, logout, createAccount, adminCreateAccount, getSettings, updateSettings, listProfiles, isConfigured, getToken, setToken, whoami };
 })();

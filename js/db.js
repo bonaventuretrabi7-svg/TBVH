@@ -673,11 +673,18 @@ const DB = (() => {
       });
     },
 
-    register(userId, deviceId, label, remember) {
+    // tokenOverride (optionnel) : depuis la suppression de la connexion hors
+    // ligne (voir Auth.login()/Auth.resumeSession(), js/auth.js), le jeton
+    // "rester connecté" est le jeton de session SERVEUR lui-même (voir
+    // ServerAPI.getToken()) plutôt qu'une valeur générée localement — une
+    // reprise de session doit pouvoir être revérifiée par le serveur
+    // (api/session_whoami.php), ce qu'un jeton purement local ne permet pas.
+    // Repli sur l'ancienne génération locale si absent (compatibilité).
+    register(userId, deviceId, label, remember, tokenOverride) {
       const list = partnerDevices.all();
       const rec = {
         id: 'dev_' + uid(), user_id: userId, device_id: deviceId, label,
-        remember_token: remember ? (crypto.randomUUID() + crypto.randomUUID()) : null,
+        remember_token: remember ? (tokenOverride || (crypto.randomUUID() + crypto.randomUUID())) : null,
         created_at: now(), last_seen: now(),
         expires_at: remember ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() : null,
       };
@@ -687,13 +694,15 @@ const DB = (() => {
     },
 
     // Reconnexion sur un appareil déjà connu : rafraîchit last_seen (et
-    // glisse l'expiration si "rester connecté" est actif ou vient d'être coché).
-    touch(deviceRecordId, remember) {
+    // glisse l'expiration si "rester connecté" est actif ou vient d'être
+    // coché). tokenOverride : voir register() ci-dessus — remplace toujours
+    // le jeton existant par le jeton serveur fraîchement émis, si fourni.
+    touch(deviceRecordId, remember, tokenOverride) {
       const list = partnerDevices.all();
       const rec = list.find(d => d.id === deviceRecordId);
       if (!rec) return null;
       rec.last_seen = now();
-      if (remember && !rec.remember_token) rec.remember_token = crypto.randomUUID() + crypto.randomUUID();
+      if (remember) rec.remember_token = tokenOverride || rec.remember_token || (crypto.randomUUID() + crypto.randomUUID());
       if (rec.remember_token) rec.expires_at = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
       partnerDevices.save(list);
       return rec;

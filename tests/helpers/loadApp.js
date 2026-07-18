@@ -61,9 +61,9 @@ function makeNetStubs(initialOnline) {
 }
 
 /* Charge DB + Auth + PullToRefresh dans un seul contexte vm isolé.
-   opts: { initialNow, online, serverConfigured, serverLogin,
-   serverEstablishSession, serverAdminCreateAccount, serverCreateAccount,
-   serverLogout, serverGetSettings, serverUpdateSettings } — voir
+   opts: { initialNow, online, serverConfigured, serverLogin, serverWhoami,
+   serverAdminCreateAccount, serverCreateAccount, serverLogout,
+   serverGetSettings, serverUpdateSettings } — voir
    tests/auth-remote-login.test.js pour les mocks ServerAPI injectables. */
 function loadApp(opts = {}) {
   const initialNow = opts.initialNow ?? Date.now();
@@ -72,6 +72,7 @@ function loadApp(opts = {}) {
   const { FakeDate, clock } = makeFakeDate(initialNow);
   const { navigatorStub, windowStub, net } = makeNetStubs(opts.online ?? true);
 
+  let _token = null;
   const sandbox = {
     localStorage, sessionStorage,
     console,
@@ -87,18 +88,17 @@ function loadApp(opts = {}) {
     // isConfigured: true par défaut, même raison que loadDb.js (voir ce
     // fichier) — un test simule un serveur (api/, PHP+MySQL) joignable ou
     // non, pas l'état "jamais configuré".
-    // login : mock injectable (voir tests/auth-remote-login.test.js) — le
-    // repli serveur de Auth.login() (js/auth.js) l'appelle quand un compte
-    // est absent/incorrect localement ; par défaut simule "jamais vu côté
-    // serveur non plus", pour ne rien changer aux tests existants qui
-    // n'injectent pas ce mock.
+    // login/whoami : mocks injectables (voir tests/auth-remote-login.test.js)
+    // — Auth.login()/Auth.resumeSession() (js/auth.js) exigent désormais
+    // tous les deux une vérification serveur, plus aucun repli local. Un
+    // mock renvoyant { ok:false, networkError:true } simule une vraie panne
+    // réseau (voir js/server-api.js _call()) plutôt qu'un refus applicatif.
     ServerAPI: {
       isConfigured: opts.serverConfigured ?? true,
       login: opts.serverLogin ?? (async () => ({ ok: false, error: 'Compte introuvable.' })),
-      // establishSession : appelé en arrière-plan par Auth.login() après une
-      // connexion admin réussie via le chemin local (voir js/auth.js) — mock
-      // injectable pour tests/auth-remote-login.test.js, no-op par défaut.
-      establishSession: opts.serverEstablishSession ?? (async () => ({ ok: false })),
+      whoami: opts.serverWhoami ?? (async () => ({ ok: false, error: 'Session expirée, reconnectez-vous.' })),
+      getToken: () => _token,
+      setToken: (t) => { _token = t; },
       adminCreateAccount: opts.serverAdminCreateAccount ?? (async () => ({ ok: false, error: 'not mocked' })),
       createAccount: opts.serverCreateAccount ?? (async () => ({ ok: false, error: 'not mocked' })),
       logout: opts.serverLogout ?? (async () => {}),

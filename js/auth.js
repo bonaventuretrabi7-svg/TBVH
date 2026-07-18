@@ -130,17 +130,22 @@ const Auth = (() => {
   // Enregistre cet appareil dans "Mes appareils connectés" + "rester
   // connecté" (voir DB.partnerDevices dans js/db.js et _hasDeviceLimit
   // ci-dessus) — aucune limite de nombre, aucune éviction automatique
-  // d'un appareil plus ancien.
+  // d'un appareil plus ancien. Le jeton "rester connecté" est désormais le
+  // jeton de session SERVEUR (voir ServerAPI.getToken(), disponible juste
+  // après un login() réussi) plutôt qu'une valeur locale — une reprise de
+  // session doit pouvoir être revérifiée par le serveur (voir
+  // resumeSession() plus bas).
   function _applyDeviceBookkeeping(user, remember) {
     const result = {};
     if (_hasDeviceLimit(user)) {
       const deviceId = getDeviceId();
+      const serverToken = ServerAPI.getToken();
       const known = DB.partnerDevices.forUser(user.id).find(d => d.device_id === deviceId);
       if (known) {
-        const rec = DB.partnerDevices.touch(known.id, !!remember);
+        const rec = DB.partnerDevices.touch(known.id, !!remember, serverToken);
         if (rec.remember_token) result.rememberToken = rec.remember_token;
       } else {
-        const rec = DB.partnerDevices.register(user.id, deviceId, _deviceLabel(), !!remember);
+        const rec = DB.partnerDevices.register(user.id, deviceId, _deviceLabel(), !!remember, serverToken);
         if (rec.remember_token) result.rememberToken = rec.remember_token;
       }
     }
@@ -155,6 +160,12 @@ const Auth = (() => {
   // confondus) ne suffit plus à désigner le bon compte — on préfère un
   // compte du rôle attendu s'il existe, avec repli sur l'ancien
   // comportement si aucun indice n'est fourni (rétrocompatible).
+  // Connexion Internet obligatoire — plus de repli local (voir historique
+  // Git pour l'ancien comportement "vérification locale d'abord, hors
+  // ligne toléré"). Un compte déjà "onboardé" sur cet appareil ne suffit
+  // plus à lui seul : le PIN est désormais toujours revérifié par
+  // api/login.php, seule source de vérité (statut, blocage, hash à jour).
+  // Voir aussi resumeSession() ci-dessous pour la reprise "rester connecté".
   async function login(identifier, password, remember, expectedRole) {
     // Cabine/admin : connexion réservée à une adresse Gmail — aucun autre
     // identifiant (téléphone compris) n'est accepté pour ces deux rôles,
@@ -163,64 +174,18 @@ const Auth = (() => {
     if ((expectedRole === 'admin' || expectedRole === 'cabine') && !isValidGmail(identifier)) {
       return { ok: false, error: 'Connexion réservée à une adresse Gmail (ex : nom@gmail.com).' };
     }
-    const candidates = DB.users.all().filter(u => u.email === identifier.toLowerCase().trim() || u.telephone === identifier.trim());
-    let user = (expectedRole && candidates.find(u => u.role === expectedRole)) || candidates[0];
+    if (!expectedRole) return { ok: false, error: 'Rôle de connexion manquant.' };
+    if (!ServerAPI.isConfigured) return { ok: false, error: 'Connexion Internet requise pour vous connecter.' };
 
-    // Vérification locale d'abord (rapide, fonctionne hors ligne) — un compte
-    // déjà "onboardé" sur cet appareil (voir DB.users.cacheFromServer) n'a
-    // jamais besoin du réseau pour se reconnecter.
-    let localOk = false;
-    if (user) {
-      // Blocage vérifié avant même la comparaison du mot de passe : un compte
-      // bloqué ne doit plus jamais réévaluer une tentative.
-      if (user.statut === 'bloqué') {
-        return { ok: false, error: 'Compte bloqué après 3 tentatives incorrectes. Contactez l\'administration pour le débloquer.' };
-      }
-      localOk = DB.users.checkPwd(user, password);
-    }
+    const res = await ServerAPI.login(identifier, password, expectedRole);
+    if (res.networkError) return { ok: false, error: 'Connexion Internet requise pour vous connecter.' };
+    if (!res.ok) return { ok: false, error: res.error || 'Identifiant ou PIN incorrect.' };
 
-    // Repli serveur : compte inconnu sur CET appareil, ou mot de passe local
-    // qui ne correspond pas (nouvel appareil jamais synchronisé, ou compte
-    // créé/modifié ailleurs — voir le diagnostic : DB.users vivait
-    // auparavant 100% en local, par appareil, d'où le blocage rapporté).
-    // Ignoré hors ligne (DB.Net.isOnline()) : le comportement local existant
-    // reste la seule source de vérité quand le réseau est indisponible.
-    if (!localOk && expectedRole && ServerAPI.isConfigured && DB.Net.isOnline()) {
-      const res = await ServerAPI.login(identifier, password, expectedRole);
-      if (res.ok) {
-        user = DB.users.cacheFromServer(res.profile, password);
-        localOk = true;
-      } else if (!user) {
-        // Jamais vu ni localement ni côté serveur.
-        return { ok: false, error: res.error || 'Compte introuvable.' };
-      }
-      // Sinon (res.ok faux mais compte local existant) : on retombe sur le
-      // message d'erreur local ci-dessous, comportement inchangé.
-    } else if (localOk && expectedRole === 'admin' && ServerAPI.isConfigured && DB.Net.isOnline()) {
-      // Un admin déjà "onboardé" localement ne passe jamais par le repli
-      // serveur ci-dessus — sans ceci, son navigateur n'obtiendrait jamais
-      // de jeton serveur réel, nécessaire pour les créations de compte
-      // authentifiées côté serveur (voir adminCreateAccount() dans
-      // js/server-api.js et finishCreateUser() dans js/admin.js).
-      // Mode "silent" : jamais bloquant, jamais présenté à l'utilisateur,
-      // aucun effet sur le compteur de tentatives en cas d'échec.
-      ServerAPI.establishSession(identifier, password, 'admin').catch(() => {});
-    }
-
-    if (!user) return { ok: false, error: 'Compte introuvable.' };
-
-    if (!localOk) {
-      // Compteur d'échecs LOCAL uniquement — le serveur gère le sien
-      // séparément (voir api/login.php), appliqué uniquement lors d'une
-      // tentative effectivement vérifiée côté serveur.
-      const attempts = (user.tentatives_echouees || 0) + 1;
-      const updates  = { tentatives_echouees: attempts };
-      if (attempts >= 3) updates.statut = 'bloqué';
-      DB.users.update(user.id, updates);
-      return attempts >= 3
-        ? { ok: false, error: 'Compte bloqué après 3 tentatives incorrectes. Contactez l\'administration pour le débloquer.' }
-        : { ok: false, error: 'Mot de passe incorrect.' };
-    }
+    // Compteur d'échecs local historique remis à zéro (le serveur gère
+    // désormais le sien, seul et unique — voir api/login.php) : ne doit
+    // jamais rester bloqué localement alors que le serveur vient
+    // d'accepter la connexion.
+    let user = DB.users.cacheFromServer(res.profile, password);
     if (user.tentatives_echouees) DB.users.update(user.id, { tentatives_echouees: 0 });
 
     const gates = await _checkAccountGates(user);
@@ -232,6 +197,28 @@ const Auth = (() => {
 
     const result = { ok: true, user, ..._applyDeviceBookkeeping(user, remember) };
     return result;
+  }
+
+  /* Reprise "rester connecté" (voir _tryRememberMeRestore(), js/cabine.js) —
+     revalide le jeton persisté contre le serveur (api/session_whoami.php)
+     avant d'ouvrir la moindre session : un jeton purement local n'a plus
+     jamais le droit d'ouvrir une session à lui seul. `networkError: true`
+     sur le résultat distingue "hors ligne, réessayer plus tard" de "jeton
+     invalide/expiré, à oublier" pour l'appelant. */
+  async function resumeSession(token) {
+    if (!ServerAPI.isConfigured) return { ok: false, networkError: true, error: 'Connexion Internet requise.' };
+    ServerAPI.setToken(token);
+    const res = await ServerAPI.whoami();
+    if (res.networkError) return { ok: false, networkError: true, error: res.error };
+    if (!res.ok) return { ok: false, error: res.error };
+
+    const user = DB.users.cacheFromServer(res.profile);
+    const gates = await _checkAccountGates(user);
+    if (!gates.ok) return gates;
+
+    _backupClientSessionIfSwitching(gates.user);
+    save(gates.user);
+    return { ok: true, user: gates.user };
   }
 
   function logout() {
@@ -403,7 +390,7 @@ const Auth = (() => {
     return fresh;
   }
 
-  return { login, logout, current, require, refresh, save, hasClientBackup, restoreClientBackup, getDeviceId, REMEMBER_TOKEN_KEY, startImpersonation, endImpersonation, isImpersonating, impersonationInfo, isValidGmail, isValidPin };
+  return { login, resumeSession, logout, current, require, refresh, save, hasClientBackup, restoreClientBackup, getDeviceId, REMEMBER_TOKEN_KEY, startImpersonation, endImpersonation, isImpersonating, impersonationInfo, isValidGmail, isValidPin };
 })();
 
 /* Persistance d'état "reprendre où j'en étais" — un seul instantané JSON
