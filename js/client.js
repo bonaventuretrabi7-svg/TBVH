@@ -4551,12 +4551,15 @@ localStorage.removeItem('kbine_dark');
 // aucun nouvel endpoint nécessaire).
 async function renderActualites() {
   const list = document.getElementById('actu-kbine-list');
+  const section = document.getElementById('actu-section');
   if (!list) return;
   const items = ((await DB.settings.get()).actualites || []).slice().sort((a, b) => new Date(b.date) - new Date(a.date));
   if (!items.length) {
-    list.innerHTML = `<div style="padding:16px 4px;color:rgba(255,255,255,.45);font-size:.72rem;">Aucune actualité pour le moment.</div>`;
+    if (section) section.style.display = 'none';
+    list.innerHTML = '';
     return;
   }
+  if (section) section.style.display = '';
   const [featured, ...rest] = items;
   list.innerHTML = `
     <div class="actu-featured">

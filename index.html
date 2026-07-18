@@ -507,7 +507,10 @@
     </div>
 
     <!-- -- 3b. Actualités KBINE PLUS (gérées par l'admin) -------- -->
-    <div class="home-section actu-section">
+    <!-- Masquée par défaut (voir renderActualites(), js/client.js) : ne
+         s'affiche que si l'admin a publié au moins une actualité, plutôt
+         que d'afficher un bloc vide "Aucune actualité pour le moment". -->
+    <div class="home-section actu-section" id="actu-section" style="display:none;">
       <div class="home-section-head">
         <span class="home-section-title"><i class="fa-solid fa-newspaper"></i> Actualités</span>
       </div>
