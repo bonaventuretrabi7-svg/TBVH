@@ -1921,9 +1921,10 @@ async function handleCabTransferSubmit() {
   loadCabTransferHistory();
 }
 
-function loadCabTransferHistory() {
+async function loadCabTransferHistory() {
   const list = document.getElementById('cab-transfer-history-list');
   if (!list) return;
+  await DB.transferts_cabine.refresh();
   const items = DB.transferts_cabine.byCabine(currentUser.id);
   if (!items.length) {
     list.innerHTML = `<div class="cab-empty-state"><i class="fa-solid fa-right-left" style="font-size:2rem;opacity:.3;margin-bottom:8px;display:block;"></i><div>Aucun transfert</div></div>`;

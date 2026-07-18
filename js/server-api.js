@@ -297,6 +297,18 @@ const ServerAPI = (() => {
     return { ok: true, retards: data.retards };
   }
 
+  async function transfertsCabineList() {
+    const { res, data } = await _call('transferts_cabine_list.php', { auth: true });
+    if (!res.ok || !data || data.error) return { ok: false, error: (data && data.error) || 'Échec de la synchronisation.' };
+    return { ok: true, transferts: data.transferts };
+  }
+
+  async function resubscriptionsList() {
+    const { res, data } = await _call('resubscriptions_list.php', { auth: true });
+    if (!res.ok || !data || data.error) return { ok: false, error: (data && data.error) || 'Échec de la synchronisation.' };
+    return { ok: true, resubscriptions: data.resubscriptions };
+  }
+
   /* Endpoints périphériques du moteur de commandes (Phase 4, second lot) —
      voir api/orders_recharge.php, orders_refund.php, orders_suspend.php,
      orders_reactivate.php, cabine_suspend_manual.php,
@@ -467,5 +479,6 @@ const ServerAPI = (() => {
     forfaitsList, forfaitsCreate, forfaitsUpdate, forfaitsRemove, commissionsList, commissionsUpdateRate,
     reclamationsList, reclamationsCreate, reclamationsResolve, reclamationsConfirmReceived,
     reclamationsRelance, reclamationsRequestRefund, ordersProcessRefund, refundRequestsList,
+    transfertsCabineList, resubscriptionsList,
   };
 })();

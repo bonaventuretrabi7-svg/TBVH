@@ -942,6 +942,19 @@ const DB = (() => {
     all:  ()   => get(KEY.transferts_cabine),
     byCabine: (cid) => get(KEY.transferts_cabine).filter(t => t.from_cabine_id === cid || t.to_cabine_id === cid).sort((a,b) => new Date(b.date)-new Date(a.date)),
 
+    // Rafraîchit depuis le serveur (voir api/transferts_cabine_list.php) —
+    // la table est déjà peuplée par api/cabine_transfer.php depuis le
+    // début (le transfert d'argent fonctionne réellement), seule cette
+    // lecture manquait : create() ci-dessous n'est donc plus jamais
+    // appelée en pratique (le vrai transfert passe par
+    // DB.business.cabineTransfer() -> ServerAPI.cabineTransfer()),
+    // conservée seulement pour compatibilité.
+    async refresh() {
+      if (!ServerAPI.isConfigured || !Net.isOnline()) return;
+      const res = await ServerAPI.transfertsCabineList();
+      if (res.ok) set(KEY.transferts_cabine, res.transferts);
+    },
+
     create(data) {
       const list = get(KEY.transferts_cabine);
       const t = { id: 'tsf_' + uid(), date: now(), ...data };
@@ -1262,6 +1275,18 @@ const DB = (() => {
      (onglet "Réabonnement cabine", super administrateur uniquement). */
   const resubscriptions = {
     all: () => get(KEY.resubscriptions) || [],
+
+    // Rafraîchit depuis le serveur (voir api/resubscriptions_list.php) —
+    // la table est déjà peuplée par api/cabine_resubscribe.php depuis le
+    // début, seule cette lecture manquait : create() ci-dessous n'est plus
+    // jamais appelée en pratique (le vrai réabonnement passe par
+    // DB.business.resubscribeCabine() -> ServerAPI.cabineResubscribe()),
+    // conservée seulement pour compatibilité.
+    async refresh() {
+      if (!ServerAPI.isConfigured || !Net.isOnline()) return;
+      const res = await ServerAPI.resubscriptionsList();
+      if (res.ok) set(KEY.resubscriptions, res.resubscriptions);
+    },
 
     create({ cabine_id, formule, prix }) {
       const list = get(KEY.resubscriptions) || [];

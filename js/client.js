@@ -3947,16 +3947,40 @@ function closeOrderDetail(e) {
 /* ================================================================
    PORTEFEUILLE
    ================================================================ */
+// Section "Portefeuille" (cs-portefeuille) — voir renderLockedSections()
+// pour le bandeau "Espace privé" affiché en invité (déjà câblé), ici on ne
+// peuple que #cs-portefeuille-content. Réutilise .sec-hero/.sec-chip
+// (mêmes classes que le récap "Dépenses", voir loadDepenses() ci-dessus)
+// plutôt que d'introduire un nouveau style.
 function loadWallet() {
   if (!currentUser) return;
+  const content = document.getElementById('cs-portefeuille-content');
+  if (!content) return;
   const user = DB.users.byId(currentUser.id);
   const txns = DB.transactions.byClient(currentUser.id);
-  const vol  = txns.filter(t => t.statut === 'terminé').reduce((s,t) => s + t.montant, 0);
-  const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
-  set('wallet-solde',     Fmt.money(user.solde));
-  set('wallet-solde2',    Fmt.money(user.solde));
-  set('wallet-txn-count', txns.length);
-  set('wallet-volume',    Fmt.money(vol));
+  const terminees = txns.filter(t => t.statut === 'terminé');
+  const vol = terminees.reduce((s, t) => s + (t.montant || 0), 0);
+
+  content.innerHTML = `
+    <div class="sec-hero">
+      <div class="sec-hero-icon"><i class="fa-solid fa-wallet"></i></div>
+      <div class="sec-hero-amount">${Fmt.money(user.solde)}</div>
+      <div class="sec-hero-label">Solde disponible</div>
+      <div class="sec-hero-chips">
+        <div class="sec-chip">
+          <i class="fa-solid fa-receipt"></i>
+          <span>${terminees.length} transaction${terminees.length > 1 ? 's' : ''} terminée${terminees.length > 1 ? 's' : ''}</span>
+        </div>
+        <div class="sec-chip">
+          <i class="fa-solid fa-chart-line"></i>
+          <span>${Fmt.money(vol)} au total</span>
+        </div>
+      </div>
+    </div>
+    <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:16px;" onclick="openRechargeModalGated()">
+      <i class="fa-solid fa-arrow-up-from-bracket"></i> Recharger mon compte
+    </button>
+  `;
 }
 
 // Étape 1 de la recharge : champ de saisie libre + chips additifs.

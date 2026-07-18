@@ -69,6 +69,8 @@ Crée-y un dossier **`api`**, et dépose DANS ce dossier tous les fichiers de
 - `orders_suspend.php`
 - `orders_reactivate.php`
 - `orders_delete.php`
+- `transferts_cabine_list.php`
+- `resubscriptions_list.php`
 - `cabine_suspend_manual.php`
 - `cabine_self_recharge.php`
 - `cabine_resubscribe.php`

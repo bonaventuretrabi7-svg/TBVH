@@ -303,16 +303,23 @@ async function _tryRememberMeAdminRestore() {
 // cours (voir _adminResume.filters).
 async function refreshUsersFromServer() {
   if (!ServerAPI.isConfigured || !DB.Net.isOnline()) return;
-  const [clientsRes, cabinesRes] = await Promise.all([
+  // Rôle admin inclus (voir api/list_profiles.php, déjà générique par
+  // rôle) — jusqu'ici seuls client/cabine étaient tirés du serveur, la
+  // liste "Administrateurs" restait figée depuis la connexion/création
+  // locale et ne reflétait jamais un compte créé/modifié sur un autre poste.
+  const [clientsRes, cabinesRes, adminsRes] = await Promise.all([
     ServerAPI.listProfiles('client'),
     ServerAPI.listProfiles('cabine'),
+    ServerAPI.listProfiles('admin'),
   ]);
   if (clientsRes.ok) DB.users.mergeProfileList(clientsRes.profiles);
   if (cabinesRes.ok) DB.users.mergeProfileList(cabinesRes.profiles);
-  if (!clientsRes.ok && !cabinesRes.ok) return; // rien de nouveau, pas la peine de re-rendre
+  if (adminsRes.ok) DB.users.mergeProfileList(adminsRes.profiles);
+  if (!clientsRes.ok && !cabinesRes.ok && !adminsRes.ok) return; // rien de nouveau, pas la peine de re-rendre
   loadClients(_adminResume.filters.clients || '');
   loadCabines(_adminResume.filters.cabines || '');
   loadDashboard();
+  if (currentUser.admin_level === 'super' && typeof loadAdminsList === 'function') loadAdminsList();
 }
 
 async function boot() {
@@ -1806,10 +1813,11 @@ function _renderAccessLogs() {
   }).join('');
 }
 
-function loadReabonnementCabine() {
-  const list = DB.resubscriptions.all();
-  const el   = document.getElementById('reabonnement-cabine-list');
+async function loadReabonnementCabine() {
+  const el = document.getElementById('reabonnement-cabine-list');
   if (!el) return;
+  await DB.resubscriptions.refresh();
+  const list = DB.resubscriptions.all();
 
   if (list.length === 0) {
     el.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:.8rem;">
