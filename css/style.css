@@ -8678,56 +8678,29 @@ body.dark .rh-card-ref { color: var(--dark-text, #F1F3F9); }
 ══════════════════════════════════════════════════════════════ */
 .pgc-sticky-wrap {
   width: 100%; max-width: 720px; margin: 0 auto; min-width: 0;
-  padding: 0 20px 0; box-sizing: border-box;
+  box-sizing: border-box;
 }
-@media (max-width: 600px) { .pgc-sticky-wrap { padding: 0 12px 0; } }
 
 /* ── En-tête bleu uni, coins bas arrondis, plein largeur ──────
-   Fixe en haut de l'écran (left/right:0 + max-width + margin:auto)
-   pour que le bandeau (solde/cadenas) reste toujours visible, même
-   quand la page défile. .pgc-qr-card (en flux normal) chevauche son
-   bord bas grâce à sa propre marge négative, et défile normalement
-   avec le contenu — jamais fixe, côté client comme invité. */
+   Modèle volontairement SIMPLE : position:sticky (géré nativement par le
+   navigateur, aucun JS) plutôt que fixed + réserve d'espace calculée en
+   JS + animation de compactage au défilement — l'ancien modèle causait un
+   bug persistant (bandeau/carte QR bloqués après un défilement bas puis
+   retour en haut, WebView Android/iOS) qui a résisté à plusieurs
+   correctifs ciblés. sticky réserve tout seul sa place dans le flux du
+   document ; .pgc-qr-card (juste après, flux normal) chevauche son bord
+   bas via sa propre marge négative et défile normalement avec le
+   contenu — jamais fixe, côté client comme invité. Taille constante,
+   plus d'effet "compact" au défilement (source des problèmes,
+   simplification délibérée). */
 .pgc-hero-card {
-  position: fixed; top: 0; left: 0; right: 0; z-index: 150;
-  width: 100%; max-width: 720px; margin: 0 auto; box-sizing: border-box;
+  position: sticky; top: 0; z-index: 150;
+  width: 100%; box-sizing: border-box;
   padding: 26px 20px 34px;
   border-radius: 0 0 28px 28px;
   background: #0F0A2E;
-  /* Corrige un bug rapporté (persistant malgré un 1er correctif via
-     translateZ(0)/backface-visibility, conservés ci-dessous par
-     précaution) : après un défilement bas puis retour en haut, le
-     bandeau et la carte QR restaient parfois bloqués/mal rendus. Cause
-     racine, cas connu des WebView Android/iOS : ANIMER padding/
-     border-radius (des propriétés qui déclenchent un nouveau calcul de
-     mise en page, pas seulement un repaint) sur un élément position:fixed
-     pendant un défilement. La seule correction fiable est de ne plus
-     animer ces propriétés du tout — voir .pgc-hero-card--compact
-     ci-dessous, bascule desormais instantanée (aucune transition). */
-  transform: translateZ(0);
-  -webkit-backface-visibility: hidden;
-  backface-visibility: hidden;
 }
 @media (max-width: 600px) { .pgc-hero-card { padding: 22px 16px 30px; } }
-
-/* En-tête qui se compacte au défilement : dès que la page a scrollé,
-   .pgc-hero-card--compact réduit le bandeau à une fine bande (le
-   montant rétrécit avec lui) ; en revenant tout en haut, il se
-   redéploie. Bascule INSTANTANÉE (pas de transition sur padding/
-   border-radius, voir la note ci-dessus) — seule .pgc-balance-real
-   garde une transition de font-size (propriété qui ne déclenche jamais
-   de nouveau calcul de mise en page sur un élément fixe). La réserve
-   d'espace (#cs-transfer padding-top) est calculée une fois sur la
-   hauteur pleine, donc rien ne bouge dans le flux du document — seul
-   le bandeau fixe change d'aspect, sans à-coup ni saut de la carte QR
-   en dessous. */
-.pgc-hero-card--compact {
-  padding: 14px 20px 18px;
-  border-radius: 0 0 18px 18px;
-}
-.pgc-hero-card--compact .pgc-hero-amount-row .pgc-balance-real { font-size: 1.4rem; }
-.pgc-hero-card--compact .pgc-eye-btn { width: 22px; height: 22px; font-size: .65rem; }
-@media (prefers-reduced-motion: reduce) { .pgc-hero-card { transition: none; } }
 
 /* Montant centré pile au-dessus du QR : le conteneur du montant est
    dimensionné uniquement par le texte (le bouton œil, en position
@@ -8740,7 +8713,6 @@ body.dark .rh-card-ref { color: var(--dark-text, #F1F3F9); }
 }
 .pgc-hero-amount-row .pgc-balance-real {
   color: #fff; font-size: 1.5rem; letter-spacing: -.01em;
-  transition: font-size .28s cubic-bezier(.4,0,.2,1);
 }
 .pgc-eye-btn {
   position: absolute; left: 100%; top: 50%; transform: translateY(-50%);
@@ -8748,7 +8720,7 @@ body.dark .rh-card-ref { color: var(--dark-text, #F1F3F9); }
   width: 26px; height: 26px; display: flex; align-items: center; justify-content: center;
   background: rgba(255,255,255,.1); border: none; cursor: pointer; padding: 0;
   color: rgba(255,255,255,.8); font-size: .78rem;
-  transition: background .18s, color .18s, width .28s ease, height .28s ease, font-size .28s ease;
+  transition: background .18s, color .18s;
   border-radius: 50%;
 }
 .pgc-eye-btn:hover { background: rgba(255,255,255,.18); color: #fff; }

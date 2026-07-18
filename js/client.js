@@ -671,49 +671,17 @@ function renderSidebar() {
     if (userPanel)  userPanel.style.display  = 'none';
     if (guestPanel) guestPanel.style.display = 'flex';
   }
-  _syncFixedHeaderSpacing();
 }
 
-/* ── La carte de solde (connecté) / cadenas (invité) est fixe (doit
-   rester visible en permanence, même en défilant) : on réserve sa
-   hauteur en haut de #cs-transfer pour que le contenu qui suit (le QR,
-   qui chevauche le bas du bandeau via sa propre marge négative, et qui
-   lui défile normalement avec la page — jamais fixe) ne passe pas
-   dessous. #hbc-user et #hbc-guest ont chacun leur propre
-   .pgc-hero-card (un seul visible à la fois, l'autre en display:none) :
-   on prend celui qui est réellement affiché (offsetParent non nul),
-   sinon .offsetHeight vaudrait 0 pour un élément caché et la réserve
-   d'espace s'effondrerait. */
-function _visibleHeroCard() {
-  return [...document.querySelectorAll('.pgc-hero-card')].find(h => h.offsetParent !== null) || null;
-}
-
-function _syncFixedHeaderSpacing() {
-  const section = document.getElementById('cs-transfer');
-  const hero    = _visibleHeroCard();
-  if (!section) return;
-  // On mesure toujours la hauteur "déployée" du bandeau (même si l'utilisateur
-  // est actuellement scrollé et le bandeau compact), sinon la réserve d'espace
-  // rétrécirait et la carte QR sauterait au moindre resize pendant le scroll.
-  const wasCompact = hero && hero.classList.contains('pgc-hero-card--compact');
-  if (wasCompact) hero.classList.remove('pgc-hero-card--compact');
-  section.style.paddingTop = (hero ? hero.offsetHeight : 0) + 'px';
-  if (wasCompact) hero.classList.add('pgc-hero-card--compact');
-}
-window.addEventListener('resize', _syncFixedHeaderSpacing);
-
-/* ── Bandeau (solde/cadenas) qui se compacte au défilement (contenu
-   rétréci, toujours visible) puis se redéploie près du haut de page —
-   appliqué aux deux bandeaux (connecté/invité, un seul visible à la
-   fois) : inutile de détecter lequel est affiché, appliquer la classe
-   à l'un ou l'autre n'a aucun effet tant qu'il reste caché. */
-function _syncHeroCompact() {
-  const isCompact = window.scrollY > 24;
-  document.querySelectorAll('.pgc-hero-card').forEach(hero => {
-    hero.classList.toggle('pgc-hero-card--compact', isCompact);
-  });
-}
-window.addEventListener('scroll', _syncHeroCompact, { passive: true });
+/* ── Le bandeau (solde/cadenas) utilise position:sticky (voir
+   css/style.css, .pgc-hero-card) plutôt que fixed : modèle volontairement
+   simple, entièrement géré par le navigateur — corrige un bug persistant
+   (bandeau/QR bloqués après un défilement bas puis retour en haut, sur
+   WebView Android/iOS) qui survivait à toute tentative de correctif sur
+   l'ancien modèle position:fixed + réserve d'espace calculée en JS +
+   animation de compactage au défilement. Plus rien à synchroniser ici :
+   sticky réserve sa propre place dans le flux du document tout seul, la
+   carte QR (flux normal juste après) suit sans aucun JS. */
 
 function refreshSidebarBalance() {
   if (!currentUser) return;
