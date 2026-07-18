@@ -297,6 +297,65 @@ const ServerAPI = (() => {
     return { ok: true, retards: data.retards };
   }
 
+  /* Endpoints périphériques du moteur de commandes (Phase 4, second lot) —
+     voir api/orders_recharge.php, orders_refund.php, orders_suspend.php,
+     orders_reactivate.php, cabine_suspend_manual.php,
+     cabine_self_recharge.php, cabine_resubscribe.php,
+     admin_set_abonnement.php, cabine_transfer.php. */
+  async function ordersRecharge({ montant, method, targetId }) {
+    const { res, data } = await _call('orders_recharge.php', { auth: true, body: { montant, method: method || null, target_id: targetId || null } });
+    if (!res.ok || !data || data.error) return { ok: false, error: (data && data.error) || 'Échec de la recharge.' };
+    return { ok: true };
+  }
+
+  async function ordersRefund(transactionId) {
+    const { res, data } = await _call('orders_refund.php', { auth: true, body: { transaction_id: transactionId } });
+    if (!res.ok || !data || data.error) return { ok: false, error: (data && data.error) || 'Échec du remboursement.' };
+    return { ok: true };
+  }
+
+  async function ordersSuspend(transactionId, motif) {
+    const { res, data } = await _call('orders_suspend.php', { auth: true, body: { transaction_id: transactionId, motif } });
+    if (!res.ok || !data || data.error) return { ok: false, error: (data && data.error) || 'Échec de la suspension.' };
+    return { ok: true };
+  }
+
+  async function ordersReactivate(transactionId) {
+    const { res, data } = await _call('orders_reactivate.php', { auth: true, body: { transaction_id: transactionId } });
+    if (!res.ok || !data || data.error) return { ok: false, error: (data && data.error) || 'Échec de la réactivation.' };
+    return { ok: true };
+  }
+
+  async function cabineSuspendManual(cabineId, motif) {
+    const { res, data } = await _call('cabine_suspend_manual.php', { auth: true, body: { cabine_id: cabineId, motif } });
+    if (!res.ok || !data || data.error) return { ok: false, error: (data && data.error) || 'Échec de la suspension.' };
+    return { ok: true };
+  }
+
+  async function cabineSelfRecharge({ network, numero, montant }) {
+    const { res, data } = await _call('cabine_self_recharge.php', { auth: true, body: { network, numero, montant } });
+    if (!res.ok || !data || data.error) return { ok: false, error: (data && data.error) || 'Échec de la recharge.' };
+    return { ok: true, transaction: data.transaction, assignedTo: data.assignedTo, frais: data.frais, total: data.total };
+  }
+
+  async function cabineResubscribe(formule) {
+    const { res, data } = await _call('cabine_resubscribe.php', { auth: true, body: { formule } });
+    if (!res.ok || !data || data.error) return { ok: false, error: (data && data.error) || 'Échec du réabonnement.' };
+    return { ok: true, resteDu: data.resteDu, nouveauSolde: data.nouveauSolde, transactionId: data.transactionId };
+  }
+
+  async function adminSetAbonnement(cabineId, formule) {
+    const { res, data } = await _call('admin_set_abonnement.php', { auth: true, body: { cabine_id: cabineId, formule } });
+    if (!res.ok || !data || data.error) return { ok: false, error: (data && data.error) || 'Échec du changement de formule.' };
+    return { ok: true };
+  }
+
+  async function cabineTransfer(toCabineNom, montant) {
+    const { res, data } = await _call('cabine_transfer.php', { auth: true, body: { to_cabine_nom: toCabineNom, montant } });
+    if (!res.ok || !data || data.error) return { ok: false, error: (data && data.error) || 'Échec du transfert.' };
+    return { ok: true, recipient: data.recipient };
+  }
+
   return {
     login, logout, createAccount, adminCreateAccount, getSettings, updateSettings, listProfiles,
     isConfigured, getToken, setToken, whoami, favorisList, favorisCreate, favorisRemove,
@@ -304,5 +363,7 @@ const ServerAPI = (() => {
     maintenanceLogsList, maintenanceLogsCreate, presencePing, presenceOnline,
     ordersCreate, ordersAccept, ordersRefuse, ordersAssignPending, ordersReassign,
     ordersSweep, ordersSweepUnsuspend, ordersList, retardsList,
+    ordersRecharge, ordersRefund, ordersSuspend, ordersReactivate, cabineSuspendManual,
+    cabineSelfRecharge, cabineResubscribe, adminSetAbonnement, cabineTransfer,
   };
 })();

@@ -134,6 +134,16 @@ function loadDb(opts = {}) {
       ordersSweepUnsuspend: options.serverOrdersSweepUnsuspend || (async () => ({ ok: true, liftedCount: 0 })),
       ordersList: options.serverOrdersList || (async () => ({ ok: true, transactions: [] })),
       retardsList: options.serverRetardsList || (async () => ({ ok: true, retards: [] })),
+      // Endpoints périphériques (Phase 4, second lot).
+      ordersRecharge: options.serverOrdersRecharge || (async () => ({ ok: false, error: 'not mocked' })),
+      ordersRefund: options.serverOrdersRefund || (async () => ({ ok: false, error: 'not mocked' })),
+      ordersSuspend: options.serverOrdersSuspend || (async () => ({ ok: false, error: 'not mocked' })),
+      ordersReactivate: options.serverOrdersReactivate || (async () => ({ ok: false, error: 'not mocked' })),
+      cabineSuspendManual: options.serverCabineSuspendManual || (async () => ({ ok: false, error: 'not mocked' })),
+      cabineSelfRecharge: options.serverCabineSelfRecharge || (async () => ({ ok: false, error: 'not mocked' })),
+      cabineResubscribe: options.serverCabineResubscribe || (async () => ({ ok: false, error: 'not mocked' })),
+      adminSetAbonnement: options.serverAdminSetAbonnement || (async () => ({ ok: false, error: 'not mocked' })),
+      cabineTransfer: options.serverCabineTransfer || (async () => ({ ok: false, error: 'not mocked' })),
     },
   };
   vm.createContext(sandbox);

@@ -199,3 +199,116 @@ test('DB.retards.refresh() : remplace le cache local par la liste serveur', asyn
   assert.equal(DB.retards.all().length, 1);
   assert.equal(DB.retards.all()[0].id, 'rtd1');
 });
+
+/* ── Endpoints périphériques (Phase 4, second lot) ───────────────────── */
+
+test('recharge() : crédite le compte ciblé localement tout de suite', async () => {
+  const { DB } = loadDb({ online: true, serverOrdersRecharge: async () => ({ ok: true }) });
+  const { cabine } = setup(DB);
+
+  const res = await DB.business.recharge(cabine.id, 5000, 'Orange');
+  assert.equal(res.ok, true);
+  assert.equal(DB.users.byId(cabine.id).solde, 6000);
+});
+
+test('recharge() : échec serveur (réseau en maintenance), aucun crédit local', async () => {
+  const { DB } = loadDb({ online: true, serverOrdersRecharge: async () => ({ ok: false, error: 'Ce réseau est temporairement indisponible pour la recharge.' }) });
+  const { cabine } = setup(DB);
+
+  const res = await DB.business.recharge(cabine.id, 5000, 'Orange');
+  assert.equal(res.ok, false);
+  assert.equal(DB.users.byId(cabine.id).solde, 1000, 'solde inchangé');
+});
+
+test('refundTransaction() : succès -> resynchronise les transactions', async () => {
+  let refreshed = false;
+  const { DB } = loadDb({
+    online: true,
+    serverOrdersRefund: async () => ({ ok: true }),
+    serverOrdersList: async () => { refreshed = true; return { ok: true, transactions: [] }; },
+  });
+  DB.init();
+  const res = await DB.business.refundTransaction('txn1');
+  assert.equal(res.ok, true);
+  assert.equal(refreshed, true);
+});
+
+test('suspendTransaction() : motif vide rejeté avant même l\'appel réseau', async () => {
+  let called = false;
+  const { DB } = loadDb({ online: true, serverOrdersSuspend: async () => { called = true; return { ok: true }; } });
+  DB.init();
+  const res = await DB.business.suspendTransaction('txn1', '   ');
+  assert.equal(res.ok, false);
+  assert.equal(called, false);
+});
+
+test('reactivateTransaction() : transporte l\'échec serveur tel quel', async () => {
+  const { DB } = loadDb({ online: true, serverOrdersReactivate: async () => ({ ok: false, error: "Cette commande n'est pas suspendue." }) });
+  DB.init();
+  const res = await DB.business.reactivateTransaction('txn1');
+  assert.equal(res.ok, false);
+  assert.match(res.error, /pas suspendue/);
+});
+
+test('suspendCabineManually() : transporte le succès/échec depuis cabine_suspend_manual.php', async () => {
+  const { DB: dbOk } = loadDb({ online: true, serverCabineSuspendManual: async () => ({ ok: true }) });
+  dbOk.init();
+  assert.equal((await dbOk.business.suspendCabineManually('cab1', 'motif', 'admin1')).ok, true);
+
+  const { DB: dbFail } = loadDb({ online: true, serverCabineSuspendManual: async () => ({ ok: false, error: 'Cabine introuvable.' }) });
+  dbFail.init();
+  const res = await dbFail.business.suspendCabineManually('cab-inconnu', 'motif', 'admin1');
+  assert.equal(res.ok, false);
+});
+
+test('cabineSelfRecharge() : débite localement le total (montant + frais) renvoyé par le serveur', async () => {
+  const { DB } = loadDb({
+    online: true,
+    serverCabineSelfRecharge: async () => ({ ok: true, transaction: { id: 'txn-uv-1', statut: 'en_attente' }, assignedTo: 'cab2', frais: 200, total: 10200 }),
+  });
+  const { cabine } = setup(DB);
+  DB.users.update(cabine.id, { solde: 20000 });
+
+  const res = await DB.business.cabineSelfRecharge(cabine.id, { network: 'Orange', numero: '0700000001', montant: 10000 });
+  assert.equal(res.ok, true);
+  assert.equal(DB.users.byId(cabine.id).solde, 20000 - 10200);
+  assert.equal(DB.transactions.byId('txn-uv-1').statut, 'en_attente');
+});
+
+test('resubscribeCabine() : applique le nouveau solde exact renvoyé par le serveur (pas un calcul local)', async () => {
+  const { DB } = loadDb({
+    online: true,
+    serverCabineResubscribe: async () => ({ ok: true, resteDu: 0, nouveauSolde: 4321, transactionId: 'txn-reabo-1' }),
+  });
+  const { cabine } = setup(DB);
+
+  const res = await DB.business.resubscribeCabine(cabine.id, 'VIP');
+  assert.equal(res.ok, true);
+  const cab = DB.users.byId(cabine.id);
+  assert.equal(cab.solde, 4321);
+  assert.equal(cab.abonnement, 'VIP');
+  assert.equal(cab.commissions_total, 0);
+});
+
+test('adminSetCabineAbonnement() : transporte le résultat, aucune écriture locale de solde', async () => {
+  const { DB } = loadDb({ online: true, serverAdminSetAbonnement: async () => ({ ok: true }) });
+  const { cabine } = setup(DB);
+  const before = DB.users.byId(cabine.id).solde;
+
+  const res = await DB.business.adminSetCabineAbonnement(cabine.id, 'VVIP');
+  assert.equal(res.ok, true);
+  assert.equal(DB.users.byId(cabine.id).solde, before, 'aucun débit côté admin (pas de paiement, voir endpoint)');
+});
+
+test('cabineTransfer() : débite l\'expéditeur localement (montant + frais)', async () => {
+  const { DB } = loadDb({
+    online: true,
+    serverCabineTransfer: async () => ({ ok: true, recipient: { id: 'cab2', cabine_nom: 'Boutique B', prenom: 'B', nom: 'B' } }),
+  });
+  const { cabine } = setup(DB);
+  DB.users.update(cabine.id, { solde: 10000 });
+
+  const res = await DB.business.cabineTransfer(cabine.id, 'Boutique B', 5000);
+  assert.equal(res.ok, true);
+  assert.equal(DB.users.byId(cabine.id).solde, 10000 - 5000 - 150, 'frais fixe (TRANSFERT_CABINE_FRAIS) inclus');
+});

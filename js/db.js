@@ -1593,36 +1593,21 @@ const DB = (() => {
        que d'inventer une nouvelle sélection. Frais de service fixe
        (FRAIS_SERVICE_UV_CABINE) ajouté au montant débité, même convention
        que FRAIS_SERVICE_AVANCE côté client (js/client.js). */
-    cabineSelfRecharge(cabineId, { network, numero, montant }) {
+    // Remplace la version locale par api/cabine_self_recharge.php (débit
+    // atomique CAS sur solde >= ? + attribution dans la même requête).
+    async cabineSelfRecharge(cabineId, { network, numero, montant }) {
+      const res = await ServerAPI.cabineSelfRecharge({ network, numero, montant });
+      if (!res.ok) return { ok: false, error: res.error };
+
+      const list = get(KEY.transactions);
+      const idx = list.findIndex(t => t.id === res.transaction.id);
+      if (idx !== -1) list[idx] = res.transaction; else list.push(res.transaction);
+      set(KEY.transactions, list);
+
       const cab = users.byId(cabineId);
-      if (!cab || cab.role !== 'cabine') return { ok: false, error: 'Compte cabine invalide.' };
-      if (cab.statut === 'suspendu') {
-        return { ok: false, error: 'Votre compte est suspendu. Vous ne pouvez pas passer de commande de recharge UV.' };
-      }
-      if (!montant || montant < 10000) return { ok: false, error: 'Montant minimum : 10 000 F.' };
-      const frais = FRAIS_SERVICE_UV_CABINE;
-      const total = montant + frais;
-      if ((cab.solde || 0) < total) {
-        return { ok: false, error: `Solde insuffisant. Disponible : ${Fmt.money(cab.solde || 0)}, requis : ${Fmt.money(total)} (dont ${Fmt.money(frais)} de frais).` };
-      }
+      if (cab) users.update(cabineId, { solde: (cab.solde || 0) - res.total });
 
-      users.updateSolde(cabineId, -total);
-
-      const txn = transactions.create({
-        client_id: cabineId, cabine_id: null,
-        type: 'recharge_uv', service: 'Recharge UV',
-        operateur: network, numero_beneficiaire: numero, montant,
-        frais_service: frais,
-        statut: 'en_attente', commission: 0,
-      });
-
-      const target = business.findReassignmentTarget(cabineId, network, 'recharge_uv');
-      if (target) {
-        transactions.update(txn.id, { cabine_id: target.id, date_assignation: now() });
-        notifications.create(target.id, `Nouvelle demande de recharge UV ${network} ${montant.toLocaleString()} F.`, 'new_request');
-      }
-
-      return { ok: true, transaction: transactions.byId(txn.id), assignedTo: target ? target.id : null, frais, total };
+      return { ok: true, transaction: res.transaction, assignedTo: res.assignedTo, frais: res.frais, total: res.total };
     },
 
     /* Cabine accepte une commande — remplace l'ancienne version locale
@@ -1697,60 +1682,30 @@ const DB = (() => {
       return single ? { ok: single.ok, error: single.error } : { ok: false, error: 'Réponse serveur inattendue.' };
     },
 
-    /* Admin : rembourse le client pour une commande en attente ou terminée.
-       Si elle était déjà terminée, retire la commission déjà versée au cabiniste. */
-    refundTransaction(txnId) {
-      const txn = transactions.byId(txnId);
-      if (!txn || (txn.statut !== 'en_attente' && txn.statut !== 'terminé')) {
-        return { ok: false, error: 'Cette commande ne peut pas être remboursée.' };
-      }
-
-      if (txn.statut === 'terminé' && txn.cabine_id) {
-        const cab = users.byId(txn.cabine_id);
-        if (cab) {
-          users.updateSolde(txn.cabine_id, -(txn.commission || 0));
-          users.update(txn.cabine_id, {
-            commissions_total: Math.max(0, (cab.commissions_total || 0) - (txn.commission || 0)),
-            transferts_total:  Math.max(0, (cab.transferts_total  || 0) - 1),
-            remboursements_recus: (cab.remboursements_recus || 0) + 1,
-          });
-
-          // Double sanction : la cabine avait marqué la commande "Terminée"
-          // à tort — le montant total de la commande est prélevé sur son
-          // solde, plus une pénalité fixe (PENALITE_REMBOURSEMENT_TERMINE),
-          // distincts du simple retrait de commission ci-dessus. Tracés
-          // comme un retrait négatif dans son historique (voir
-          // loadCabRetraits() dans js/cabine.js, qui isole les entrées
-          // type: 'sanction' des retraits classiques).
-          const sanction = txn.montant + PENALITE_REMBOURSEMENT_TERMINE;
-          users.updateSolde(txn.cabine_id, -sanction);
-          retraits.create({
-            cabine_id: txn.cabine_id, montant: sanction, statut: 'terminé', type: 'sanction',
-            methode_retrait: 'Sanction',
-            motif: `Remboursement commande ${Fmt.ref(txnId)} — montant (${txn.montant.toLocaleString()} F) + pénalité (${PENALITE_REMBOURSEMENT_TERMINE} F)`,
-          });
-          notifications.create(txn.cabine_id, `Une commande que vous aviez marquée "Terminée" a été remboursée par l'administration : ${sanction.toLocaleString()} F (montant + pénalité de ${PENALITE_REMBOURSEMENT_TERMINE} F) ont été prélevés sur votre solde.`, 'warning');
-        }
-      }
-
-      users.updateSolde(txn.client_id, txn.montant);
-      transactions.update(txnId, { statut: 'remboursé', date_remboursement: now() });
-      notifications.create(txn.client_id, `Votre commande ${Fmt.ref(txnId)} de ${txn.montant.toLocaleString()} F a été remboursée par l'administration.`, 'success');
-
+    /* Admin : rembourse le client pour une commande en attente ou terminée
+       — remplace la version locale par api/orders_refund.php (double
+       sanction cabine incluse si la commande était déjà marquée
+       "Terminée" à tort). */
+    async refundTransaction(txnId) {
+      const res = await ServerAPI.ordersRefund(txnId);
+      if (!res.ok) return { ok: false, error: res.error };
+      await transactions.refresh();
       return { ok: true };
     },
 
     /* Admin : valide une demande de remboursement soumise par une cabine
-       suite à une réclamation (voir DB.refundRequests). Réutilise
-       refundTransaction() pour l'effet financier, puis trace la demande et
-       la réclamation liée comme traitées. */
-    processRefundRequest(requestId, adminId) {
+       suite à une réclamation (voir DB.refundRequests — encore 100%
+       locale, synchronisation prévue en Phase 5 avec reclamations).
+       Réutilise refundTransaction() ci-dessus (désormais serveur) pour
+       l'effet financier, puis trace la demande et la réclamation liée
+       comme traitées, toujours en local pour l'instant. */
+    async processRefundRequest(requestId, adminId) {
       const req = refundRequests.all().find(r => r.id === requestId);
       if (!req || req.statut !== 'en_attente') {
         return { ok: false, error: 'Demande introuvable ou déjà traitée.' };
       }
 
-      const res = business.refundTransaction(req.transaction_id);
+      const res = await business.refundTransaction(req.transaction_id);
       if (!res.ok) return res;
 
       refundRequests.update(requestId, { statut: 'traité', date_traitement: now(), processed_by: adminId });
@@ -1764,50 +1719,37 @@ const DB = (() => {
        obligatoire. Ne touche pas aux soldes — c'est une mise en attente
        (gel), pas une annulation financière (voir refundTransaction pour
        ça). Réversible via reactivateTransaction. */
-    suspendTransaction(txnId, motif) {
-      const txn = transactions.byId(txnId);
-      if (!txn) return { ok: false, error: 'Commande introuvable.' };
+    // Remplace la version locale par api/orders_suspend.php.
+    async suspendTransaction(txnId, motif) {
       if (!motif || !motif.trim()) return { ok: false, error: 'Le motif de suspension est obligatoire.' };
-      if (txn.statut !== 'en_attente' && txn.statut !== 'terminé') {
-        return { ok: false, error: 'Cette commande ne peut pas être suspendue.' };
-      }
-
-      transactions.update(txnId, {
-        statut: 'suspendue',
-        statut_avant_suspension: txn.statut,
-        motif_suspension: motif.trim(),
-        date_suspension: now(),
-      });
-      if (txn.cabine_id) notifications.create(txn.cabine_id, `La commande ${Fmt.ref(txnId)} a été suspendue par l'administration : ${motif.trim()}`, 'warning');
+      const res = await ServerAPI.ordersSuspend(txnId, motif.trim());
+      if (!res.ok) return { ok: false, error: res.error };
+      await transactions.refresh();
       return { ok: true };
     },
 
-    /* Admin : réactive une commande suspendue, restaure son statut précédent. */
-    reactivateTransaction(txnId) {
-      const txn = transactions.byId(txnId);
-      if (!txn || txn.statut !== 'suspendue') return { ok: false, error: 'Cette commande n\'est pas suspendue.' };
-
-      transactions.update(txnId, {
-        statut: txn.statut_avant_suspension || 'en_attente',
-        statut_avant_suspension: null,
-        motif_suspension: null,
-      });
-      if (txn.cabine_id) notifications.create(txn.cabine_id, `La commande ${Fmt.ref(txnId)} a été réactivée par l'administration.`, 'info');
+    // Remplace la version locale par api/orders_reactivate.php.
+    async reactivateTransaction(txnId) {
+      const res = await ServerAPI.ordersReactivate(txnId);
+      if (!res.ok) return { ok: false, error: res.error };
+      await transactions.refresh();
       return { ok: true };
     },
 
-    /* Recharge wallet (simulated). `method` optionnel pour compatibilité
-       ascendante des appels existants ; vérifié contre
-       maintenance.networksByService.recharge (voir isNetworkInMaintenanceForService)
-       — c'est le verrou serveur, même un appel direct contournant l'UI est
-       refusé pour un réseau désactivé. */
-    recharge(user_id, montant, method) {
-      if (montant < 1000) return { ok: false, error: 'Montant minimum : 1 000 F.' };
-      if (method && isNetworkInMaintenanceForService('recharge', method)) {
-        return { ok: false, error: 'Ce réseau est temporairement indisponible pour la recharge.' };
-      }
-      users.updateSolde(user_id, montant);
-      notifications.create(user_id, `Votre portefeuille a été rechargé de ${montant.toLocaleString()} F.`, 'info');
+    // Recharge de portefeuille — remplace la version locale par
+    // api/orders_recharge.php (vérifie le verrou maintenance serveur lui-
+    // même). `user_id` toujours transmis comme cible : le serveur l'honore
+    // uniquement si l'appelant est admin (voir l'endpoint), sinon il ne
+    // peut de toute façon créditer que son propre compte — aucune décision
+    // "self vs autre" à prendre ici.
+    async recharge(user_id, montant, method) {
+      const res = await ServerAPI.ordersRecharge({ montant, method, targetId: user_id });
+      if (!res.ok) return { ok: false, error: res.error };
+      // Reflète le crédit localement tout de suite (le compte crédité doit
+      // voir son solde à jour sans délai) — un éventuel écart mineur est
+      // résorbé par la prochaine synchronisation de profil.
+      const target = users.byId(user_id);
+      if (target) users.update(user_id, { solde: (target.solde || 0) + montant });
       return { ok: true };
     },
 
@@ -1858,13 +1800,12 @@ const DB = (() => {
     /* Suspension manuelle par un administrateur — indéfinie (pas
        d'échéance automatique), levée uniquement par cet administrateur ou
        le super administrateur (voir js/admin.js toggleCabine). */
-    suspendCabineManually(cabineId, motif, adminId) {
-      users.update(cabineId, {
-        statut: 'suspendu', suspendu_auto: false, suspendu_by: adminId,
-        suspendu_motif: motif, suspendu_jusqu: null,
-      });
-      suspensionLogs.create({ cabine_id: cabineId, motif, auto: false, date_fin_prevue: null });
-      notifications.create(cabineId, `Votre compte a été suspendu par l'administration : ${motif}.`, 'warning');
+    // Remplace la version locale par api/cabine_suspend_manual.php.
+    async suspendCabineManually(cabineId, motif, adminId) {
+      void adminId; // désormais inféré côté serveur depuis le jeton, jamais de ce paramètre
+      const res = await ServerAPI.cabineSuspendManual(cabineId, motif);
+      if (!res.ok) return { ok: false, error: res.error };
+      return { ok: true };
     },
 
     /* Suspension automatique si la cabine a soumis 5 demandes de
@@ -1899,94 +1840,34 @@ const DB = (() => {
        renderCabReaboCards()/cabSelectReaboFormule() dans js/cabine.js
        pour le verrouillage côté interface). Le super admin dispose d'un
        droit de veto séparé, voir adminSetCabineAbonnement ci-dessous. */
-    resubscribeCabine(cabineId, formule) {
-      const prix = SUBSCRIPTION_PRICES[formule];
-      const cab  = users.byId(cabineId);
-      if (!prix || !cab || cab.role !== 'cabine') return { ok: false, error: 'Formule ou compte invalide.' };
-      if (!business.cabineQuotaAtteint(cabineId)) {
-        return { ok: false, error: 'Vous devez atteindre votre quota actuel avant de changer de formule ou de vous réabonner.' };
-      }
-
-      const nouveauSolde = (cab.solde || 0) - prix;
-      const resteDu = nouveauSolde < 0 ? Math.abs(nouveauSolde) : 0;
-
-      users.update(cabineId, {
-        solde: nouveauSolde,
-        abonnement: formule,
-        commissions_total: 0,
-        statut: cab.statut === 'inactif' ? 'actif' : cab.statut,
-      });
-
-      resubscriptions.create({ cabine_id: cabineId, formule, prix });
-
-      // Preuve de débit consultable dans l'historique — voir l'onglet
-      // "Historique" cabine (js/cabine.js) qui lit transactions.byCabine(),
-      // même patron d'enregistrement que les autres types déjà rendus par
-      // renderHistoryList() côté client (id, statut, service, details.ref).
-      const txn = transactions.create({
-        type: 'reabonnement',
-        cabine_id: cabineId,
-        montant: prix,
-        statut: 'terminé',
-        service: `Réabonnement ${formule}`,
-        date_fin: now(),
-        details: { moyen_paiement: 'Solde cabine', formule },
-      });
-
-      notifications.create(cabineId, resteDu > 0
-        ? `Réabonnement ${formule} confirmé (${prix.toLocaleString()} F) — il vous reste ${resteDu.toLocaleString()} F à rembourser (solde négatif).`
-        : `Réabonnement ${formule} confirmé — ${prix.toLocaleString()} F prélevés de votre solde.`, 'info');
-
-      return { ok: true, resteDu, nouveauSolde, transactionId: txn.id };
+    // Remplace la version locale par api/cabine_resubscribe.php.
+    async resubscribeCabine(cabineId, formule) {
+      const res = await ServerAPI.cabineResubscribe(formule);
+      if (!res.ok) return { ok: false, error: res.error };
+      // res.nouveauSolde vient directement du serveur (valeur exacte après
+      // débit), pas d'un calcul local approximatif.
+      users.update(cabineId, { solde: res.nouveauSolde, abonnement: formule, commissions_total: 0 });
+      return { ok: true, resteDu: res.resteDu, nouveauSolde: res.nouveauSolde, transactionId: res.transactionId };
     },
 
     /* Droit de veto du super admin : change instantanément la formule
-       d'une cabine sans passer par resubscribeCabine() — aucun débit de
-       solde, aucune vérification de quota (contrairement au flux
-       self-service ci-dessus). Remet quand même le compteur de quota à
-       zéro pour repartir sur un cycle propre dans la nouvelle formule. */
-    adminSetCabineAbonnement(cabineId, formule) {
-      const prix = SUBSCRIPTION_PRICES[formule];
-      const cab  = users.byId(cabineId);
-      if (!prix || !cab || cab.role !== 'cabine') return { ok: false, error: 'Formule ou compte invalide.' };
-
-      users.update(cabineId, { abonnement: formule, commissions_total: 0 });
-      notifications.create(cabineId, `Votre formule a été changée en ${formule} par l'administration.`, 'info');
-
+       d'une cabine sans passer par resubscribeCabine() — remplace la
+       version locale par api/admin_set_abonnement.php. */
+    async adminSetCabineAbonnement(cabineId, formule) {
+      const res = await ServerAPI.adminSetAbonnement(cabineId, formule);
+      if (!res.ok) return { ok: false, error: res.error };
       return { ok: true };
     },
 
-    /* Transfert d'argent entre deux cabinistes, identifié par le NOM de la
-       cabine (feature 1). Frais de service à la charge de l'expéditeur. */
-    cabineTransfer(fromCabineId, toCabineNom, montant) {
+    // Remplace la version locale par api/cabine_transfer.php.
+    async cabineTransfer(fromCabineId, toCabineNom, montant) {
+      const res = await ServerAPI.cabineTransfer(toCabineNom, montant);
+      if (!res.ok) return { ok: false, error: res.error };
+      // Débit reflété localement tout de suite (voir TRANSFERT_CABINE_FRAIS,
+      // même montant que côté serveur, seule source de vérité pour les frais).
       const from = users.byId(fromCabineId);
-      if (!from) return { ok: false, error: 'Cabine expéditrice introuvable.' };
-      if (!montant || montant <= 0) return { ok: false, error: 'Montant invalide.' };
-
-      const needle = (toCabineNom || '').trim().toLowerCase();
-      const matches = users.byRole('cabine').filter(c =>
-        c.statut === 'actif' && (c.cabine_nom || '').trim().toLowerCase() === needle
-      );
-
-      if (!matches.length) return { ok: false, error: 'Cabine introuvable ou inactive.' };
-      if (matches.length > 1) return { ok: false, error: 'Plusieurs cabines portent ce nom, veuillez préciser.', matches };
-
-      const to = matches[0];
-      if (to.id === from.id) return { ok: false, error: 'Vous ne pouvez pas vous transférer de l\'argent à vous-même.' };
-
-      const total = montant + TRANSFERT_CABINE_FRAIS;
-      if ((from.solde || 0) < total) return { ok: false, error: `Solde insuffisant (total requis avec frais : ${total.toLocaleString()} F).` };
-
-      users.updateSolde(from.id, -total);
-      users.updateSolde(to.id, montant);
-      const transfert = transferts_cabine.create({
-        from_cabine_id: from.id, to_cabine_id: to.id, montant, frais: TRANSFERT_CABINE_FRAIS,
-      });
-
-      notifications.create(from.id, `Vous avez transféré ${montant.toLocaleString()} F à ${to.cabine_nom || (to.prenom + ' ' + to.nom)} (frais : ${TRANSFERT_CABINE_FRAIS} F).`, 'transfer');
-      notifications.create(to.id, `Vous avez reçu ${montant.toLocaleString()} F de la part de ${from.cabine_nom || (from.prenom + ' ' + from.nom)}.`, 'transfer');
-
-      return { ok: true, recipient: to, transfert };
+      if (from) users.update(fromCabineId, { solde: (from.solde || 0) - montant - TRANSFERT_CABINE_FRAIS });
+      return { ok: true, recipient: res.recipient };
     },
 
     /* Réassignation groupée (feature 2) — remplace la version locale par

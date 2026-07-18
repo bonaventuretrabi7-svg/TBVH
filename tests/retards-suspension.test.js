@@ -1,15 +1,15 @@
 'use strict';
 // Règles de suspension cabine qui restent 100% locales après la Phase 4
 // (moteur de commandes) : checkAutoUnsuspend() (appelée à la connexion,
-// voir Auth._checkAccountGates dans js/auth.js) et suspendCabineAuto()/
-// suspendCabineManually() (helpers réutilisés par des endpoints déjà
-// migrés côté serveur — voir api/orders_common.php pour leur portage PHP
+// voir Auth._checkAccountGates dans js/auth.js) et suspendCabineAuto()
+// (helper interne réutilisé par le portage serveur — voir orders_common.php
 // — mais dont la copie JS reste utile pour ce cas de connexion isolé).
-// Les scénarios de détection de retard/réattribution/suspension par
-// accumulation de retards ont été retirés d'ici : cette logique vit
-// désormais dans api/orders_sweep.php + orders_common.php (voir
-// tests/orders-business.test.js pour ce qui reste testable côté JS —
-// le transport, pas les règles elles-mêmes).
+// suspendCabineManually() est désormais un appel serveur (voir
+// api/cabine_suspend_manual.php, testé pour le transport dans
+// tests/orders-business.test.js). Les scénarios de détection de retard/
+// réattribution/suspension par accumulation de retards ont été retirés
+// d'ici : cette logique vit désormais dans api/orders_sweep.php +
+// orders_common.php.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { loadDb } = require('./helpers/loadDb');
@@ -63,25 +63,3 @@ test('déblocage automatique pile à l\'heure (checkAutoUnsuspend et sweepAutoUn
   assert.equal(DB.users.byId(cabB.id).statut, 'actif');
 });
 
-test('suspensionLogs : suspension manuelle puis levée enregistrent date_levee/levee_par', () => {
-  const { DB } = setup();
-  const cab = makeCabine(DB, { nom: 'Manuelle' });
-
-  DB.business.suspendCabineManually(cab.id, 'motif test', 'admin123');
-  const open = DB.suspensionLogs.active(cab.id);
-  assert.ok(open);
-  assert.equal(open.auto, false);
-  assert.equal(open.motif, 'motif test');
-  assert.equal(open.date_levee, null);
-
-  // Levée manuelle par un admin — même opération que toggleCabine(id, true)
-  // dans js/admin.js (fonction DOM-dépendante, non chargeable dans ce
-  // harnais de test).
-  DB.users.update(cab.id, { statut: 'actif', suspendu_auto: false, suspendu_by: null, suspendu_motif: null, suspendu_jusqu: null });
-  DB.suspensionLogs.close(cab.id, 'admin123');
-
-  assert.equal(DB.suspensionLogs.active(cab.id), null);
-  const closed = DB.suspensionLogs.byCabine(cab.id)[0];
-  assert.ok(closed.date_levee);
-  assert.equal(closed.levee_par, 'admin123');
-});

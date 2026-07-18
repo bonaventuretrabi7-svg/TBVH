@@ -3941,7 +3941,7 @@ function rchGoStep1() {
   step1.classList.remove('rch-step--enter'); void step1.offsetWidth; step1.classList.add('rch-step--enter');
 }
 
-function handleRecharge(e) {
+async function handleRecharge(e) {
   e.preventDefault();
   if (!currentUser) { Toast.error('Connectez-vous pour recharger votre portefeuille.'); return; }
   const method  = document.getElementById('rch-method-hidden')?.value ||
@@ -3949,7 +3949,7 @@ function handleRecharge(e) {
   const montant = parseInt(document.getElementById('recharge-amount').value) || 0;
   if (!method)        { Toast.error('Choisissez un mode de paiement.'); return; }
   if (montant < 1000) { Toast.error('Montant minimum : 1 000 F.'); return; }
-  const res = DB.business.recharge(currentUser.id, montant, method);
+  const res = await DB.business.recharge(currentUser.id, montant, method);
   if (res.ok) {
     closeModal('modal-recharge');
     currentUser = Auth.refresh();

@@ -1854,11 +1854,11 @@ function _renderCabTransferMatch(c, keepList = false) {
   handleCabTransferMontantChange();
 }
 
-function handleCabTransferSubmit() {
+async function handleCabTransferSubmit() {
   const montant = parseFloat(document.getElementById('cab-transfer-montant').value);
   if (!_cabTransferRecipientId || !montant || montant <= 0) { Toast.error('Renseignez un destinataire et un montant valides.'); return; }
 
-  const res = DB.business.cabineTransfer(currentUser.id, DB.users.byId(_cabTransferRecipientId).cabine_nom, montant);
+  const res = await DB.business.cabineTransfer(currentUser.id, DB.users.byId(_cabTransferRecipientId).cabine_nom, montant);
   if (!res.ok) { Toast.error(res.error); return; }
 
   Toast.success(`${Fmt.money(montant)} envoyés à ${res.recipient.prenom} ${res.recipient.nom}.`);
@@ -2331,9 +2331,9 @@ function cabUvBackToForm() {
 let _cabUvTxnId     = null;
 let _cabUvPollTimer = null;
 
-function cabUvConfirmPayment() {
+async function cabUvConfirmPayment() {
   if (!_cabUvPending) return;
-  const res = DB.business.cabineSelfRecharge(currentUser.id, _cabUvPending);
+  const res = await DB.business.cabineSelfRecharge(currentUser.id, _cabUvPending);
   if (!res.ok) { Toast.error(res.error); return; }
   currentUser = Auth.refresh();
   _cabUvPending = null;
@@ -2515,13 +2515,13 @@ function renderCabUvReclaHistory() {
 }
 
 /* ── Recharge portefeuille ─────────────────────────────────────── */
-function handleCabineRecharge(e) {
+async function handleCabineRecharge(e) {
   e.preventDefault();
   const method  = document.querySelector('input[name="cab-recharge-method"]:checked')?.value;
   const montant = parseInt(document.getElementById('cab-recharge-amount').value) || 0;
   if (!method) { Toast.error('Choisissez un mode de paiement.'); return; }
   if (montant < 1000) { Toast.error('Montant minimum : 1 000 FCFA.'); return; }
-  const res = DB.business.recharge(currentUser.id, montant);
+  const res = await DB.business.recharge(currentUser.id, montant);
   if (res.ok) {
     closeModal('modal-cab-recharge');
     currentUser = Auth.refresh();
@@ -3001,13 +3001,13 @@ function cabSelectReaboFormule(formule) {
   document.getElementById('cab-reabo-summary').style.display = 'block';
 }
 
-function confirmCabReabonnement() {
+async function confirmCabReabonnement() {
   if (!_cabReaboSelected) return;
   const formule = _cabReaboSelected;
   const prix = DB.SUBSCRIPTION_PRICES[formule];
   if (!confirm(`Confirmer le réabonnement ${formule} pour ${prix.toLocaleString()} FCFA, prélevés de votre solde ?`)) return;
 
-  const res = DB.business.resubscribeCabine(currentUser.id, formule);
+  const res = await DB.business.resubscribeCabine(currentUser.id, formule);
   if (!res.ok) { Toast.error(res.error); return; }
 
   currentUser = Auth.refresh();

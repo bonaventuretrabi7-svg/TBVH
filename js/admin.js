@@ -1161,13 +1161,13 @@ function updateRechargeCabinistePreview() {
   document.getElementById('recharge-cabiniste-apres').textContent = Fmt.money(c.solde + montant);
 }
 
-function confirmRechargeCabiniste() {
+async function confirmRechargeCabiniste() {
   const c = DB.users.byId(_rechargeCabinisteId);
   if (!c) return;
   const montant = parseFloat(document.getElementById('recharge-cabiniste-montant').value);
   if (isNaN(montant) || montant <= 0) { Toast.error('Montant invalide.'); return; }
 
-  const res = DB.business.recharge(c.id, montant);
+  const res = await DB.business.recharge(c.id, montant);
   if (!res.ok) { Toast.error(res.error); return; }
 
   closeModal('modal-recharge-cabiniste');
@@ -1227,13 +1227,13 @@ function updateRechargeClientPreview() {
   document.getElementById('recharge-client-apres').textContent = Fmt.money(c.solde + montant);
 }
 
-function confirmRechargeClient() {
+async function confirmRechargeClient() {
   const c = DB.users.byId(_rechargeClientId);
   if (!c) return;
   const montant = parseFloat(document.getElementById('recharge-client-montant').value);
   if (isNaN(montant) || montant <= 0) { Toast.error('Montant invalide.'); return; }
 
-  const res = DB.business.recharge(c.id, montant);
+  const res = await DB.business.recharge(c.id, montant);
   if (!res.ok) { Toast.error(res.error); return; }
 
   closeModal('modal-recharge-client');
@@ -1578,9 +1578,9 @@ async function confirmReassign() {
 }
 
 /* ── Remboursement d'une commande (en attente ou terminée) ─────────── */
-function refundTxn(txnId) {
+async function refundTxn(txnId) {
   if (!confirm('Rembourser le client pour cette commande ?')) return;
-  const res = DB.business.refundTransaction(txnId);
+  const res = await DB.business.refundTransaction(txnId);
   if (!res.ok) { Toast.error(res.error); return; }
   Toast.success('Commande remboursée au client.');
   loadTransactions();
@@ -1784,9 +1784,9 @@ function loadReabonnementCabine() {
   }).join('');
 }
 
-function adminProcessRefund(requestId) {
+async function adminProcessRefund(requestId) {
   if (!confirm('Valider ce remboursement ? Le client sera recrédité et la commande passera au statut "Remboursé".')) return;
-  const res = DB.business.processRefundRequest(requestId, currentUser.id);
+  const res = await DB.business.processRefundRequest(requestId, currentUser.id);
   if (!res.ok) { Toast.error(res.error); return; }
   Toast.success('Remboursement validé et notifié.');
   loadRefundRequests();
@@ -1806,14 +1806,14 @@ function openSuspendModal(txnId) {
   openModal('modal-suspend-txn');
 }
 
-function confirmSuspend() {
+async function confirmSuspend() {
   const motifEl  = document.getElementById('suspend-motif');
   const errorEl  = document.getElementById('suspend-motif-error');
   const motif    = motifEl.value.trim();
   if (!motif) { errorEl.style.display = 'block'; motifEl.focus(); return; }
   errorEl.style.display = 'none';
 
-  const res = DB.business.suspendTransaction(_suspendTxnId, motif);
+  const res = await DB.business.suspendTransaction(_suspendTxnId, motif);
   if (!res.ok) { Toast.error(res.error); return; }
   Toast.success('Commande suspendue.');
   closeModal('modal-suspend-txn');
@@ -1821,9 +1821,9 @@ function confirmSuspend() {
   loadCabines();
 }
 
-function reactivateTxn(txnId) {
+async function reactivateTxn(txnId) {
   if (!confirm('Réactiver cette commande ?')) return;
-  const res = DB.business.reactivateTransaction(txnId);
+  const res = await DB.business.reactivateTransaction(txnId);
   if (!res.ok) { Toast.error(res.error); return; }
   Toast.success('Commande réactivée.');
   loadTransactions();
@@ -2071,12 +2071,12 @@ function editUserForm(id) {
    cabine sans passer par le flux self-service (aucun débit de solde,
    aucune vérification de quota) — voir business.adminSetCabineAbonnement
    dans js/db.js. */
-function adminChangeAbonnementCabine(cabineId) {
+async function adminChangeAbonnementCabine(cabineId) {
   if (currentUser.admin_level !== 'super') { Toast.error('Seul le super administrateur peut effectuer ce changement.'); return; }
   const formule = document.getElementById('edit-cabine-abonnement').value;
   if (!confirm(`Changer instantanément la formule de ce cabiniste en ${formule} ? Cette action contourne le quota en cours.`)) return;
 
-  const res = DB.business.adminSetCabineAbonnement(cabineId, formule);
+  const res = await DB.business.adminSetCabineAbonnement(cabineId, formule);
   if (!res.ok) { Toast.error(res.error); return; }
 
   Toast.success(`Formule changée en ${formule}.`);
@@ -2175,14 +2175,15 @@ function openSuspendCabineModal(cabineId) {
   openModal('modal-suspend-cabine');
 }
 
-function confirmSuspendCabine() {
+async function confirmSuspendCabine() {
   const motifEl = document.getElementById('suspend-cabine-motif');
   const errorEl = document.getElementById('suspend-cabine-motif-error');
   const motif   = motifEl.value.trim();
   if (!motif) { errorEl.style.display = 'block'; motifEl.focus(); return; }
   errorEl.style.display = 'none';
 
-  DB.business.suspendCabineManually(_suspendCabineId, motif, currentUser.id);
+  const res = await DB.business.suspendCabineManually(_suspendCabineId, motif, currentUser.id);
+  if (!res.ok) { Toast.error(res.error); return; }
   closeModal('modal-suspend-cabine');
   Toast.success('Cabine suspendue.');
   loadCabines();
