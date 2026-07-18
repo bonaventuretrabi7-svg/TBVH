@@ -28,9 +28,21 @@ const ServerAPI = (() => {
     } catch (e) { /* stockage indisponible — jeton encore valable en mémoire pour cet onglet */ }
   }
 
+  // Depuis que DB.Net.isOnline() (js/db.js) ignore navigator.onLine dans
+  // l'app Android empaquetée (mensonge connu de cette WebView) et tente
+  // toujours l'appel réel, un appareil VRAIMENT hors ligne doit échouer
+  // vite plutôt que de laisser fetch() (sans délai natif) pendre
+  // indéfiniment — un sondage toutes les 3s empilerait sinon des requêtes
+  // bloquées à l'infini. AbortController : compatible avec le "vraiment
+  // hors ligne -> networkError" déjà géré ci-dessous, aucun appelant à
+  // changer.
+  const _CALL_TIMEOUT_MS = 10000;
+
   async function _call(path, { body, auth = false } = {}) {
     const headers = { 'Content-Type': 'application/json' };
     if (auth && _token) headers['Authorization'] = 'Bearer ' + _token;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), _CALL_TIMEOUT_MS);
     // fetch() lui-même peut lever une exception (réseau coupé, CORS, DNS...),
     // contrairement au client Supabase historique qui renvoyait toujours un
     // objet { data, error }. Sans ce try/catch, un tel échec remontait en
@@ -40,18 +52,20 @@ const ServerAPI = (() => {
     // message — jamais un { ok:false, error } exploitable par l'appelant.
     try {
       const res = await fetch(BASE_URL + '/' + path, {
-        method: 'POST', headers, body: JSON.stringify(body || {}),
+        method: 'POST', headers, body: JSON.stringify(body || {}), signal: controller.signal,
       });
       let data = null;
       try { data = await res.json(); } catch (e) { /* réponse non-JSON (ex. erreur serveur brute) */ }
       return { res, data };
     } catch (e) {
       // Distingue une vraie panne réseau (fetch n'a jamais atteint le
-      // serveur) d'un refus applicatif (identifiants incorrects, etc.) —
-      // voir Auth.login()/Auth.resumeSession() dans js/auth.js, qui doivent
-      // afficher "connexion Internet requise" uniquement dans ce cas, pas
-      // pour un vrai mot de passe erroné.
+      // serveur, ou a expiré) d'un refus applicatif (identifiants
+      // incorrects, etc.) — voir Auth.login()/Auth.resumeSession() dans
+      // js/auth.js, qui doivent afficher "connexion Internet requise"
+      // uniquement dans ce cas, pas pour un vrai mot de passe erroné.
       return { res: { ok: false }, data: null, networkError: true };
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 
@@ -114,17 +128,53 @@ const ServerAPI = (() => {
 
   /* Création de compte PAR L'ADMINISTRATION (voir
      api/admin_create_account.php, réservée à un jeton admin) — utilisée
-     par finishCreateUser()/validatePartnerRequest() dans js/admin.js. */
-  async function adminCreateAccount({ role, nom, prenom, telephone, pin, email, cabineNom, adminLevel }) {
+     par finishCreateUser()/validatePartnerRequest() dans js/admin.js.
+     permissions/whatsapp/photo/poste/pays/ville/quartier/dateNaissance/docs :
+     profil administrateur complet (voir handleCreateUser()) — optionnels,
+     sans effet pour un compte client/cabine (colonnes ignorées côté serveur
+     si absentes du corps de la requête). */
+  async function adminCreateAccount({ role, nom, prenom, telephone, pin, email, cabineNom, adminLevel,
+                                       permissions, whatsapp, photo, poste, pays, ville, quartier, dateNaissance, docs }) {
     const { res, data } = await _call('admin_create_account.php', {
       auth: true,
       body: {
         role, nom, prenom, telephone: telephone || null, pin,
         email: email || null, cabine_nom: cabineNom || null, admin_level: adminLevel || null,
+        permissions, whatsapp: whatsapp || null, photo: photo || null, poste: poste || null,
+        pays: pays || null, ville: ville || null, quartier: quartier || null,
+        date_naissance: dateNaissance || null, docs,
       },
     });
     if (!res.ok || !data || data.error) {
       return { ok: false, error: (data && data.error) || 'Échec de la création du compte.' };
+    }
+    return { ok: true, profile: data.profile };
+  }
+
+  /* Modifie un compte administrateur existant (coordonnées, poste,
+     permissions, PIN) — voir api/admin_update_profile.php, réservée au
+     super admin. Remplace saveAdminProfile()/saveAdminPerms() (js/admin.js),
+     qui ne mettaient jusqu'ici à jour que le cache local de l'appareil. */
+  async function adminUpdateProfile({ id, nom, prenom, email, dateNaissance, pays, ville, quartier,
+                                       whatsapp, photo, docs, poste, permissions, pin }) {
+    const body = { id };
+    if (nom !== undefined) body.nom = nom;
+    if (prenom !== undefined) body.prenom = prenom;
+    if (email !== undefined) body.email = email;
+    if (dateNaissance !== undefined) body.date_naissance = dateNaissance;
+    if (pays !== undefined) body.pays = pays;
+    if (ville !== undefined) body.ville = ville;
+    if (quartier !== undefined) body.quartier = quartier;
+    if (whatsapp !== undefined) body.whatsapp = whatsapp;
+    if (photo !== undefined) body.photo = photo;
+    if (docs !== undefined) body.docs = docs;
+    if (poste !== undefined) body.poste = poste;
+    if (permissions !== undefined) body.permissions = permissions;
+    if (pin !== undefined) body.pin = pin;
+
+    const { res, data } = await _call('admin_update_profile.php', { auth: true, body });
+    if (!res.ok || !data || data.error) {
+      return { ok: false, error: (data && data.error) || 'Échec de la modification du compte.' };
     }
     return { ok: true, profile: data.profile };
   }
@@ -582,7 +632,7 @@ const ServerAPI = (() => {
   }
 
   return {
-    login, logout, createAccount, adminCreateAccount, getSettings, updateSettings, listProfiles,
+    login, logout, createAccount, adminCreateAccount, adminUpdateProfile, getSettings, updateSettings, listProfiles,
     isConfigured, getToken, setToken, whoami, favorisList, favorisCreate, favorisRemove,
     accessLogsList, accessLogsCreate, permissionLogsList, permissionLogsCreate,
     maintenanceLogsList, maintenanceLogsCreate, presencePing, presenceOnline,

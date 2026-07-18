@@ -69,6 +69,19 @@ const DB = (() => {
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
   }
 
+  // Les colonnes JSON de `profiles` (permissions, puces, docs...) reviennent
+  // du serveur sous forme de CHAÎNE JSON brute (PDO ne décode jamais une
+  // colonne JSON MySQL automatiquement, voir api/) — jamais parsées jusqu'ici
+  // dans fromProfileRow() ci-dessous, alors qu'aucune de ces colonnes n'avait
+  // en pratique de vraie valeur écrite par le serveur avant ce correctif
+  // (voir admin_update_profile.php/admin_create_account.php, nouveaux).
+  // Défensif plutôt qu'un JSON.parse() direct : reste compatible avec une
+  // valeur déjà parsée (ex. relue depuis le cache local) ou absente.
+  function parseJsonField(v) {
+    if (typeof v !== 'string') return v;
+    try { return JSON.parse(v); } catch (e) { return v; }
+  }
+
   function now() { return new Date().toISOString(); }
 
   /* ── Connectivité (hors-ligne d'abord — LocalStorage reste la source de
@@ -76,11 +89,25 @@ const DB = (() => {
      optionnelle en tâche de fond, voir DB.settings et DB.syncQueue
      ci-dessous). Pas de
      plugin Capacitor natif : navigator.onLine + les événements standards
-     online/offline fonctionnent déjà dans la WebView. Défense en
-     profondeur : même si navigator.onLine ment (cas connu sur Android),
-     l'échec réel de l'appel réseau est de toute façon intercepté à part. */
+     online/offline fonctionnent déjà dans la WebView. */
+  /* Dans l'app Android empaquetée (Capacitor), navigator.onLine ment parfois
+     (signale "hors ligne" alors que la connexion est bien là) — un cas connu
+     de cette WebView. Comme isOnline() gate TOUT rafraîchissement périodique
+     (refreshSelf, transactions.refresh, notifications.refresh...), un faux
+     "hors ligne" bloquait silencieusement toute mise à jour (ex. solde
+     rechargé par l'admin jamais reflété) jusqu'à la prochaine déconnexion/
+     reconnexion — Auth.login() ne dépend jamais de isOnline(), lui. On
+     ignore donc ce signal dans l'app et on tente toujours l'appel réseau
+     réel ; ServerAPI._call() a son propre délai d'expiration, un vrai échec
+     (réellement hors ligne) reste intercepté normalement par chaque
+     appelant. Sur le site web classique, navigator.onLine reste fiable :
+     comportement inchangé. */
   const Net = {
-    isOnline: () => (typeof navigator !== 'undefined' ? navigator.onLine : true),
+    isOnline: () => {
+      if (typeof navigator === 'undefined') return true;
+      if (typeof window !== 'undefined' && window.Capacitor) return true;
+      return navigator.onLine;
+    },
     onChange(cb) {
       if (typeof window === 'undefined') return;
       window.addEventListener('online', cb);
@@ -534,7 +561,7 @@ const DB = (() => {
         telephone: row.telephone || '', email: row.email || '',
         role: row.role, solde: row.solde || 0, statut: row.statut,
         admin_level: row.admin_level || undefined,
-        permissions: row.permissions || undefined,
+        permissions: parseJsonField(row.permissions) || undefined,
         zone: row.zone || undefined, cabine_nom: row.cabine_nom || undefined,
         commissions_total: row.commissions_total || 0,
         transferts_total: row.transferts_total || 0,
@@ -554,8 +581,14 @@ const DB = (() => {
         code_qr: row.code_qr || undefined,
         motivation: row.motivation || undefined,
         experience: row.experience || undefined,
-        puces: row.puces || undefined,
+        puces: parseJsonField(row.puces) || undefined,
         paiement_abo: row.paiement_abo || undefined,
+        poste: row.poste || undefined,
+        pays: row.pays || undefined,
+        ville: row.ville || undefined,
+        quartier: row.quartier || undefined,
+        date_naissance: row.date_naissance || undefined,
+        docs: parseJsonField(row.docs) || undefined,
       };
       if (plainPin) out.mot_de_passe = hashPwd(plainPin);
       return out;

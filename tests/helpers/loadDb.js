@@ -43,8 +43,10 @@ function makeFakeDate(initialNow) {
 /* navigator.onLine + window.addEventListener('online'/'offline') — assez
    pour DB.Net (voir js/db.js). `net.setOnline(bool)` bascule l'état ET
    déclenche les callbacks enregistrés via Net.onChange(), comme le ferait
-   un vrai changement de connectivité. */
-function makeNetStubs(initialOnline) {
+   un vrai changement de connectivité. `capacitor: true` simule l'app
+   Android empaquetée (window.Capacitor présent) — voir Net.isOnline(),
+   qui ignore alors navigator.onLine (mensonge connu de cette WebView). */
+function makeNetStubs(initialOnline, capacitor) {
   const navigatorStub = { onLine: initialOnline };
   const listeners = { online: [], offline: [] };
   const windowStub = {
@@ -53,6 +55,7 @@ function makeNetStubs(initialOnline) {
       if (listeners[evt]) listeners[evt] = listeners[evt].filter(l => l !== cb);
     },
   };
+  if (capacitor) windowStub.Capacitor = {};
   const net = {
     setOnline(value) {
       navigatorStub.onLine = value;
@@ -85,7 +88,7 @@ function loadDb(opts = {}) {
   const src = fs.readFileSync(DB_JS_PATH, 'utf8');
   const localStorage = makeLocalStorage();
   const { FakeDate, clock } = makeFakeDate(initialNow);
-  const { navigatorStub, windowStub, net } = makeNetStubs(online);
+  const { navigatorStub, windowStub, net } = makeNetStubs(online, options.capacitor);
 
   const sandbox = {
     localStorage,
