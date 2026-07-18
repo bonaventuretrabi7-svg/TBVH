@@ -878,6 +878,21 @@
 
       </div>
 
+      <!-- Notifications — voir loadClientNotifications()/DB.notifications
+           (js/client.js, js/db.js), synchronisées depuis le serveur
+           (api/notifications_list.php). -->
+      <div class="crd2-panel" style="cursor:pointer;" onclick="openModal('modal-client-notifications'); loadClientNotifications();">
+        <div class="crd2-row">
+          <div class="crd2-ico" style="background:rgba(255,98,0,.1);">
+            <i class="fa-solid fa-bell" style="color:#FF6200;"></i>
+          </div>
+          <div class="crd2-info">
+            <div class="crd2-lbl">Notifications</div>
+            <div class="crd2-val" id="pc-notif-count">Aucune nouvelle notification</div>
+          </div>
+        </div>
+      </div>
+
       <!-- Télécharger l'application Android (visible uniquement sur Android,
            voir renderAndroidProfileButton() dans js/client.js) -->
       <div class="appdl-wrap" id="cs-profile-android-dl" style="display:none;">
@@ -1607,6 +1622,19 @@
         </div>
 
       </form>
+    </div>
+  </div>
+</div>
+
+<!-- Notifications — voir loadClientNotifications() (js/client.js). -->
+<div class="modal-overlay" id="modal-client-notifications">
+  <div class="modal" style="max-width:420px;">
+    <div class="modal-header">
+      <span class="modal-title"><i class="fa-solid fa-bell" style="color:var(--primary)"></i> Notifications</span>
+      <button class="modal-close" onclick="closeModal('modal-client-notifications')"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body">
+      <div id="pc-notif-list" class="notif-list"></div>
     </div>
   </div>
 </div>

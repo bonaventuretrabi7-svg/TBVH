@@ -1031,6 +1031,25 @@ const DB = (() => {
     forUser: (uid) => get(KEY.notifications).filter(n => n.utilisateur_id === uid).sort((a,b) => new Date(b.date)-new Date(a.date)),
     unread: (uid)  => get(KEY.notifications).filter(n => n.utilisateur_id === uid && !n.lu).length,
 
+    // Rafraîchit depuis le serveur (voir api/notifications_list.php) — la
+    // table est déjà peuplée depuis la Phase 4 par createNotification()
+    // (bootstrap.php), appelée par la quasi-totalité des endpoints
+    // métier ; seule cette lecture manquait. Ne remplace que les entrées
+    // de CET utilisateur (garde intactes celles d'un autre compte
+    // éventuellement en cache localement, ex. impersonation).
+    async refresh(userId) {
+      if (!ServerAPI.isConfigured || !Net.isOnline()) return;
+      const res = await ServerAPI.notificationsList();
+      if (!res.ok) return;
+      const others = get(KEY.notifications).filter(n => n.utilisateur_id !== userId);
+      set(KEY.notifications, [...others, ...res.notifications]);
+    },
+
+    // Conservée pour compatibilité — n'est plus appelée en pratique
+    // depuis que chaque action métier crée déjà sa notification côté
+    // serveur (createNotification(), bootstrap.php) : un create() local
+    // en plus créerait un doublon (ids différents, jamais dédupliqués)
+    // une fois refresh() exécuté.
     create(utilisateur_id, message, type = 'info') {
       const list = get(KEY.notifications);
       const n = { id: uid(), utilisateur_id, message, lu: false, date: now(), type };
@@ -1039,17 +1058,23 @@ const DB = (() => {
       return n;
     },
 
-    markRead(id) {
+    // Remplace la version locale par api/notifications_mark_read.php —
+    // met aussi à jour le cache local immédiatement (pas d'attente du
+    // prochain refresh() pour que le badge se corrige).
+    async markRead(id) {
       const list = get(KEY.notifications);
       const idx  = list.findIndex(n => n.id === id);
       if (idx !== -1) { list[idx].lu = true; set(KEY.notifications, list); }
+      if (ServerAPI.isConfigured && Net.isOnline()) await ServerAPI.notificationsMarkRead(id);
     },
 
-    markAllRead(userId) {
+    // Remplace la version locale par api/notifications_mark_all_read.php.
+    async markAllRead(userId) {
       const list = get(KEY.notifications).map(n =>
         n.utilisateur_id === userId ? { ...n, lu: true } : n
       );
       set(KEY.notifications, list);
+      if (ServerAPI.isConfigured && Net.isOnline()) await ServerAPI.notificationsMarkAllRead();
     },
   };
 

@@ -9827,6 +9827,26 @@ body.impersonating:not(.on-home) .cs-section.active { padding-top: calc(20px + v
   transition: background .18s;
 }
 .cab-online-badge:hover { background: rgba(52,211,153,.2); }
+/* Cloche de notifications (topbar cabine) — même gabarit que
+   .cab-online-badge juste à côté, voir loadCabNotifications()/
+   updateNotifBadge() dans js/cabine.js. */
+.cab-notif-btn {
+  position: relative;
+  width: 36px; height: 36px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(255,98,0,.1); border: 1px solid rgba(255,98,0,.25);
+  border-radius: 50%; padding: 0;
+  font-size: .85rem; color: var(--primary);
+  cursor: pointer; transition: background .18s;
+}
+.cab-notif-btn:hover { background: rgba(255,98,0,.18); }
+.cab-notif-badge {
+  position: absolute; top: -4px; right: -4px;
+  min-width: 16px; height: 16px; padding: 0 3px;
+  border-radius: 999px; background: #DC2626; color: #fff;
+  font-size: .55rem; font-weight: 800; line-height: 16px; text-align: center;
+  box-shadow: 0 0 0 2px #fff;
+}
 .cab-online-badge:active { transform: scale(.96); }
 .cab-online-badge i { font-size: .58rem; color: #0F9D6E; }
 .cab-online-dot {

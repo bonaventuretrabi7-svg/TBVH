@@ -418,6 +418,7 @@ async function boot() {
     loadRechargeUvAdmin();
     loadExchangeAdmin();
     loadRetardsAdmin();
+    DB.notifications.refresh(currentUser.id).then(updateNotifBadge);
     updateNotifBadge();
 
     restoreAdminState(resumeSnapshot);
@@ -432,6 +433,10 @@ async function boot() {
       await DB.transactions.refresh();
       await DB.business.sweepStaleOrders();
       await DB.business.sweepAutoUnsuspensions();
+      // Notifications réelles (voir api/notifications_list.php) — reflète
+      // désormais ce qui se passe partout, pas seulement ce que cet
+      // appareil admin a lui-même déclenché.
+      await DB.notifications.refresh(currentUser.id);
       updateNotifBadge();
       // Re-rend la vue ACTUELLEMENT affichée (voir _adminViewLoader() plus
       // haut, déjà réutilisée par le bouton "Actualiser") — couvre
@@ -3478,10 +3483,11 @@ function exportCSV(type) {
 }
 
 /* â”€â”€ Admin notifications â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-function loadAdminNotifications() {
-  const notifs = DB.notifications.forUser(currentUser.id);
-  const list   = document.getElementById('admin-notif-list');
+async function loadAdminNotifications() {
+  const list = document.getElementById('admin-notif-list');
   if (!list) return;
+  await DB.notifications.refresh(currentUser.id);
+  const notifs = DB.notifications.forUser(currentUser.id);
   if (!notifs.length) {
     list.innerHTML = `<div class="empty-state"><div class="empty-icon"><i class="fa-solid fa-bell-slash"></i></div><div class="empty-title">Aucune notification</div></div>`;
     return;
@@ -3498,11 +3504,11 @@ function loadAdminNotifications() {
   updateNotifBadge();
 }
 
-function markAdminNotifRead(id, el) {
-  DB.notifications.markRead(id);
+async function markAdminNotifRead(id, el) {
   el.classList.remove('unread');
   el.querySelector('.notif-unread-dot')?.remove();
   updateNotifBadge();
+  await DB.notifications.markRead(id);
 }
 
 /* ── Réinitialisations mot de passe ───────────────────────────────

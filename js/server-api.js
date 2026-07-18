@@ -297,6 +297,24 @@ const ServerAPI = (() => {
     return { ok: true, retards: data.retards };
   }
 
+  async function notificationsList() {
+    const { res, data } = await _call('notifications_list.php', { auth: true });
+    if (!res.ok || !data || data.error) return { ok: false, error: (data && data.error) || 'Échec de la synchronisation.' };
+    return { ok: true, notifications: data.notifications };
+  }
+
+  async function notificationsMarkRead(notificationId) {
+    const { res, data } = await _call('notifications_mark_read.php', { auth: true, body: { notification_id: notificationId } });
+    if (!res.ok || !data || data.error) return { ok: false, error: (data && data.error) || 'Échec.' };
+    return { ok: true };
+  }
+
+  async function notificationsMarkAllRead() {
+    const { res, data } = await _call('notifications_mark_all_read.php', { auth: true });
+    if (!res.ok || !data || data.error) return { ok: false, error: (data && data.error) || 'Échec.' };
+    return { ok: true };
+  }
+
   async function transfertsCabineList() {
     const { res, data } = await _call('transferts_cabine_list.php', { auth: true });
     if (!res.ok || !data || data.error) return { ok: false, error: (data && data.error) || 'Échec de la synchronisation.' };
@@ -480,5 +498,6 @@ const ServerAPI = (() => {
     reclamationsList, reclamationsCreate, reclamationsResolve, reclamationsConfirmReceived,
     reclamationsRelance, reclamationsRequestRefund, ordersProcessRefund, refundRequestsList,
     transfertsCabineList, resubscriptionsList,
+    notificationsList, notificationsMarkRead, notificationsMarkAllRead,
   };
 })();

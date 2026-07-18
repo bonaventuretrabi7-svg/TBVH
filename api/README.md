@@ -71,6 +71,9 @@ Crée-y un dossier **`api`**, et dépose DANS ce dossier tous les fichiers de
 - `orders_delete.php`
 - `transferts_cabine_list.php`
 - `resubscriptions_list.php`
+- `notifications_list.php`
+- `notifications_mark_read.php`
+- `notifications_mark_all_read.php`
 - `cabine_suspend_manual.php`
 - `cabine_self_recharge.php`
 - `cabine_resubscribe.php`

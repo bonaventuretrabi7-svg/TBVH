@@ -164,6 +164,14 @@ function loadDb(opts = {}) {
       forfaitsRemove: options.serverForfaitsRemove || (async () => ({ ok: false, error: 'not mocked' })),
       commissionsList: options.serverCommissionsList || (async () => ({ ok: true, commissions: [] })),
       commissionsUpdateRate: options.serverCommissionsUpdateRate || (async () => ({ ok: false, error: 'not mocked' })),
+      // Historiques transferts cabine / réabonnements (Phase B, mise en
+      // conformité temps réel) — lecture seule, no-op par défaut.
+      transfertsCabineList: options.serverTransfertsCabineList || (async () => ({ ok: true, transferts: [] })),
+      resubscriptionsList: options.serverResubscriptionsList || (async () => ({ ok: true, resubscriptions: [] })),
+      // Notifications réelles (Phase C, mise en conformité temps réel).
+      notificationsList: options.serverNotificationsList || (async () => ({ ok: true, notifications: [] })),
+      notificationsMarkRead: options.serverNotificationsMarkRead || (async () => ({ ok: true })),
+      notificationsMarkAllRead: options.serverNotificationsMarkAllRead || (async () => ({ ok: true })),
     },
   };
   vm.createContext(sandbox);

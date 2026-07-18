@@ -237,6 +237,7 @@ async function boot() {
   // premier cycle de sondage (voir plus bas, toutes les 30s).
   await DB.users.refreshSelf();
   currentUser = Auth.refresh() || currentUser;
+  DB.notifications.refresh(currentUser.id).then(updateNotifBadge);
   // Reprend les commandes en attente non assignées (pool "administration")
   // — voir DB.business.assignPendingToCabine().
   await DB.business.assignPendingToCabine(currentUser.id);
@@ -278,6 +279,10 @@ async function boot() {
     // loadCabBalanceCard/_refreshSuspensionBanner) ; la réception de
     // nouvelles commandes reste bloquée côté serveur simulé (js/db.js).
     if (!currentUser) { Auth.logout(); return; }
+    // Notifications réelles (voir api/notifications_list.php) — reflète
+    // désormais ce qui se passe partout (recharge admin, remboursement...),
+    // pas seulement ce que cet appareil a lui-même déclenché.
+    await DB.notifications.refresh(currentUser.id);
     updateNotifBadge();
     loadCabBalanceCard();
     loadCabRealtimeStats();
@@ -2822,10 +2827,11 @@ async function requestReclamationRefund(reclaId) {
 }
 
 /* ── Notifications ─────────────────────────────────────────────── */
-function loadCabNotifications() {
-  const notifs = DB.notifications.forUser(currentUser.id);
-  const list   = document.getElementById('cab-notif-list');
+async function loadCabNotifications() {
+  const list = document.getElementById('cab-notif-list');
   if (!list) return;
+  await DB.notifications.refresh(currentUser.id);
+  const notifs = DB.notifications.forUser(currentUser.id);
   if (!notifs.length) {
     list.innerHTML = `<div class="cab-empty-state">
       <i class="fa-solid fa-bell-slash" style="font-size:2rem;opacity:.3;margin-bottom:8px;display:block;"></i>
@@ -2846,15 +2852,15 @@ function loadCabNotifications() {
   updateNotifBadge();
 }
 
-function markCabNotifRead(id, el) {
-  DB.notifications.markRead(id);
+async function markCabNotifRead(id, el) {
   el.classList.remove('unread');
   el.querySelector('.notif-unread-dot')?.remove();
   updateNotifBadge();
+  await DB.notifications.markRead(id);
 }
 
-function markAllCabRead() {
-  DB.notifications.markAllRead(currentUser.id);
+async function markAllCabRead() {
+  await DB.notifications.markAllRead(currentUser.id);
   loadCabNotifications();
   Toast.info('Toutes les notifications sont lues.');
 }

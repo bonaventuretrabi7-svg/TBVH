@@ -515,6 +515,7 @@ async function boot() {
         refreshSoldeNumbers();
         loadWallet();
       });
+      DB.notifications.refresh(currentUser.id).then(updateNotifBadge);
     } else {
       renderLockedSections(true);
       // Un client mémorisé sur cet appareil (jeton "rester connecté")
@@ -620,6 +621,11 @@ function startClientPresence() {
     // 4/5) — les onglets client sont typiquement les plus nombreux ouverts.
     DB.business.sweepStaleOrders();
     DB.business.sweepAutoUnsuspensions();
+    // Notifications réelles (voir api/notifications_list.php) — la cloche
+    // reflète désormais ce qui se passe partout, pas seulement ce que cet
+    // appareil a lui-même déclenché.
+    await DB.notifications.refresh(currentUser.id);
+    updateNotifBadge();
     // Re-rend la section ACTUELLEMENT affichée (voir _clientSectionLoader()
     // ci-dessus) — couvre automatiquement tous les onglets, pas seulement
     // Historique/Portefeuille comme avant.
@@ -982,6 +988,40 @@ function updateNotifBadge() {
   const count = DB.notifications.unread(currentUser.id);
   const sidebarBadge = document.getElementById('csb-notif-badge');
   if (sidebarBadge) { sidebarBadge.textContent = count; sidebarBadge.style.display = count ? 'inline-block' : 'none'; }
+  const profileCount = document.getElementById('pc-notif-count');
+  if (profileCount) profileCount.textContent = count ? `${count} nouvelle${count > 1 ? 's' : ''} notification${count > 1 ? 's' : ''}` : 'Aucune nouvelle notification';
+}
+
+/* Notifications (modal-client-notifications, voir index.html) — même
+   patron que loadCabNotifications()/loadAdminNotifications(). */
+async function loadClientNotifications() {
+  const list = document.getElementById('pc-notif-list');
+  if (!list || !currentUser) return;
+  await DB.notifications.refresh(currentUser.id);
+  const notifs = DB.notifications.forUser(currentUser.id);
+  if (!notifs.length) {
+    list.innerHTML = `<div class="empty-state"><div class="empty-icon"><i class="fa-solid fa-bell-slash"></i></div><div class="empty-title">Aucune notification</div></div>`;
+    updateNotifBadge();
+    return;
+  }
+  const icons = { success: 'fa-circle-check', info: 'fa-circle-info', new_request: 'fa-bell', transfer: 'fa-right-left', warning: 'fa-triangle-exclamation', reassigned: 'fa-shuffle' };
+  list.innerHTML = notifs.map(n => `
+    <div class="notif-item ${n.lu ? '' : 'unread'}" onclick="markClientNotifRead('${n.id}', this)">
+      <div class="notif-icon"><i class="fa-solid ${icons[n.type] || 'fa-bell'}"></i></div>
+      <div class="notif-content">
+        <div class="notif-msg">${n.message}</div>
+        <div class="notif-time"><i class="fa-regular fa-clock"></i> ${Fmt.datetime(n.date)}</div>
+      </div>
+      ${!n.lu ? '<div class="notif-unread-dot"></div>' : ''}
+    </div>`).join('');
+  updateNotifBadge();
+}
+
+async function markClientNotifRead(id, el) {
+  el.classList.remove('unread');
+  el.querySelector('.notif-unread-dot')?.remove();
+  updateNotifBadge();
+  await DB.notifications.markRead(id);
 }
 
 /* Après toute connexion réussie */
