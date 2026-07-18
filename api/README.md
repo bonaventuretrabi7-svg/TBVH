@@ -58,6 +58,12 @@ phase) :** colle aussi le contenu de **`api/migration_phase12_actualites.sql`**
 (une seule fois) — colonne `actualites` sur `settings` (annonces KBINE PLUS
 gérées par l'admin, remplace l'ancien bandeau Football/Politique codé en dur).
 
+**Base déjà en place :** colle aussi le contenu de
+**`api/migration_phase14_admin_profile_fields.sql`** (une seule fois) —
+colonnes `poste`/`pays`/`ville`/`quartier`/`date_naissance`/`docs` sur
+`profiles` (profil administrateur complet, jamais stocké côté serveur
+jusqu'ici — corrige un compte "Assistant clientèle" créé sans permissions).
+
 ## 3. Déposer les fichiers PHP sur l'hébergement
 
 hPanel → Sites web → ton domaine → **Gestionnaire de fichiers** → ouvre le
@@ -121,6 +127,7 @@ Crée-y un dossier **`api`**, et dépose DANS ce dossier tous les fichiers de
 - `devices_remove.php`
 - `referrals_summary.php`
 - `admin_delete_account.php`
+- `admin_update_profile.php`
 - `cabine_suspend_manual.php`
 - `cabine_self_recharge.php`
 - `cabine_resubscribe.php`

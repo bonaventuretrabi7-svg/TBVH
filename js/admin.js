@@ -2824,9 +2824,11 @@ function openEditAdminPermsModal(id) {
   openModal('modal-edit-admin-perms');
 }
 
-function saveAdminPerms() {
+async function saveAdminPerms() {
   if (currentUser.admin_level !== 'super') { Toast.error('Seul le super administrateur peut définir les permissions.'); return; }
   const permissions = [...document.querySelectorAll('.edit-admin-perm-chk:checked')].map(chk => chk.value);
+  const res = await ServerAPI.adminUpdateProfile({ id: _editAdminPermsId, permissions });
+  if (!res.ok) { Toast.error(res.error); return; }
   DB.users.update(_editAdminPermsId, { permissions });
   closeModal('modal-edit-admin-perms');
   Toast.success('Permissions mises à jour.');
@@ -2869,7 +2871,7 @@ function openEditAdminProfileModal(id) {
   openModal('modal-edit-admin-profile');
 }
 
-function saveAdminProfile() {
+async function saveAdminProfile() {
   if (currentUser.admin_level !== 'super') { Toast.error('Seul le super administrateur peut modifier un administrateur.'); return; }
   const target = DB.users.byId(_editAdminProfileId);
   const isSelf = target && target.id === currentUser.id;
@@ -2901,32 +2903,37 @@ function saveAdminProfile() {
     if (newPin !== newPin2) { Toast.error('Les deux mots de passe ne correspondent pas.'); return; }
   }
 
-  adminReadFileAsDataUrl(photoFile).then((photoUrl) => {
-    const updates = {
-      nom, prenom, email, date_naissance: dob, pays, ville, quartier, whatsapp,
-    };
-    if (target.admin_level !== 'super') updates.poste = poste;
-    if (rectoFile || versoFile) {
-      updates.docs = { ...(target.docs || {}) };
-      if (rectoFile) updates.docs.cni_recto = rectoFile.name;
-      if (versoFile) updates.docs.cni_verso = versoFile.name;
-    }
-    if (photoFile) updates.photo = photoUrl;
-    if (newPin) updates.mot_de_passe = newPin;
+  const photoUrl = await adminReadFileAsDataUrl(photoFile);
+  const updates = {
+    nom, prenom, email, dateNaissance: dob, pays, ville, quartier, whatsapp,
+  };
+  if (target.admin_level !== 'super') updates.poste = poste;
+  if (rectoFile || versoFile) {
+    updates.docs = { ...(target.docs || {}) };
+    if (rectoFile) updates.docs.cni_recto = rectoFile.name;
+    if (versoFile) updates.docs.cni_verso = versoFile.name;
+  }
+  if (photoFile) updates.photo = photoUrl;
+  if (newPin) updates.pin = newPin;
 
-    DB.users.update(_editAdminProfileId, updates);
-    closeModal('modal-edit-admin-profile');
+  const res = await ServerAPI.adminUpdateProfile({ id: _editAdminProfileId, ...updates });
+  if (!res.ok) { Toast.error(res.error); return; }
 
-    if (isSelf) {
-      currentUser = Auth.refresh();
-      document.querySelector('.user-name').textContent = currentUser.prenom + ' ' + currentUser.nom;
-      Toast.success('Votre profil a été mis à jour.');
-      viewOwnAdminProfile();
-    } else {
-      Toast.success(`Coordonnées de ${prenom} ${nom} mises à jour.`);
-      loadAdminsList();
-    }
-  });
+  const localUpdates = { ...updates };
+  if (localUpdates.pin) { localUpdates.mot_de_passe = localUpdates.pin; delete localUpdates.pin; }
+  if (localUpdates.dateNaissance !== undefined) { localUpdates.date_naissance = localUpdates.dateNaissance; delete localUpdates.dateNaissance; }
+  DB.users.update(_editAdminProfileId, localUpdates);
+  closeModal('modal-edit-admin-profile');
+
+  if (isSelf) {
+    currentUser = Auth.refresh();
+    document.querySelector('.user-name').textContent = currentUser.prenom + ' ' + currentUser.nom;
+    Toast.success('Votre profil a été mis à jour.');
+    viewOwnAdminProfile();
+  } else {
+    Toast.success(`Coordonnées de ${prenom} ${nom} mises à jour.`);
+    loadAdminsList();
+  }
 }
 
 function adminReadFileAsDataUrl(file) {
@@ -3070,7 +3077,12 @@ async function finishCreateUser(data) {
       pin: data.mot_de_passe, email: data.email, cabineNom: data.cabine_nom,
     };
     const res = data.role === 'admin'
-      ? await ServerAPI.adminCreateAccount({ ...payload, adminLevel: data.admin_level })
+      ? await ServerAPI.adminCreateAccount({
+          ...payload, adminLevel: data.admin_level, permissions: data.permissions,
+          whatsapp: data.whatsapp, photo: data.photo, poste: data.poste,
+          pays: data.pays, ville: data.ville, quartier: data.quartier,
+          dateNaissance: data.date_naissance, docs: data.docs,
+        })
       : await ServerAPI.createAccount(payload);
     if (!res.ok) { Toast.error(res.error || 'Échec de la création du compte.'); return; }
     data = { ...data, id: res.profile.id };

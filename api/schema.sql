@@ -50,6 +50,12 @@ CREATE TABLE IF NOT EXISTS profiles (
   experience            VARCHAR(64)  NULL,
   puces                 JSON         NULL,
   paiement_abo          VARCHAR(64)  NULL,
+  poste                 VARCHAR(64)  NULL,
+  pays                  VARCHAR(190) NULL,
+  ville                 VARCHAR(190) NULL,
+  quartier              VARCHAR(190) NULL,
+  date_naissance        DATE         NULL,
+  docs                  JSON         NULL,
   UNIQUE KEY uniq_telephone_role (telephone, role),
   UNIQUE KEY uniq_email_role (email, role)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
