@@ -1359,7 +1359,12 @@ async function handleAuthGateRegister(e) {
   } else {
     DB.users.create({ prenom: tel, telephone: tel, mot_de_passe: pin, role: 'client' });
   }
-  const res = await Auth.login(tel, pin, false, 'client');
+  // remember:true — même règle que toute connexion client (voir
+  // handleAuthGateLogin() plus haut) : un compte tout juste créé doit lui
+  // aussi être mémorisé sur cet appareil, sinon le client devait ressaisir
+  // numéro + code dès le lancement suivant alors qu'une connexion "normale"
+  // ne le lui demande plus.
+  const res = await Auth.login(tel, pin, true, 'client');
   if (res.ok) {
     afterLogin(res.user);
   } else {
