@@ -8762,19 +8762,6 @@ body.dark .rh-card-ref { color: var(--dark-text, #F1F3F9); }
   backface-visibility: hidden;
 }
 
-/* ── Bandeau invité : même composant que .pgc-hero-card (couleur,
-   padding, coins, chevauchement du QR) mais en flux normal (pas
-   fixe) puisque rien n'impose qu'il reste ancré pour un invité.
-   On retrouve la même marge négative "double compensation" que
-   .pgc-hero-card utilisait avant de passer en position:fixed, pour
-   déborder à la fois du padding de .pgc-sticky-wrap et de celui de
-   .client-page et atteindre le même bord que la vue connectée. */
-.pgc-hero-card--static {
-  position: relative; top: auto; left: auto; right: auto;
-  width: auto; max-width: none; margin: 0 -40px;
-}
-@media (max-width: 600px) { .pgc-hero-card--static { margin: 0 -24px; } }
-
 .pgc-balance-real {
   font-size: 1.6rem; font-weight: 900; color: var(--gray-800);
   line-height: 1.1; letter-spacing: -.02em;

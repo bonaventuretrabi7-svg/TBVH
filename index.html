@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" />
-  <link rel="stylesheet" href="css/style.css?v=115" />
+  <link rel="stylesheet" href="css/style.css?v=116" />
   <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin />
   <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
@@ -78,11 +78,14 @@
     </div>
 
     <!-- Invité : reproduit exactement le même cadrage/couleur/rendu que
-         la vue connectée (bandeau bleu nuit + carte QR qui chevauche son
-         bord bas), seul le contenu change (solde masqué, pas de bascule
-         œil puisqu'il n'y a rien à révéler tant qu'on n'est pas connecté). -->
+         la vue connectée (bandeau bleu nuit fixe + carte QR qui chevauche
+         son bord bas et défile normalement avec le contenu), seul le
+         contenu change (solde masqué, pas de bascule œil puisqu'il n'y a
+         rien à révéler tant qu'on n'est pas connecté). Le bandeau reste
+         fixe (comme côté connecté) pour que le cadenas — qui ouvre la
+         connexion — reste toujours accessible pendant le défilement. -->
     <div id="hbc-guest" class="pgc-sticky-wrap">
-      <div class="pgc-hero-card pgc-hero-card--static">
+      <div class="pgc-hero-card">
         <div class="pgc-hero-amount-row">
           <div class="pgc-hero-amount-wrap">
             <span class="pgc-balance-real">•• •••</span>
