@@ -32,5 +32,12 @@ android/keystore.properties
 .claude/
 
 # Identifiants MySQL réels (voir api/config.example.php) — jamais commités,
-# créé directement sur l'hébergement (Hostinger File Manager).
+# créé directement sur l'hébergement (Hostinger File Manager). En local, ce
+# même fichier pointe plutôt vers la base de test MariaDB (voir
+# tests-php/README.md) — jamais les vraies infos de prod.
 api/config.php
+
+# Suite de tests PHP (tests-php/, voir composer.json) — dépendances
+# Composer et cache PHPUnit, jamais commités (comme node_modules/).
+vendor/
+.phpunit.cache/
