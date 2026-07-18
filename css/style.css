@@ -8694,16 +8694,16 @@ body.dark .rh-card-ref { color: var(--dark-text, #F1F3F9); }
   padding: 26px 20px 34px;
   border-radius: 0 0 28px 28px;
   background: #0F0A2E;
-  transition: padding .28s cubic-bezier(.4,0,.2,1), border-radius .28s ease;
-  /* Corrige un bug rapporté : après un défilement bas puis retour en
-     haut, le bandeau (solde) et la carte QR juste en dessous restaient
-     parfois invisibles/mal rendus. Cas connu des WebView Android/iOS :
-     un élément position:fixed dont on anime padding/border-radius (des
-     propriétés qui déclenchent un nouveau calcul de mise en page, pas
-     seulement un repaint) perd parfois son rendu après un défilement,
-     tant qu'aucun autre événement ne force un repaint. Le forcer sur sa
-     propre couche de composition (transform + backface-visibility)
-     évite ce problème sans changer l'animation elle-même. */
+  /* Corrige un bug rapporté (persistant malgré un 1er correctif via
+     translateZ(0)/backface-visibility, conservés ci-dessous par
+     précaution) : après un défilement bas puis retour en haut, le
+     bandeau et la carte QR restaient parfois bloqués/mal rendus. Cause
+     racine, cas connu des WebView Android/iOS : ANIMER padding/
+     border-radius (des propriétés qui déclenchent un nouveau calcul de
+     mise en page, pas seulement un repaint) sur un élément position:fixed
+     pendant un défilement. La seule correction fiable est de ne plus
+     animer ces propriétés du tout — voir .pgc-hero-card--compact
+     ci-dessous, bascule desormais instantanée (aucune transition). */
   transform: translateZ(0);
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
@@ -8713,10 +8713,14 @@ body.dark .rh-card-ref { color: var(--dark-text, #F1F3F9); }
 /* En-tête qui se compacte au défilement : dès que la page a scrollé,
    .pgc-hero-card--compact réduit le bandeau à une fine bande (le
    montant rétrécit avec lui) ; en revenant tout en haut, il se
-   redéploie. La réserve d'espace (#cs-transfer padding-top) est
-   calculée une fois sur la hauteur pleine, donc rien ne bouge dans le
-   flux du document pendant l'animation — seul le bandeau fixe change
-   d'aspect, sans à-coup ni saut de la carte QR en dessous. */
+   redéploie. Bascule INSTANTANÉE (pas de transition sur padding/
+   border-radius, voir la note ci-dessus) — seule .pgc-balance-real
+   garde une transition de font-size (propriété qui ne déclenche jamais
+   de nouveau calcul de mise en page sur un élément fixe). La réserve
+   d'espace (#cs-transfer padding-top) est calculée une fois sur la
+   hauteur pleine, donc rien ne bouge dans le flux du document — seul
+   le bandeau fixe change d'aspect, sans à-coup ni saut de la carte QR
+   en dessous. */
 .pgc-hero-card--compact {
   padding: 14px 20px 18px;
   border-radius: 0 0 18px 18px;
