@@ -4904,29 +4904,23 @@ async function _svcDebitAndRecord(data) {
       return null;
     }
   }
-  const total = data.montant + FRAIS_SERVICE_AVANCE;
-  DB.users.updateSolde(me.id, -total);
-  const cabineId = me.cabine_id || null;
-  const txn = DB.transactions.create({
-    client_id      : me.id,
-    cabine_id      : cabineId,
-    type           : data.type,
-    service        : data.service || '',
-    operateur      : data.operateur || '',
-    numero_beneficiaire: data.numero || '',
-    montant        : data.montant,
-    frais_service  : FRAIS_SERVICE_AVANCE,
-    details        : data.details || {},
-    statut         : 'en_attente',
-    date           : new Date().toISOString(),
-    notes          : data.notes || '',
+  const res = await DB.business.createAdvancedOrder({
+    type      : data.type,
+    montant   : data.montant,
+    service   : data.service || '',
+    operateur : data.operateur || '',
+    numero    : data.numero || '',
+    details   : data.details || {},
+    notes     : data.notes || '',
   });
+  if (!res.ok) { Toast.error(res.error); return null; }
+
   currentUser = Auth.refresh();
   _markOrderSubmitted();
   renderSoldeSection();
   refreshSidebarBalance();
   loadWallet();
-  return txn;
+  return res.txn;
 }
 
 // Récapitulatif générique, réutilisé par toutes les commandes payées avec

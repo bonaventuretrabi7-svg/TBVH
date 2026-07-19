@@ -1887,6 +1887,25 @@ const DB = (() => {
       return { ok: true, txn };
     },
 
+    /* Client crée une commande "service avancé" (Facture / Recharge UV /
+       Exchange) — remplace l'ancienne version 100% locale de
+       _svcDebitAndRecord() (js/client.js) par un appel serveur atomique
+       (voir api/orders_create_advanced.php), même patron que
+       createTransfer() ci-dessus. Sans ça, ces 3 types de commande
+       n'étaient jamais envoyés au serveur et restaient invisibles de
+       l'administration. */
+    async createAdvancedOrder({ type, montant, service, operateur, numero, details, notes }) {
+      const res = await ServerAPI.ordersCreateAdvanced({ type, montant, service, operateur, numero, details, notes });
+      if (!res.ok) return { ok: false, error: res.error || 'Échec de la création de la commande.' };
+
+      const txn = res.transaction;
+      const list = get(KEY.transactions);
+      list.push(txn);
+      set(KEY.transactions, list);
+
+      return { ok: true, txn };
+    },
+
     /* Nombre de commandes actuellement en attente dans l'espace d'une cabine. */
     pendingCountForCabine(cabineId) {
       return transactions.byCabine(cabineId).filter(t => t.statut === 'en_attente').length;

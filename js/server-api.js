@@ -84,6 +84,27 @@ const ServerAPI = (() => {
     return { ok: true, profile: data.profile };
   }
 
+  // Super admin : génère un lien de connexion sans mot de passe pour un
+  // administrateur simple — voir api/admin_create_login_link.php.
+  async function adminCreateLoginLink(adminId) {
+    const { res, data } = await _call('admin_create_login_link.php', { auth: true, body: { admin_id: adminId } });
+    if (!res.ok || !data || data.error) return { ok: false, error: (data && data.error) || 'Échec de la génération du lien.' };
+    return { ok: true, token: data.token };
+  }
+
+  // Consomme un lien de connexion sans mot de passe — voir
+  // api/admin_magic_login.php et Auth.magicLogin() (js/auth.js). Public
+  // (aucun jeton existant requis, contrairement à login()).
+  async function adminMagicLogin(token) {
+    const { res, data, networkError } = await _call('admin_magic_login.php', { body: { token } });
+    if (networkError) return { ok: false, networkError: true, error: 'Connexion Internet requise.' };
+    if (!res.ok || !data || data.error) {
+      return { ok: false, error: (data && data.error) || 'Lien de connexion invalide.' };
+    }
+    _setToken(data.token);
+    return { ok: true, profile: data.profile };
+  }
+
   /* Jeton actuellement actif (voir Auth._applyDeviceBookkeeping, js/auth.js)
      — persisté en localStorage sous "rester connecté" pour permettre une
      reprise de session vérifiée par le serveur au prochain démarrage
@@ -293,6 +314,13 @@ const ServerAPI = (() => {
      font que transporter la requête/réponse, aucune logique métier ici. */
   async function ordersCreate(payload) {
     const { res, data, networkError } = await _call('orders_create.php', { auth: true, body: payload });
+    if (networkError) return { ok: false, networkError: true, error: 'Connexion Internet requise.' };
+    if (!res.ok || !data || data.error) return { ok: false, error: (data && data.error) || 'Échec de la création de la commande.' };
+    return { ok: true, transaction: data.transaction };
+  }
+
+  async function ordersCreateAdvanced(payload) {
+    const { res, data, networkError } = await _call('orders_create_advanced.php', { auth: true, body: payload });
     if (networkError) return { ok: false, networkError: true, error: 'Connexion Internet requise.' };
     if (!res.ok || !data || data.error) return { ok: false, error: (data && data.error) || 'Échec de la création de la commande.' };
     return { ok: true, transaction: data.transaction };
@@ -664,10 +692,11 @@ const ServerAPI = (() => {
     isConfigured, getToken, setToken, whoami, favorisList, favorisCreate, favorisRemove,
     accessLogsList, accessLogsCreate, permissionLogsList, permissionLogsCreate,
     maintenanceLogsList, maintenanceLogsCreate, presencePing, presenceOnline,
-    ordersCreate, ordersAccept, ordersRefuse, ordersAssignPending, ordersReassign,
+    ordersCreate, ordersCreateAdvanced, ordersAccept, ordersRefuse, ordersAssignPending, ordersReassign,
     ordersSweep, ordersSweepUnsuspend, ordersList, retardsList,
     ordersRecharge, ordersRefund, ordersSuspend, ordersReactivate, ordersDelete, cabineSuspendManual,
     cabineSelfRecharge, cabineResubscribe, adminSetAbonnement, cabineTransfer, clientTransfer, clientLookup, clientLoginLookup,
+    adminCreateLoginLink, adminMagicLogin,
     forfaitsList, forfaitsCreate, forfaitsUpdate, forfaitsRemove, commissionsList, commissionsUpdateRate,
     reclamationsList, reclamationsCreate, reclamationsResolve, reclamationsConfirmReceived,
     reclamationsRelance, reclamationsRequestRefund, ordersProcessRefund, refundRequestsList,

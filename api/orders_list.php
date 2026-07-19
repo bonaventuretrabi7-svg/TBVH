@@ -20,4 +20,8 @@ if ($me['role'] === 'client') {
   $stmt = db()->query('SELECT * FROM transactions ORDER BY date DESC');
 }
 
-echo json_encode(['transactions' => $stmt->fetchAll()]);
+// `details` (JSON) revient en texte brut de MySQL/PDO — décodé ici pour
+// que ce soit un objet exploitable côté client (voir renderHistoryList()/
+// dépenses, js/client.js, et le rendu USSD cabine, js/cabine.js).
+$rows = array_map(fn($r) => decodeJsonColumns($r, ['details']), $stmt->fetchAll());
+echo json_encode(['transactions' => $rows]);

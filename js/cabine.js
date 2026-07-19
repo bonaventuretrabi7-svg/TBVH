@@ -1987,45 +1987,92 @@ const CAB_HISTORY_STATUT_META = {
   'remboursé': { pill: 'hoc-pill--rfd',  ico: 'fa-rotate-left',     lbl: 'Remboursée' },
 };
 
-function loadCabHistory() {
+// Filtre affiché au-dessus de l'historique (même segmented control que
+// "Mes commandes", voir .cof-tabs/.cof-ctab dans cabine.html) : "Tout",
+// "Transferts" (cabine-à-cabine, voir loadCabTransferHistory() ci-dessus)
+// ou "Commandes" (transactions propres + commandes traitées pour des
+// clients, déjà fusionnées ci-dessous).
+let _cabHistFilter = 'all';
+
+function filterCabHistory(filter, btn) {
+  _cabHistFilter = filter;
+  document.querySelectorAll('#cab-sec-historique .cof-ctab').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  loadCabHistory();
+}
+
+function _cabHistDateLabel(dateStr) {
+  const dt = new Date(dateStr);
+  const day = dt.toLocaleDateString('fr-CI', { day: '2-digit', month: 'short' });
+  const time = dt.toLocaleTimeString('fr-CI', { hour: '2-digit', minute: '2-digit' });
+  return `${day} · ${time}`;
+}
+
+function _renderCabHistTxnCard(t) {
+  const meta   = CAB_HISTORY_TYPE_META[t.type] || { ico: 'fa-circle-nodes', clr: '#7c3aed', lbl: t.type || 'Transaction' };
+  const statut = CAB_HISTORY_STATUT_META[t.statut] || { pill: 'hoc-pill--pend', ico: 'fa-clock', lbl: t.statut };
+  const d      = t.details || {};
+  const ref    = Fmt.ref(t.id);
+  return `
+  <div class="hoc-card">
+    <div class="hoc-card-top">
+      <div class="hoc-id-row">
+        <div class="hoc-ico" style="background:${meta.clr}1a;color:${meta.clr};"><i class="fa-solid ${meta.ico}"></i></div>
+        <div>
+          <div class="hoc-svc">${t.service || meta.lbl}</div>
+          <div class="hoc-meta">Réf : ${ref}${d.moyen_paiement ? ' · ' + d.moyen_paiement : ''} · ${_cabHistDateLabel(t.date)}</div>
+        </div>
+      </div>
+      <div class="hoc-amounts">
+        <div class="hoc-montant">-${Fmt.money(t.montant)}</div>
+        <span class="hoc-pill ${statut.pill}"><i class="fa-solid ${statut.ico}"></i> ${statut.lbl}</span>
+      </div>
+    </div>
+  </div>`;
+}
+
+function _renderCabHistTransfertRow(t) {
+  const sent  = t.from_cabine_id === currentUser.id;
+  const other = DB.users.byId(sent ? t.to_cabine_id : t.from_cabine_id);
+  return `<div class="cab-retrait-row">
+    <div class="cab-retrait-row-info">
+      <span class="cab-retrait-row-amount">${sent ? '-' : '+'}${Fmt.money(t.montant)}</span>
+      <span class="cab-retrait-row-meta">${sent ? 'Envoyé à' : 'Reçu de'} ${other ? (other.cabine_nom || other.prenom + ' ' + other.nom) : '?'} · ${_cabHistDateLabel(t.date)}</span>
+    </div>
+  </div>`;
+}
+
+async function loadCabHistory() {
   const list = document.getElementById('cab-historique-list');
   if (!list) return;
 
-  // Ses propres transactions internes (ex. réabonnement, sans client_id)
-  // fusionnées avec ses propres demandes auto-initiées (ex. recharge UV,
-  // désormais potentiellement assignées à une AUTRE cabine — voir
-  // DB.business.cabineSelfRecharge — donc invisibles via byCabine seul).
+  // Fusionne 3 sources : ses propres transactions internes (ex.
+  // réabonnement, sans client_id) + ses propres demandes auto-initiées
+  // (ex. recharge UV, désormais potentiellement assignées à une AUTRE
+  // cabine — voir DB.business.cabineSelfRecharge — donc invisibles via
+  // byCabine seul) + les transferts cabine-à-cabine (voir
+  // loadCabTransferHistory() ci-dessus, même source de données).
+  await DB.transferts_cabine.refresh();
+
   const selfTxns      = DB.transactions.byCabine(currentUser.id).filter(t => !t.client_id);
   const requestedTxns = DB.transactions.byClient(currentUser.id);
-  const txns = [...selfTxns, ...requestedTxns].sort((a, b) => new Date(b.date) - new Date(a.date));
+  const transferts    = DB.transferts_cabine.byCabine(currentUser.id);
 
-  if (!txns.length) {
+  const items = [];
+  if (_cabHistFilter !== 'transferts') {
+    [...selfTxns, ...requestedTxns].forEach(t => items.push({ date: t.date, html: _renderCabHistTxnCard(t) }));
+  }
+  if (_cabHistFilter !== 'commandes') {
+    transferts.forEach(t => items.push({ date: t.date, html: _renderCabHistTransfertRow(t) }));
+  }
+  items.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+  if (!items.length) {
     list.innerHTML = `<div class="cab-empty-state"><i class="fa-solid fa-clock-rotate-left" style="font-size:2rem;opacity:.3;margin-bottom:8px;display:block;"></i><div>Aucune transaction</div></div>`;
     return;
   }
 
-  list.innerHTML = `<div class="hoc-list">${txns.map(t => {
-    const meta   = CAB_HISTORY_TYPE_META[t.type] || { ico: 'fa-circle-nodes', clr: '#7c3aed', lbl: t.type || 'Transaction' };
-    const statut = CAB_HISTORY_STATUT_META[t.statut] || { pill: 'hoc-pill--pend', ico: 'fa-clock', lbl: t.statut };
-    const d      = t.details || {};
-    const ref    = Fmt.ref(t.id);
-    return `
-    <div class="hoc-card">
-      <div class="hoc-card-top">
-        <div class="hoc-id-row">
-          <div class="hoc-ico" style="background:${meta.clr}1a;color:${meta.clr};"><i class="fa-solid ${meta.ico}"></i></div>
-          <div>
-            <div class="hoc-svc">${t.service || meta.lbl}</div>
-            <div class="hoc-meta">Réf : ${ref}${d.moyen_paiement ? ' · ' + d.moyen_paiement : ''}</div>
-          </div>
-        </div>
-        <div class="hoc-amounts">
-          <div class="hoc-montant">-${Fmt.money(t.montant)}</div>
-          <span class="hoc-pill ${statut.pill}"><i class="fa-solid ${statut.ico}"></i> ${statut.lbl}</span>
-        </div>
-      </div>
-    </div>`;
-  }).join('')}</div>`;
+  list.innerHTML = `<div class="hoc-list">${items.map(i => i.html).join('')}</div>`;
 }
 
 /* ── Commissions ───────────────────────────────────────────────── */

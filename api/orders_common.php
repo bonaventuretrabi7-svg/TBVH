@@ -163,6 +163,11 @@ function checkAutoUnsuspend(PDO $pdo, string $cabineId): bool {
 // (utile pour les notifications post-commit).
 function refundTransactionEffect(PDO $pdo, string $txnId): array {
   $PENALITE_REMBOURSEMENT_TERMINE = 60;
+  // Bonus de dédommagement versé au client à CHAQUE remboursement (en
+  // attente ou déjà terminé) — indépendant de la pénalité cabine
+  // ci-dessus, qui ne s'applique elle que si la commande avait été
+  // faussement marquée "terminée".
+  $BONUS_REMBOURSEMENT_CLIENT = 15;
 
   $txnStmt = $pdo->prepare('SELECT * FROM transactions WHERE id = ? FOR UPDATE');
   $txnStmt->execute([$txnId]);
@@ -192,9 +197,15 @@ function refundTransactionEffect(PDO $pdo, string $txnId): array {
     }
   }
 
-  $pdo->prepare('UPDATE profiles SET solde = solde + ? WHERE id = ?')->execute([(int)$txn['montant'], $txn['client_id']]);
+  $creditClient = (int)$txn['montant'] + $BONUS_REMBOURSEMENT_CLIENT;
+  $pdo->prepare('UPDATE profiles SET solde = solde + ? WHERE id = ?')->execute([$creditClient, $txn['client_id']]);
   $pdo->prepare("UPDATE transactions SET statut='remboursé', date_remboursement=NOW() WHERE id=?")->execute([$txnId]);
 
+  // Exposé au retour pour que les appelants (orders_refund.php,
+  // orders_process_refund.php) puissent notifier le client avec le
+  // montant réellement crédité (montant + bonus), sans dupliquer la
+  // constante ci-dessus.
+  $txn['_credited_amount'] = $creditClient;
   return $txn;
 }
 

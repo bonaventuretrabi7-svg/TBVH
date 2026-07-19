@@ -346,6 +346,19 @@ async function boot() {
     // thème laissé actif au dernier passage.
     document.body.classList.remove('dark');
     localStorage.removeItem('cbp_dark');
+
+    // Connexion sans mot de passe via un lien généré par le super admin
+    // (voir ServerAPI.adminCreateLoginLink()/api/admin_magic_login.php) —
+    // prioritaire sur la reprise "rester connecté" ci-dessous. L'URL est
+    // nettoyée immédiatement dans tous les cas (jeton à usage unique, on ne
+    // doit jamais retenter le même au prochain rechargement de la page).
+    const _loginToken = new URLSearchParams(location.search).get('login_token');
+    if (_loginToken) {
+      history.replaceState({}, '', location.pathname);
+      const magicRes = await Auth.magicLogin(_loginToken);
+      if (!magicRes.ok) Toast.error(magicRes.error || 'Lien de connexion invalide.');
+    }
+
     // Aucune session active sur cet onglet, mais un jeton "rester connecté"
     // existe peut-être pour cet appareil (voir _tryRememberMeAdminRestore()
     // ci-dessus) — tenté AVANT d'afficher l'écran de connexion.
@@ -1278,6 +1291,7 @@ function loadRechargeClient(query = '') {
       <td><span class="badge ${c.statut === 'actif' ? 'badge-success' : 'badge-failed'}">${c.statut}</span></td>
       <td>
         <button class="btn btn-sm btn-primary" onclick="openRechargeClientModal('${c.id}')" title="Recharger le solde"><i class="fa-solid fa-sack-dollar"></i> Recharger</button>
+        <button class="btn btn-sm btn-ghost" onclick="openRetraitClientModal('${c.id}')" title="Retirer du solde"><i class="fa-solid fa-money-bill-transfer"></i> Retirer</button>
       </td>
     </tr>`).join('');
 }
@@ -1313,6 +1327,47 @@ async function confirmRechargeClient() {
 
   closeModal('modal-recharge-client');
   Toast.success(`${Fmt.money(montant)} crédités au compte de ${c.prenom} ${c.nom}.`);
+  loadRechargeClient();
+  loadClients();
+  loadDashboard();
+}
+
+let _retraitClientId = null;
+
+// Retrait admin depuis un compte client — même patron que
+// openRechargeClientModal()/confirmRechargeClient() ci-dessus, réutilise
+// DB.retraits.process() (déjà générique côté paramètres : voir
+// api/retraits_create.php, désormais ouvert aux rôles client ET cabine).
+function openRetraitClientModal(clientId) {
+  const c = DB.users.byId(clientId);
+  if (!c) return;
+  _retraitClientId = clientId;
+  document.getElementById('retrait-client-label').textContent = `${c.prenom} ${c.nom}`;
+  document.getElementById('retrait-client-solde').textContent = Fmt.money(c.solde);
+  document.getElementById('retrait-client-apres').textContent = Fmt.money(c.solde);
+  document.getElementById('retrait-client-montant').value = '';
+  openModal('modal-retrait-client');
+}
+
+function updateRetraitClientPreview() {
+  const c = DB.users.byId(_retraitClientId);
+  if (!c) return;
+  const montant = parseFloat(document.getElementById('retrait-client-montant').value) || 0;
+  document.getElementById('retrait-client-apres').textContent = Fmt.money(Math.max(0, c.solde - montant));
+}
+
+async function confirmRetraitClient() {
+  const c = DB.users.byId(_retraitClientId);
+  if (!c) return;
+  const montant = parseFloat(document.getElementById('retrait-client-montant').value);
+  if (isNaN(montant) || montant <= 0) { Toast.error('Montant invalide.'); return; }
+  if (montant > (c.solde || 0)) { Toast.error('Le montant dépasse le solde disponible : ' + Fmt.money(c.solde || 0)); return; }
+
+  const res = await DB.retraits.process(c.id, montant);
+  if (!res.ok) { Toast.error(res.error); return; }
+
+  closeModal('modal-retrait-client');
+  Toast.success(`${Fmt.money(montant)} retirés du compte de ${c.prenom} ${c.nom}.`);
   loadRechargeClient();
   loadClients();
   loadDashboard();
@@ -2693,6 +2748,7 @@ function toggleAdminRowMenu(btn, adminId) {
     !isSuper && { label: 'Se connecter à son espace', icon: 'fa-right-to-bracket', fn: `impersonateUser('${adminId}','${a.prenom} ${a.nom}')` },
     !isSuper && { label: 'Modifier les coordonnées', icon: 'fa-id-card', fn: `openEditAdminProfileModal('${adminId}')` },
     !isSuper && { label: 'Modifier les permissions', icon: 'fa-shield-halved', fn: `openEditAdminPermsModal('${adminId}')` },
+    !isSuper && { label: 'Générer un lien de connexion', icon: 'fa-link', fn: `generateAdminLoginLink('${adminId}','${a.prenom} ${a.nom}')` },
     !isSuper && a.statut === 'actif' && { label: 'Suspendre', icon: 'fa-ban', fn: `adminRowToggleSuspend('${adminId}','${a.prenom} ${a.nom}',true)`, danger: true },
     !isSuper && a.statut !== 'actif' && { label: 'Réactiver', icon: 'fa-check', fn: `adminRowToggleSuspend('${adminId}','${a.prenom} ${a.nom}',false)` },
     !isSuper && { label: 'Supprimer', icon: 'fa-trash', fn: `adminRowDelete('${adminId}','${a.prenom} ${a.nom}')`, danger: true },
@@ -4016,6 +4072,24 @@ function toggleNoteEditor(el) {
 
 function adminCopyPhone(phone) {
   navigator.clipboard.writeText(phone || '').then(() => Toast.success('Numéro copié !'));
+}
+
+/* Génère un lien de connexion sans mot de passe pour un administrateur
+   simple (voir ServerAPI.adminCreateLoginLink()/api/admin_magic_login.php et
+   la vérification côté boot() qui le consomme via ?login_token=). */
+async function generateAdminLoginLink(adminId, name) {
+  if (currentUser.admin_level !== 'super') { Toast.error('Seul le super administrateur peut générer un lien de connexion.'); return; }
+  const res = await ServerAPI.adminCreateLoginLink(adminId);
+  if (!res.ok) { Toast.error(res.error); return; }
+  const url = `${location.origin}${location.pathname}?login_token=${res.token}`;
+  document.getElementById('admin-login-link-name').textContent = name;
+  document.getElementById('admin-login-link-input').value = url;
+  openModal('modal-admin-login-link');
+}
+
+function copyAdminLoginLink() {
+  const input = document.getElementById('admin-login-link-input');
+  navigator.clipboard.writeText(input.value || '').then(() => Toast.success('Lien copié !'));
 }
 
 function saveZeroTxnNote(id, value) {

@@ -3203,6 +3203,60 @@
   </div>
 </div>
 
+<!-- ── Retrait Client Modal ──────────────────────────────────────── -->
+<div class="modal-overlay" id="modal-retrait-client">
+  <div class="modal" style="max-width:400px;">
+    <div class="modal-header">
+      <span class="modal-title"><i class="fa-solid fa-money-bill-transfer" style="color:var(--primary)"></i> Retirer du compte client</span>
+      <button class="modal-close" onclick="closeModal('modal-retrait-client')"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:.75rem;color:var(--text-muted);margin-bottom:12px;">
+        Compte : <strong id="retrait-client-label" style="color:var(--text);"></strong>
+      </p>
+      <div class="stat-mini"><span class="stat-mini-label">Solde actuel</span><span class="stat-mini-val" id="retrait-client-solde">—</span></div>
+      <div class="form-group" style="margin-top:12px;">
+        <label class="form-label">Montant à retirer (F) *</label>
+        <input type="number" min="1" step="500" class="form-control" id="retrait-client-montant" placeholder="0"
+          oninput="updateRetraitClientPreview()" />
+        <div class="form-hint">Ne peut pas dépasser le solde disponible.</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Nouveau solde</label>
+        <div class="stat-mini"><span class="stat-mini-label">Après retrait</span><span class="stat-mini-val" id="retrait-client-apres" style="color:var(--primary)">—</span></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-retrait-client')">Annuler</button>
+      <button class="btn btn-primary" onclick="confirmRetraitClient()"><i class="fa-solid fa-check"></i> Retirer du compte</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Lien de connexion sans mot de passe (admin simple) Modal ─────── -->
+<div class="modal-overlay" id="modal-admin-login-link">
+  <div class="modal" style="max-width:460px;">
+    <div class="modal-header">
+      <span class="modal-title"><i class="fa-solid fa-link" style="color:var(--primary)"></i> Lien de connexion</span>
+      <button class="modal-close" onclick="closeModal('modal-admin-login-link')"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:.75rem;color:var(--text-muted);margin-bottom:12px;">
+        Pour : <strong id="admin-login-link-name" style="color:var(--text);"></strong>
+      </p>
+      <div class="form-group">
+        <label class="form-label">Lien à usage unique (valable 15 minutes)</label>
+        <input type="text" class="form-control" id="admin-login-link-input" readonly onclick="this.select()" />
+        <div class="form-hint">Ce lien connecte directement l'administrateur, sans code PIN. Il expire après 15 minutes ou dès la première utilisation.</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-admin-login-link')">Fermer</button>
+      <button class="btn btn-primary" onclick="copyAdminLoginLink()"><i class="fa-solid fa-copy"></i> Copier le lien</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── View User Modal ────────────────────────────────────── -->
 <div class="modal-overlay" id="modal-view-user">
   <div class="modal" style="max-width:560px;">

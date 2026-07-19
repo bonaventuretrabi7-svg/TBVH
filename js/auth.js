@@ -206,6 +206,30 @@ const Auth = (() => {
     return result;
   }
 
+  /* Connexion sans mot de passe via un lien à usage unique généré par le
+     super admin (voir api/admin_create_login_link.php/admin_magic_login.php
+     et ServerAPI.adminMagicLogin()) — même patron que login() ci-dessus
+     (gates de compte, sauvegarde de session, bookkeeping "rester
+     connecté"), sauf qu'il n'y a jamais de PIN à vérifier ni à mettre en
+     cache localement (cacheFromServer() sans 2e argument : ce compte ne
+     pourra pas se reconnecter hors-ligne tant qu'il ne se sera pas
+     authentifié au moins une fois normalement sur cet appareil). */
+  async function magicLogin(token) {
+    if (!ServerAPI.isConfigured) return { ok: false, error: 'Connexion Internet requise.' };
+    const res = await ServerAPI.adminMagicLogin(token);
+    if (res.networkError) return { ok: false, networkError: true, error: 'Connexion Internet requise.' };
+    if (!res.ok) return { ok: false, error: res.error };
+
+    let user = DB.users.cacheFromServer(res.profile);
+    const gates = await _checkAccountGates(user);
+    if (!gates.ok) return gates;
+    user = gates.user;
+
+    save(user);
+    const bookkeeping = await _applyDeviceBookkeeping(user, true);
+    return { ok: true, user, ...bookkeeping };
+  }
+
   /* Reprise "rester connecté" (voir _tryRememberMeRestore(), js/cabine.js) —
      revalide le jeton persisté contre le serveur (api/session_whoami.php)
      avant d'ouvrir la moindre session : un jeton purement local n'a plus
@@ -397,7 +421,7 @@ const Auth = (() => {
     return fresh;
   }
 
-  return { login, resumeSession, logout, current, require, refresh, save, hasClientBackup, restoreClientBackup, getDeviceId, REMEMBER_TOKEN_KEY, startImpersonation, endImpersonation, isImpersonating, impersonationInfo, isValidGmail, isValidPin };
+  return { login, magicLogin, resumeSession, logout, current, require, refresh, save, hasClientBackup, restoreClientBackup, getDeviceId, REMEMBER_TOKEN_KEY, startImpersonation, endImpersonation, isImpersonating, impersonationInfo, isValidGmail, isValidPin };
 })();
 
 /* Persistance d'état "reprendre où j'en étais" — un seul instantané JSON

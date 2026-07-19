@@ -2,13 +2,17 @@
 declare(strict_types=1);
 require __DIR__ . '/bootstrap.php';
 
-// Admin : traite le retrait d'une cabine — remplace confirmProcessRetrait()
-// (js/admin.js), qui débitait le solde UNIQUEMENT en local
-// (DB.users.updateSolde()) : le prochain rafraîchissement périodique de la
-// liste des cabines (refreshUsersFromServer()) écrasait ce débit local
-// avec la valeur serveur inchangée — le retrait n'avait alors, dans les
-// faits, jamais eu lieu financièrement. Débit atomique (CAS sur
-// solde >= ?), même patron que orders_create.php.
+// Admin : traite le retrait d'une cabine OU d'un client — remplace
+// confirmProcessRetrait() (js/admin.js), qui débitait le solde UNIQUEMENT
+// en local (DB.users.updateSolde()) : le prochain rafraîchissement
+// périodique de la liste des cabines (refreshUsersFromServer())
+// écrasait ce débit local avec la valeur serveur inchangée — le retrait
+// n'avait alors, dans les faits, jamais eu lieu financièrement. Débit
+// atomique (CAS sur solde >= ?), même patron que orders_create.php.
+// Étendu aux clients (colonne cabine_id de `retraits` conservée telle
+// quelle par simplicité — elle référence maintenant n'importe quel
+// profil, client ou cabine) : paiement_vers/numero_compte/solde existent
+// déjà génériquement sur `profiles` pour tous les rôles.
 $me = requireAuth(['admin']);
 
 $in = body();
@@ -19,12 +23,12 @@ if ($montant <= 0) fail('Montant invalide.');
 $pdo = db();
 $pdo->beginTransaction();
 try {
-  $cabStmt = $pdo->prepare("SELECT * FROM profiles WHERE id = ? AND role = 'cabine' FOR UPDATE");
+  $cabStmt = $pdo->prepare("SELECT * FROM profiles WHERE id = ? AND role IN ('cabine', 'client') FOR UPDATE");
   $cabStmt->execute([$cabineId]);
   $cab = $cabStmt->fetch();
   if (!$cab) {
     $pdo->rollBack();
-    fail('Cabine introuvable.');
+    fail('Compte introuvable.');
   }
 
   $debit = $pdo->prepare('UPDATE profiles SET solde = solde - ? WHERE id = ? AND solde >= ?');

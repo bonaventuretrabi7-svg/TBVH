@@ -612,6 +612,21 @@
           </div>
         </div>
       </div>
+
+      <div class="cof-filter-card">
+        <div class="cof-tabs">
+          <button class="cof-ctab active" onclick="filterCabHistory('all', this)">
+            <i class="fa-solid fa-layer-group"></i> Tout
+          </button>
+          <button class="cof-ctab" onclick="filterCabHistory('transferts', this)">
+            <i class="fa-solid fa-right-left"></i> Transferts envoyés
+          </button>
+          <button class="cof-ctab" onclick="filterCabHistory('commandes', this)">
+            <i class="fa-solid fa-cart-shopping"></i> Commandes
+          </button>
+        </div>
+      </div>
+
       <div id="cab-historique-list">
         <div class="cab-empty-state"><i class="fa-solid fa-spinner fa-spin"></i> Chargement…</div>
       </div>
