@@ -52,7 +52,11 @@ createNotification($targetId, 'Votre portefeuille a été rechargé de ' . numbe
 // ne doit jamais référencer un id de cabine (voir orders_list.php, scopé par
 // client_id pour le rôle client).
 if ($targetRole === 'client') {
-  db()->prepare("INSERT INTO transactions (id, client_id, type, moyen_paiement, montant, statut, date) VALUES (?, ?, 'recharge', ?, ?, 'terminé', NOW())")
+  // Réseau/numéro bénéficiaire : sans objet pour une recharge de
+  // portefeuille (pas d'opérateur mobile money ni de destinataire), mais
+  // laissés à NULL affichaient "—"/vide dans les tableaux admin/cabine au
+  // lieu d'expliquer de quoi il s'agit — valeur fixe explicite à la place.
+  db()->prepare("INSERT INTO transactions (id, client_id, type, operateur, numero_beneficiaire, moyen_paiement, montant, statut, date) VALUES (?, ?, 'recharge', 'Auto recharge', 'Auto recharge', ?, ?, 'terminé', NOW())")
       ->execute([uuid4(), $targetId, $method, $montant]);
 }
 

@@ -1602,8 +1602,12 @@ function loadTransactions(query = '', statusFilter = 'all') {
   if (query) txns = txns.filter(t =>
     t.id.includes(query) ||
     Fmt.ref(t.id).toLowerCase().includes(query.toLowerCase()) ||
-    t.numero_beneficiaire.includes(query) ||
-    t.operateur.toLowerCase().includes(query.toLowerCase()) ||
+    // Certains types (réabonnement, cadeau, factures avancées...) n'ont ni
+    // opérateur ni numéro bénéficiaire — sans ce filet, une recherche
+    // plantait dès que la liste contenait ne serait-ce qu'une seule de ces
+    // transactions.
+    (t.numero_beneficiaire || '').includes(query) ||
+    (t.operateur || '').toLowerCase().includes(query.toLowerCase()) ||
     (DB.users.byId(t.client_id)?.nom || '').toLowerCase().includes(query.toLowerCase())
   );
 

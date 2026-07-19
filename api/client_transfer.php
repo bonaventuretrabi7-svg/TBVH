@@ -37,9 +37,13 @@ try {
 
   $pdo->prepare('UPDATE profiles SET solde = solde + ? WHERE id = ?')->execute([$montant, $to['id']]);
 
-  $pdo->prepare("INSERT INTO transactions (id, client_id, type, numero_beneficiaire, montant, statut, date) VALUES (?, ?, 'transfert_client_envoi', ?, ?, 'terminé', NOW())")
+  // Réseau : sans objet pour un transfert client-à-client (pas d'opérateur
+  // mobile money), mais laissé à NULL affichait "—"/vide dans les tableaux
+  // admin/cabine au lieu d'expliquer de quoi il s'agit — valeur fixe
+  // explicite à la place.
+  $pdo->prepare("INSERT INTO transactions (id, client_id, type, operateur, numero_beneficiaire, montant, statut, date) VALUES (?, ?, 'transfert_client_envoi', 'send-client', ?, ?, 'terminé', NOW())")
       ->execute([uuid4(), $me['id'], $to['telephone'], $montant]);
-  $pdo->prepare("INSERT INTO transactions (id, client_id, type, numero_beneficiaire, montant, statut, date) VALUES (?, ?, 'transfert_client_reception', ?, ?, 'terminé', NOW())")
+  $pdo->prepare("INSERT INTO transactions (id, client_id, type, operateur, numero_beneficiaire, montant, statut, date) VALUES (?, ?, 'transfert_client_reception', 'send-client', ?, ?, 'terminé', NOW())")
       ->execute([uuid4(), $to['id'], $me['telephone'], $montant]);
 
   $pdo->commit();
