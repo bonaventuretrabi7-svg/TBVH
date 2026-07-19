@@ -2934,14 +2934,23 @@ function prtGoStep(step) {
     // Valider l'adresse Gmail
     const email = (document.getElementById('prt-tel').value || '').trim();
     if (!Auth.isValidGmail(email)) { Toast.error('Adresse Gmail invalide (ex : nom@gmail.com).'); return; }
+    // Le cache local (DB.users.byEmail()) ne sert plus qu'à personnaliser
+    // l'aperçu ci-dessous (nom, avatar) quand ce compte est déjà connu sur
+    // CET appareil — jamais à décider si le compte existe : sur un
+    // téléphone où ce partenaire ne s'est encore jamais connecté, le cache
+    // est vide et bloquait ici à tort, avant même que le PIN soit demandé
+    // (la vérification réelle, elle, se fait déjà côté serveur dans
+    // submitPartnerLogin() ci-dessous).
     const user = DB.users.byEmail(email);
-    if (!user) { Toast.error('Aucun compte partenaire trouvé pour cette adresse.'); return; }
 
-    // Remplir la carte utilisateur
-    const initials = ((user.prenom || '')[0] || '') + ((user.nom || '')[0] || '') || email.slice(0, 2);
+    // Remplit la carte utilisateur (repli générique si le compte n'est pas
+    // encore connu localement).
+    const initials = user
+      ? (((user.prenom || '')[0] || '') + ((user.nom || '')[0] || '') || email.slice(0, 2))
+      : email.slice(0, 2);
     document.getElementById('prt-user-ava').textContent  = initials.toUpperCase();
-    document.getElementById('prt-user-name').textContent = `${user.prenom || ''} ${user.nom || ''}`.trim() || 'Partenaire';
-    document.getElementById('prt-user-tel').textContent  = Fmt.phone(user.telephone);
+    document.getElementById('prt-user-name').textContent = user ? (`${user.prenom || ''} ${user.nom || ''}`.trim() || 'Partenaire') : 'Partenaire';
+    document.getElementById('prt-user-tel').textContent  = user ? Fmt.phone(user.telephone) : email;
     document.getElementById('prt-denied').style.display  = 'none';
 
     // Transition slide 1 → 2
