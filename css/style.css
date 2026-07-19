@@ -8848,15 +8848,15 @@ body.dark .rh-card-ref { color: var(--dark-text, #F1F3F9); }
    indigo/orange KBINE, remplace l'ancien carré vert plein)
 ══════════════════════════════════════════════════════════════ */
 .qrs-modal {
-  background: linear-gradient(175deg,#120B32 0%,#1A1040 55%,#0D0820 100%) !important;
-  border: 1px solid rgba(255,255,255,.08) !important;
+  background: linear-gradient(175deg,#ffffff 0%,#FFE3C6 55%,#FFCC99 100%) !important;
+  border: 1px solid rgba(0,0,0,.08) !important;
   max-width: 300px; width: 100%; padding: 0; overflow: hidden;
 }
 .qrs-header {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 12px 14px; border-bottom: 1px solid rgba(255,255,255,.07);
+  padding: 12px 14px; border-bottom: 1px solid rgba(0,0,0,.07);
 }
-.qrs-header-title { display: flex; align-items: center; gap: 8px; font-size: .76rem; font-weight: 800; color: #fff; }
+.qrs-header-title { display: flex; align-items: center; gap: 8px; font-size: .76rem; font-weight: 800; color: #000000; }
 .qrs-header-ico {
   width: 26px; height: 26px; border-radius: 9px; flex-shrink: 0;
   background: rgba(255,98,0,.14); border: 1px solid rgba(255,122,41,.3);
@@ -8864,10 +8864,10 @@ body.dark .rh-card-ref { color: var(--dark-text, #F1F3F9); }
 }
 .qrs-close {
   width: 24px; height: 24px; border-radius: 50%; border: none; cursor: pointer;
-  background: rgba(255,255,255,.08); color: rgba(255,255,255,.55);
+  background: rgba(0,0,0,.06); color: rgba(0,0,0,.55);
   display: flex; align-items: center; justify-content: center; font-size: .62rem;
 }
-.qrs-close:hover { background: rgba(255,255,255,.16); color: #fff; }
+.qrs-close:hover { background: rgba(0,0,0,.12); color: #000; }
 
 .qrs-video-wrap {
   position: relative; width: 100%; aspect-ratio: 1/1; max-width: 220px; margin: 14px auto 4px;
@@ -8896,7 +8896,7 @@ body.dark .rh-card-ref { color: var(--dark-text, #F1F3F9); }
   92%  { opacity: 1; }
   100% { top: 4%;  opacity: 0; }
 }
-.qrs-status { text-align: center; font-size: .7rem; color: rgba(255,255,255,.5); font-weight: 600; margin: 10px 0 2px; }
+.qrs-status { text-align: center; font-size: .7rem; color: rgba(0,0,0,.55); font-weight: 600; margin: 10px 0 2px; }
 .qrs-modal .modal-body { padding: 14px 16px 16px; }
 
 /* Séparateur (encore utilisé par d'autres cartes) */
