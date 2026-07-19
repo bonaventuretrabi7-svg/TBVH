@@ -34,4 +34,19 @@ DirectoryIndex index.html
   <Files "app-version.json">
     Header set Access-Control-Allow-Origin "*"
   </Files>
+
+  # Mise à jour automatique côté web : un client web doit toujours recevoir
+  # le HTML/JS/CSS fraîchement déployés au chargement suivant, jamais une
+  # version mise en cache par le navigateur avant le dernier déploiement
+  # (contrairement à l'app Android, figée dans l'APK — voir
+  # js/update-notifier.js). "no-cache" ne désactive pas le cache : il force
+  # simplement une revalidation (requête conditionnelle) à chaque
+  # chargement, donc un fichier inchangé reste servi instantanément
+  # (304 Not Modified), et un fichier modifié est immédiatement récupéré —
+  # sans dépendre d'un paramètre ?v= à incrémenter manuellement sur chaque
+  # <script>/<link> (source d'oublis, voir js/admin.js qui n'en avait
+  # aucun avant ce correctif).
+  <FilesMatch "\.(html|js|css)$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
 </IfModule>

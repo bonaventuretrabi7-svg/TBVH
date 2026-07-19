@@ -35,6 +35,16 @@ jobs:
       - name: Installer les dépendances npm
         run: npm ci
 
+      - name: Incrémenter la version de l'app (app-version.json)
+        # Numéro de run GitHub Actions : entier croissant à chaque
+        # exécution, aucun suivi manuel requis. Doit être écrit AVANT
+        # cap:sync pour être embarqué dans l'APK (voir scripts/build-www.js,
+        # qui copie app-version.json dans www/) — c'est ce numéro qui sera
+        # comparé par UpdateNotifier (js/update-notifier.js) à celui publié
+        # sur le site pour détecter qu'une mise à jour est disponible.
+        run: |
+          echo '{"version": ${{ github.run_number }}}' > app-version.json
+
       - name: Générer www/ et synchroniser le projet Android
         run: npm run cap:sync
 
@@ -57,10 +67,10 @@ jobs:
           name: kbineplus-apk
           path: downloads/kbineplus.apk
 
-      - name: Committer l'APK dans le dépôt (downloads/kbineplus.apk)
+      - name: Committer l'APK et la version dans le dépôt
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add downloads/kbineplus.apk
+          git add downloads/kbineplus.apk app-version.json
           git diff --staged --quiet || git commit -m "Mise à jour automatique de l'APK [skip ci]"
           git push
