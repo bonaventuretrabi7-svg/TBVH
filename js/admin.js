@@ -453,8 +453,16 @@ async function boot() {
       // comptes bloqués, zéro transaction...), remplace le repérage au cas
       // par cas d'avant (une seule vue, retraits-admin, était couverte) —
       // mais seulement si quelque chose a réellement changé depuis le tick
-      // précédent.
-      if (DB.pollSignature(currentUser.id, 'admin') !== _pollBefore) {
+      // précédent. Exclut les vues "Assistant clientèle cabine/client" :
+      // ce sont de simples formulaires (numéros WhatsApp) sans sauvegarde
+      // au fil de l'eau — un rechargement recopierait par-dessus toute
+      // ligne fraîchement ajoutée via "+ Ajouter un numéro" avant que
+      // l'admin ait cliqué "Enregistrer", donnant l'impression que le
+      // champ "se ferme tout seul". Même logique que le garde
+      // hasPendingProof existant côté cabine (js/cabine.js).
+      const NO_AUTORELOAD_VIEWS = ['assistant-cabine', 'assistant-client'];
+      if (DB.pollSignature(currentUser.id, 'admin') !== _pollBefore
+          && !NO_AUTORELOAD_VIEWS.includes(_adminResume.view)) {
         _adminViewLoader(_adminResume.view)?.();
       }
     }, DB.presence.HEARTBEAT_MS);
