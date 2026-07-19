@@ -339,6 +339,13 @@ const ServerAPI = (() => {
     return { ok: true, transaction: data.transaction };
   }
 
+  async function updateProfilePhoto(photo) {
+    const { res, data, networkError } = await _call('client_update_photo.php', { auth: true, body: { photo } });
+    if (networkError) return { ok: false, networkError: true, error: 'Connexion Internet requise.' };
+    if (!res.ok || !data || data.error) return { ok: false, error: (data && data.error) || 'Échec de l\'enregistrement de la photo.' };
+    return { ok: true };
+  }
+
   async function cadeauClaim() {
     const { res, data, networkError } = await _call('cadeau_claim.php', { auth: true });
     if (networkError) return { ok: false, networkError: true, error: 'Connexion Internet requise.' };
@@ -719,7 +726,7 @@ const ServerAPI = (() => {
     isConfigured, getToken, setToken, whoami, favorisList, favorisCreate, favorisRemove,
     accessLogsList, accessLogsCreate, permissionLogsList, permissionLogsCreate,
     maintenanceLogsList, maintenanceLogsCreate, presencePing, presenceOnline,
-    ordersCreate, ordersCreateAdvanced, cadeauClaim, ordersAccept, ordersRefuse, ordersAssignPending, ordersReassign,
+    ordersCreate, ordersCreateAdvanced, cadeauClaim, updateProfilePhoto, ordersAccept, ordersRefuse, ordersAssignPending, ordersReassign,
     ordersSweep, ordersSweepUnsuspend, ordersList, retardsList,
     ordersRecharge, ordersRefund, ordersSuspend, ordersReactivate, ordersDelete, cabineSuspendManual,
     cabineSelfRecharge, cabineResubscribe, adminSetAbonnement, cabineTransfer, clientTransfer, clientLookup, clientLoginLookup,

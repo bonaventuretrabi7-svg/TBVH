@@ -4177,10 +4177,11 @@ async function handleRecharge(e) {
 function uploadProfilePhoto(input) {
   if (!input.files || !input.files[0] || !currentUser) return;
   const reader = new FileReader();
-  reader.onload = e => {
+  reader.onload = async e => {
     const b64 = e.target.result;
-    localStorage.setItem('cbp_photo_' + currentUser.id, b64);
     applyProfilePhoto(b64);
+    const res = await DB.business.updateOwnPhoto(currentUser.id, b64);
+    if (!res.ok) { Toast.error(res.error); return; }
     Toast.success('Photo mise à jour.');
   };
   reader.readAsDataURL(input.files[0]);
@@ -4220,9 +4221,8 @@ function loadProfit() {
   const fullName = isPhone ? Fmt.phone(u.telephone) : (u.prenom + (u.nom ? ' ' + u.nom : '')).trim();
 
   // Avatar
-  const savedPhoto = localStorage.getItem('cbp_photo_' + currentUser.id);
-  if (savedPhoto) {
-    applyProfilePhoto(savedPhoto);
+  if (u.photo) {
+    applyProfilePhoto(u.photo);
   } else {
     const avatarEl = document.getElementById('pc-avatar');
     if (avatarEl) {

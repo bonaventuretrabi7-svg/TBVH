@@ -1906,6 +1906,19 @@ const DB = (() => {
       return { ok: true, txn };
     },
 
+    /* Enregistre la photo de profil de l'utilisateur connecté côté serveur
+       (voir api/client_update_photo.php) — remplace le stockage 100% local
+       (localStorage) de uploadProfilePhoto() (js/client.js), qui ne
+       suivait pas le compte d'un appareil à l'autre. `userId` fourni par
+       l'appelant (jamais lu ici via Auth, pour ne pas faire dépendre
+       js/db.js de js/auth.js). */
+    async updateOwnPhoto(userId, photo) {
+      const res = await ServerAPI.updateProfilePhoto(photo);
+      if (!res.ok) return { ok: false, error: res.error };
+      users.update(userId, { photo });
+      return { ok: true };
+    },
+
     /* Réclame la récompense "100 commandes" — remplace l'ancienne version
        100% locale de cadeauClaim() (js/client.js) par un appel serveur
        (voir api/cadeau_claim.php, qui recalcule lui-même l'éligibilité :
