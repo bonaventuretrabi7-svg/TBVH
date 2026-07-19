@@ -3078,14 +3078,15 @@ async function assistanceWhatsappLink(motif) {
   return Fmt.whatsappLink(raw, motif || 'Bonjour, j\'ai besoin d\'assistance concernant une commande KBINE PLUS.');
 }
 
-/* ── Bouton "Aide" (bottom-nav) — liste indépendante gérée par le super
-   admin (onglet "Assistant clientèle client"), avec programmation
-   horaire optionnelle : si un créneau est actif pour le jour/heure
-   actuels, redirection directe sans liste (avec rotation ~1min, voir
-   pickClientWhatsappTarget ci-dessous) ; sinon, sélection manuelle
-   (même patron que openCabWhatsappPicker() côté cabine). Sans lien avec
-   settings.assistance (secours réclamation ci-dessus), volontairement
-   séparé. */
+/* ── Bouton "Aide" (bottom-nav) — liste gérée par le super admin (onglet
+   "Assistant clientèle client"), avec programmation horaire optionnelle :
+   si un créneau est actif pour le jour/heure actuels, redirection directe
+   sans liste (avec rotation ~1min sur cette liste, voir
+   pickClientWhatsappTarget ci-dessous) ; sinon, sélection manuelle parmi
+   les numéros "Assistant clientèle client" ET "Assistant clientèle cabine"
+   réunis (voir openClientWhatsappPicker) — même patron que
+   openCabWhatsappPicker() côté cabine. Sans lien avec settings.assistance
+   (secours réclamation ci-dessus), volontairement séparé. */
 async function activeScheduledAssistant() {
   const schedule = ((await DB.settings.get()).assistant_client || {}).schedule || [];
   const now = new Date();
@@ -3127,7 +3128,20 @@ async function handleClientWhatsappClick() {
 }
 
 async function openClientWhatsappPicker() {
-  const contacts = (((await DB.settings.get()).assistant_client || {}).whatsapp || []).map(DB.normalizeContact);
+  const settings = await DB.settings.get();
+  // Combine les numéros dédiés au client (assistant_client, avec
+  // programmation horaire) et ceux de l'assistant cabine (assistant_cabine,
+  // configurés par le super admin dans l'onglet "Assistant clientèle
+  // cabine") — le client/invité voit les deux réunis. Dédoublonné par
+  // numéro au cas où le même contact figurerait dans les deux listes.
+  const clientContacts = ((settings.assistant_client || {}).whatsapp || []).map(DB.normalizeContact);
+  const cabineContacts = ((settings.assistant_cabine || {}).whatsapp || []).map(DB.normalizeContact);
+  const seen = new Set();
+  const contacts = [...clientContacts, ...cabineContacts].filter(c => {
+    if (!c.numero || seen.has(c.numero)) return false;
+    seen.add(c.numero);
+    return true;
+  });
   const list = document.getElementById('client-wa-picker-list');
   if (!contacts.length) {
     Toast.error('Aucun assistant WhatsApp configuré pour le moment.');
