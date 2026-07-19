@@ -43,9 +43,16 @@ function forgetRememberedClient() {
 async function _tryRememberMeClientRestore() {
   const token = localStorage.getItem(Auth.REMEMBER_TOKEN_KEY);
   if (!token) return null;
-  const rec = DB.partnerDevices.findByToken(Auth.getDeviceId(), token);
-  if (!rec) { localStorage.removeItem(Auth.REMEMBER_TOKEN_KEY); return null; }
 
+  // Le jeton est revalidé DIRECTEMENT auprès du serveur (source de vérité
+  // unique) — il ne doit plus jamais dépendre de la présence d'un
+  // enregistrement local dans "Mes appareils connectés" au préalable. Avant
+  // ce correctif, un enregistrement local absent/perdu (cache jamais
+  // peuplé, purge partielle...) supprimait le jeton et forçait une
+  // reconnexion manuelle alors même qu'il était encore parfaitement valide
+  // côté serveur — un bug qui, une fois déclenché une seule fois,
+  // redemandait le code à chaque ouverture puisque le jeton était supprimé
+  // pour de bon.
   const res = await Auth.resumeSession(token);
   if (!res.ok) {
     // Hors ligne (networkError) : on retente au prochain démarrage, le
@@ -53,20 +60,22 @@ async function _tryRememberMeClientRestore() {
     // relais pour cette fois. Jeton réellement invalide/expiré ou compte
     // suspendu/bloqué : on l'oublie pour ne plus jamais réessayer avec un
     // jeton mort.
-    if (!res.networkError) {
-      DB.partnerDevices.remove(rec.id);
-      localStorage.removeItem(Auth.REMEMBER_TOKEN_KEY);
-    }
+    if (!res.networkError) localStorage.removeItem(Auth.REMEMBER_TOKEN_KEY);
     return null;
   }
   if (res.user.role !== 'client') {
     // Jeton valide mais lié à un autre rôle (ex. appareil partagé) —
     // n'ouvre jamais l'espace client avec une session mal typée.
     sessionStorage.removeItem('cbp_session');
-    DB.partnerDevices.remove(rec.id);
     localStorage.removeItem(Auth.REMEMBER_TOKEN_KEY);
     return null;
   }
+  // Bookkeeping "Mes appareils connectés" best-effort : recrée
+  // l'enregistrement local s'il manquait, plutôt que d'abandonner une
+  // session pourtant déjà validée par le serveur ci-dessus.
+  const deviceId = Auth.getDeviceId();
+  let rec = DB.partnerDevices.findByToken(deviceId, token);
+  if (!rec) rec = DB.partnerDevices.register(res.user.id, deviceId, 'Appareil', true, token);
   DB.partnerDevices.touch(rec.id, true, token);
   await DB.partnerDevices.syncSelf(rec.device_id, rec.label, true);
   return res.user;

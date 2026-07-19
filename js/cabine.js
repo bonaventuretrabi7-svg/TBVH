@@ -101,19 +101,20 @@ async function _tryRememberMeRestore() {
   if (Auth.current()) return;
   const token = localStorage.getItem(Auth.REMEMBER_TOKEN_KEY);
   if (!token) return;
-  const rec = DB.partnerDevices.findByToken(Auth.getDeviceId(), token);
-  if (!rec) { localStorage.removeItem(Auth.REMEMBER_TOKEN_KEY); return; }
 
+  // Revalidé DIRECTEMENT auprès du serveur (source de vérité unique) —
+  // voir le même correctif côté client (_tryRememberMeClientRestore(),
+  // js/client.js) : ne doit plus jamais dépendre d'un enregistrement local
+  // ("Mes appareils connectés") trouvé au préalable, sous peine de
+  // supprimer un jeton pourtant encore valide et de redemander le code à
+  // chaque ouverture.
   const res = await Auth.resumeSession(token);
   if (!res.ok) {
     // Hors ligne (networkError) : on retente au prochain démarrage, le
     // jeton reste valable. Jeton réellement invalide/expiré ou compte
     // suspendu/bloqué : on l'oublie pour ne plus jamais réessayer avec un
     // jeton mort.
-    if (!res.networkError) {
-      DB.partnerDevices.remove(rec.id);
-      localStorage.removeItem(Auth.REMEMBER_TOKEN_KEY);
-    }
+    if (!res.networkError) localStorage.removeItem(Auth.REMEMBER_TOKEN_KEY);
     return;
   }
   if (res.user.role !== 'cabine') {
@@ -122,10 +123,15 @@ async function _tryRememberMeRestore() {
     // juste ouverte, sans les à-côtés d'une vraie déconnexion (pas
     // d'appel serveur, pas de redirection en plein démarrage).
     sessionStorage.removeItem('cbp_session');
-    DB.partnerDevices.remove(rec.id);
     localStorage.removeItem(Auth.REMEMBER_TOKEN_KEY);
     return;
   }
+  // Bookkeeping "Mes appareils connectés" best-effort : recrée
+  // l'enregistrement local s'il manquait, plutôt que d'abandonner une
+  // session pourtant déjà validée par le serveur ci-dessus.
+  const deviceId = Auth.getDeviceId();
+  let rec = DB.partnerDevices.findByToken(deviceId, token);
+  if (!rec) rec = DB.partnerDevices.register(res.user.id, deviceId, 'Appareil', true, token);
   DB.partnerDevices.touch(rec.id, true, token);
   await DB.partnerDevices.syncSelf(rec.device_id, rec.label, true);
 }
