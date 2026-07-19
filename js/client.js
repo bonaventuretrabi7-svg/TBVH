@@ -4707,13 +4707,19 @@ function ctGoBackToForm() {
   _ctSetStep(1);
 }
 
-function lookupTransferRecipient() {
+// Dernier destinataire trouvé côté serveur pour ce numéro (voir
+// lookupTransferRecipient()) — réutilisé par handleClientTransfer() pour
+// éviter une seconde requête si le numéro n'a pas changé entre-temps.
+let _ctLastLookup = null;
+
+async function lookupTransferRecipient() {
   const phone   = (document.getElementById('ct-phone')?.value || '').replace(/\s/g,'');
   const preview = document.getElementById('ct-recipient-preview');
   const error   = document.getElementById('ct-error');
   if (!preview || !error) return;
   preview.style.display = 'none';
   error.style.display   = 'none';
+  _ctLastLookup = null;
   if (!/^[0-9]{10}$/.test(phone)) return;
 
   const me = Auth.current();
@@ -4723,22 +4729,27 @@ function lookupTransferRecipient() {
     return;
   }
 
-  const recipient = DB.users.byPhone(phone);
-  if (!recipient || recipient.role !== 'client' || recipient.statut === 'suspendu') {
+  // Recherche côté serveur (voir api/client_lookup.php) : le cache local
+  // d'un client ne contient jamais les profils des AUTRES clients,
+  // DB.users.byPhone() renverrait donc toujours "introuvable" à tort.
+  const res = await ServerAPI.clientLookup(phone);
+  if (!res.ok || !res.found) {
     error.textContent = 'Aucun compte client actif trouvé pour ce numéro.';
     error.style.display = 'block';
     return;
   }
 
+  const fullName = (res.recipient.prenom + ' ' + res.recipient.nom).trim();
+  _ctLastLookup = { phone, id: res.recipient.id, name: fullName };
+
   const nameEl   = document.getElementById('ct-recipient-name');
   const avatarEl = document.getElementById('ct-rcp-avatar');
-  const fullName = (recipient.prenom + ' ' + recipient.nom).trim();
   if (nameEl)   nameEl.textContent   = fullName;
-  if (avatarEl) avatarEl.textContent = (recipient.prenom[0] || '?').toUpperCase();
+  if (avatarEl) avatarEl.textContent = (res.recipient.prenom[0] || '?').toUpperCase();
   preview.style.display = 'flex';
 }
 
-function handleClientTransfer(e) {
+async function handleClientTransfer(e) {
   e.preventDefault();
   const me = Auth.current();
   if (!me) { openPartnerAuthModal(); return; }
@@ -4755,15 +4766,20 @@ function handleClientTransfer(e) {
   if (!amount || amount < 100)        return showError('Montant minimum : 100 FCFA.');
   if (phone === me.telephone)         return showError('Impossible de vous transférer à vous-même.');
 
-  const sender    = DB.users.byId(me.id);
-  const recipient = DB.users.byPhone(phone);
-
-  if (!recipient || recipient.role !== 'client' || recipient.statut === 'suspendu')
-    return showError('Destinataire introuvable ou compte inactif.');
+  const sender = DB.users.byId(me.id);
   if ((sender.solde || 0) < amount)
     return showError('Solde insuffisant — disponible : ' + Fmt.money(sender.solde || 0));
 
-  _ctData = { phone, amount, recipientId: recipient.id, destName: (recipient.prenom + ' ' + recipient.nom).trim() };
+  // Réutilise le lookup déjà fait pendant la saisie s'il correspond encore
+  // au numéro courant, sinon relance la recherche serveur.
+  let lookup = (_ctLastLookup && _ctLastLookup.phone === phone) ? _ctLastLookup : null;
+  if (!lookup) {
+    const res = await ServerAPI.clientLookup(phone);
+    if (!res.ok || !res.found) return showError('Destinataire introuvable ou compte inactif.');
+    lookup = { phone, id: res.recipient.id, name: (res.recipient.prenom + ' ' + res.recipient.nom).trim() };
+  }
+
+  _ctData = { phone, amount, recipientId: lookup.id, destName: lookup.name };
 
   const rows = [
     { label: 'Destinataire', value: _ctData.destName },

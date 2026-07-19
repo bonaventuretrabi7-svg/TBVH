@@ -549,6 +549,15 @@ const ServerAPI = (() => {
     return { ok: true, recipient: data.recipient };
   }
 
+  // Recherche d'un compte client actif par téléphone — voir
+  // api/client_lookup.php (le cache local d'un client ne contient jamais
+  // les autres clients, contrairement à listProfiles() réservé à l'admin).
+  async function clientLookup(phone) {
+    const { res, data } = await _call('client_lookup.php', { auth: true, body: { phone } });
+    if (!res.ok || !data || data.error) return { ok: false, error: (data && data.error) || 'Échec de la recherche.' };
+    return { ok: true, found: data.found, recipient: data.recipient };
+  }
+
   /* Réclamations + demandes de remboursement (Phase 5) — voir
      DB.reclamations/refundRequests (js/db.js) et api/reclamations_*.php,
      refund_requests_list.php. */
@@ -648,7 +657,7 @@ const ServerAPI = (() => {
     ordersCreate, ordersAccept, ordersRefuse, ordersAssignPending, ordersReassign,
     ordersSweep, ordersSweepUnsuspend, ordersList, retardsList,
     ordersRecharge, ordersRefund, ordersSuspend, ordersReactivate, ordersDelete, cabineSuspendManual,
-    cabineSelfRecharge, cabineResubscribe, adminSetAbonnement, cabineTransfer, clientTransfer,
+    cabineSelfRecharge, cabineResubscribe, adminSetAbonnement, cabineTransfer, clientTransfer, clientLookup,
     forfaitsList, forfaitsCreate, forfaitsUpdate, forfaitsRemove, commissionsList, commissionsUpdateRate,
     reclamationsList, reclamationsCreate, reclamationsResolve, reclamationsConfirmReceived,
     reclamationsRelance, reclamationsRequestRefund, ordersProcessRefund, refundRequestsList,
