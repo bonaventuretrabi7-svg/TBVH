@@ -5693,7 +5693,7 @@ async function exchSubmit() {
    CADEAU RÉCOMPENSE — débloqué après 100 commandes terminées
 ══════════════════════════════════════════════════════════════ */
 const CADEAU_GOAL    = 100;
-const CADEAU_MONTANT = 500; // F crédités sur le solde
+const CADEAU_MONTANT = 5000; // F crédités sur le solde
 
 function _cadeauStats() {
   const me = Auth.current();

@@ -13,7 +13,7 @@ require __DIR__ . '/bootstrap.php';
 $me = requireAuth(['client']);
 
 $CADEAU_GOAL    = 100;
-$CADEAU_MONTANT = 500;
+$CADEAU_MONTANT = 5000;
 
 $pdo = db();
 $pdo->beginTransaction();
