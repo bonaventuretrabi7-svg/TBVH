@@ -3944,20 +3944,28 @@ async function loadPartnerRequests() {
       </button>
       <button class="btn btn-sm btn-danger" onclick="refusePartnerRequest('${a.id}')" style="font-size:.62rem;padding:5px 12px;">
         <i class="fa-solid fa-ban"></i> Refuser
-      </button>` : ''}`;
+      </button>` : ''}
+      <button class="btn btn-sm" style="background:var(--gray-100);color:var(--danger);font-size:.62rem;padding:5px 12px;" onclick="deletePartnerRequest('${a.id}','${(a.prenom||'')} ${(a.nom||'')}')" title="Supprimer définitivement">
+        <i class="fa-solid fa-trash"></i> Supprimer
+      </button>`;
     const puces = a.puces ? `Orange: ${a.puces.orange||0} · Moov: ${a.puces.moov||0} · MTN: ${a.puces.mtn||0}` : '';
+    const paiement = (a.paiement_vers || a.numero_compte)
+      ? `<div class="rst-admin-meta">${a.paiement_vers ? 'Paiement via ' + a.paiement_vers : ''}${a.numero_compte ? ' · Compte : ' + Fmt.phone(a.numero_compte) : ''}</div>`
+      : '';
     return `<div class="rst-admin-row">
       ${a.photo ? `<img src="${a.photo}" alt="Photo" style="width:44px;height:44px;border-radius:50%;object-fit:cover;flex-shrink:0;margin-right:10px;">` : ''}
       <div class="rst-admin-info">
         <div class="rst-admin-name"><i class="fa-solid fa-user"></i> ${a.prenom || ''} ${a.nom || ''}</div>
-        <div class="rst-admin-meta">${Fmt.phone(a.telephone) || '—'} · ${a.email || '—'}</div>
+        <div class="rst-admin-meta"><i class="fa-solid fa-phone"></i> ${Fmt.phone(a.telephone) || '—'} · <i class="fa-regular fa-envelope"></i> ${a.email || '—'}</div>
+        ${a.whatsapp ? `<div class="rst-admin-meta"><i class="fa-brands fa-whatsapp"></i> ${Fmt.phone(a.whatsapp)}</div>` : ''}
         <div class="rst-admin-meta">${a.cabine_nom ? 'Cabine : ' + a.cabine_nom + ' · ' : ''}${puces}</div>
+        ${paiement}
         ${a.motivation ? `<div class="rst-admin-meta" style="font-style:italic;">"${a.motivation}"</div>` : ''}
         <div class="rst-admin-date"><i class="fa-regular fa-clock"></i> ${dateStr}</div>
       </div>
       <div class="rst-admin-actions">
         ${badgeHtml}
-        <div style="display:flex;gap:6px;margin-top:6px;">${actions}</div>
+        <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;">${actions}</div>
       </div>
     </div>`;
   }).join('');
@@ -3987,6 +3995,14 @@ async function refusePartnerRequest(appId) {
   const res = await DB.partnerApplications.refuse(appId);
   if (!res.ok) { Toast.error(res.error); return; }
   Toast.info('Demande de partenariat refusée.');
+  loadPartnerRequests();
+}
+
+async function deletePartnerRequest(appId, name) {
+  if (!confirm(`Supprimer définitivement la demande de ${name.trim() || 'ce candidat'} ? Cette action est irréversible.`)) return;
+  const res = await DB.partnerApplications.remove(appId);
+  if (!res.ok) { Toast.error(res.error); return; }
+  Toast.success('Demande supprimée.');
   loadPartnerRequests();
 }
 

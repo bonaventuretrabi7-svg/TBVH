@@ -32,6 +32,19 @@ try {
     fail('Ce numéro est déjà utilisé par un autre compte cabine.');
   }
 
+  // Même contrôle pour l'email : profiles a une contrainte unique
+  // (telephone, role) ET (email, role) -- sans cette vérification, la
+  // validation échouait avec une erreur SQL brute (non explicite) dès
+  // qu'un compte cabine existait déjà avec cet email.
+  if ($app['email'] !== '' && $app['email'] !== null) {
+    $dupEmailStmt = $pdo->prepare("SELECT id FROM profiles WHERE LOWER(email) = LOWER(?) AND role = 'cabine'");
+    $dupEmailStmt->execute([$app['email']]);
+    if ($dupEmailStmt->fetch()) {
+      $pdo->rollBack();
+      fail('Cet email est déjà utilisé par un autre compte cabine.');
+    }
+  }
+
   $cabineId = uuid4();
   $pdo->prepare('INSERT INTO profiles
       (id, role, nom, prenom, telephone, email, mot_de_passe_hash, cabine_nom, solde, statut, abonnement,

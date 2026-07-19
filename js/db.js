@@ -1444,6 +1444,13 @@ const DB = (() => {
       await partnerApplications.refresh();
       return { ok: true };
     },
+
+    async remove(applicationId) {
+      const res = await ServerAPI.partnerApplicationsDelete(applicationId);
+      if (!res.ok) return { ok: false, error: res.error };
+      set(KEY.partnerApplications, (get(KEY.partnerApplications) || []).filter(a => a.id !== applicationId));
+      return { ok: true };
+    },
   };
 
   /* ── Journal des accès admin (impersonation) ─────────────────────

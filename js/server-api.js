@@ -516,6 +516,12 @@ const ServerAPI = (() => {
     return { ok: true };
   }
 
+  async function partnerApplicationsDelete(applicationId) {
+    const { res, data } = await _call('partner_applications_delete.php', { auth: true, body: { application_id: applicationId } });
+    if (!res.ok || !data || data.error) return { ok: false, error: (data && data.error) || 'Échec de la suppression.' };
+    return { ok: true };
+  }
+
   async function devicesTouch({ deviceId, label, remember }) {
     const { res, data } = await _call('devices_touch.php', { auth: true, body: { device_id: deviceId, label, remember: !!remember } });
     if (!res.ok || !data || data.error) return { ok: false, error: (data && data.error) || 'Échec.' };
@@ -782,7 +788,7 @@ const ServerAPI = (() => {
     notificationsList, notificationsMarkRead, notificationsMarkAllRead,
     retraitsCreate, retraitsList, cabineSetRetraitInfo,
     resetRequestsCreate, resetRequestsList, resetRequestsApply, resetRequestsRefuse,
-    partnerApplicationsCreate, partnerApplicationsList, partnerApplicationsValidate, partnerApplicationsRefuse,
+    partnerApplicationsCreate, partnerApplicationsList, partnerApplicationsValidate, partnerApplicationsRefuse, partnerApplicationsDelete,
     devicesTouch, devicesList, devicesRemove,
     referralsSummary, adminDeleteAccount,
   };
