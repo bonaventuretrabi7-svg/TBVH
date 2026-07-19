@@ -205,7 +205,7 @@ const ServerAPI = (() => {
      api/admin_update_user.php, même patron que adminUpdateProfile()
      ci-dessus mais pour client/cabine (admin_update_profile.php est
      réservé aux comptes admin). */
-  async function adminUpdateUser({ id, prenom, nom, telephone, email, limiteCommandes, nouveauSolde, servicesActifs, motifZeroTxn, motifInactif, appelStatut }) {
+  async function adminUpdateUser({ id, prenom, nom, telephone, email, limiteCommandes, nouveauSolde, servicesActifs, motifZeroTxn, motifInactif, appelStatut, experience, motivation, paiementAbo, paiementVers, numeroCompte, puces }) {
     const body = { id };
     if (prenom !== undefined) body.prenom = prenom;
     if (nom !== undefined) body.nom = nom;
@@ -217,6 +217,12 @@ const ServerAPI = (() => {
     if (motifZeroTxn !== undefined) body.motif_zero_txn = motifZeroTxn;
     if (motifInactif !== undefined) body.motif_inactif = motifInactif;
     if (appelStatut !== undefined) body.appel_statut = appelStatut;
+    if (experience !== undefined) body.experience = experience;
+    if (motivation !== undefined) body.motivation = motivation;
+    if (paiementAbo !== undefined) body.paiement_abo = paiementAbo;
+    if (paiementVers !== undefined) body.paiement_vers = paiementVers;
+    if (numeroCompte !== undefined) body.numero_compte = numeroCompte;
+    if (puces !== undefined) body.puces = puces;
 
     const { res, data } = await _call('admin_update_user.php', { auth: true, body });
     if (!res.ok || !data || data.error) {

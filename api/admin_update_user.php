@@ -49,6 +49,18 @@ try {
     $columns[] = 'services_actifs = ?';
     $params[]  = json_encode($in['services_actifs']);
   }
+  // Renseignements de partenariat (voir prg-* à l'inscription, index.html)
+  // -- modifiables ici par l'admin, et par la cabine elle-même via
+  // api/cabine_update_self.php.
+  if ($target['role'] === 'cabine') {
+    foreach (['experience', 'motivation', 'paiement_abo', 'paiement_vers', 'numero_compte'] as $key) {
+      if (array_key_exists($key, $in)) { $columns[] = "$key = ?"; $params[] = (string)$in[$key]; }
+    }
+    if (array_key_exists('puces', $in)) {
+      $columns[] = 'puces = ?';
+      $params[]  = json_encode($in['puces']);
+    }
+  }
   // Notes de suivi admin ("Zéro transaction" / "Client-cabine inactif") —
   // partagées par client ET cabine (voir loadClientsInactifsAdmin()/
   // loadCabinesInactivesAdmin(), js/admin.js, qui réutilisent les mêmes
@@ -80,4 +92,4 @@ $stmt = $pdo->prepare('SELECT * FROM profiles WHERE id = ?');
 $stmt->execute([$targetId]);
 $profile = $stmt->fetch();
 unset($profile['mot_de_passe_hash']);
-echo json_encode(['ok' => true, 'profile' => decodeJsonColumns($profile, ['reseaux_actifs', 'services_actifs', 'ussd_enabled'])]);
+echo json_encode(['ok' => true, 'profile' => decodeJsonColumns($profile, ['reseaux_actifs', 'services_actifs', 'ussd_enabled', 'puces'])]);

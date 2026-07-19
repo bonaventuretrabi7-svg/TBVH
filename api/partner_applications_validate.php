@@ -66,4 +66,20 @@ try {
   throw $e;
 }
 
+// Si le candidat a aussi un compte client (même numéro) — cas fréquent, la
+// candidature se soumet depuis l'espace client — le prévient dans son fil
+// de notifications que sa demande est validée et qu'il peut se connecter
+// à son nouvel espace cabine avec le même email et le même code PIN
+// choisis à l'inscription. Rien à envoyer autrement (pas de SMS/email
+// configuré sur ce projet) : un candidat sans compte client doit encore
+// être averti par l'administration elle-même.
+$clientStmt = $pdo->prepare("SELECT id FROM profiles WHERE telephone = ? AND role = 'client'");
+$clientStmt->execute([$app['telephone']]);
+$clientProfile = $clientStmt->fetch();
+if ($clientProfile) {
+  createNotification($clientProfile['id'],
+    'Félicitations ! Votre demande de partenariat a été validée. Connectez-vous à votre nouvel espace cabine avec l\'email et le code PIN choisis lors de votre inscription.',
+    'success');
+}
+
 echo json_encode(['ok' => true, 'cabineId' => $cabineId]);

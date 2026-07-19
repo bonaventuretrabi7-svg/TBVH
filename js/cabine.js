@@ -3280,10 +3280,9 @@ async function cabDisconnectDevice(deviceRecordId) {
 }
 
 function loadProfile() {
-  const user    = DB.users.byId(currentUser.id);
-  const isAdmin = currentUser.role === 'admin';
-  const set     = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v || '—'; };
-  const setV    = (id, v) => { const el = document.getElementById(id); if (el) el.value = v || ''; };
+  const user = DB.users.byId(currentUser.id);
+  const set  = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v || '—'; };
+  const setV = (id, v) => { const el = document.getElementById(id); if (el) el.value = v || ''; };
 
   // Carte profil (avatar + nom + statut)
   set('cab-prof-avatar',  Fmt.initials(user.nom, user.prenom));
@@ -3294,27 +3293,24 @@ function loadProfile() {
   const statusDot = document.getElementById('cab-prof-status-dot');
   if (statusDot) statusDot.style.background = statut === 'actif' ? '#34D399' : '#F0554A';
 
-  // Champs lecture seule
-  set('cab-prof-prenom-view',  user.prenom);
-  set('cab-prof-nom-view',     user.nom);
-  set('cab-prof-cabnom-view',  user.cabine_nom);
-  set('cab-prof-tel-view',     Fmt.phone(user.telephone));
-  set('cab-prof-wa-view',      Fmt.phone(user.whatsapp));
-  set('cab-prof-email-view',   user.email);
-  set('cab-prof-zone-view',    user.zone);
-
-  // Formulaire admin
-  const adminEdit = document.getElementById('cab-prof-admin-edit');
-  if (adminEdit) adminEdit.style.display = isAdmin ? 'block' : 'none';
-  if (isAdmin) {
-    setV('cab-prof-prenom',  user.prenom);
-    setV('cab-prof-nom',     user.nom);
-    setV('cab-prof-cabnom',  user.cabine_nom);
-    setV('cab-prof-tel',     Fmt.phone(user.telephone));
-    setV('cab-prof-wa',      Fmt.phone(user.whatsapp));
-    setV('cab-prof-email',   user.email);
-    setV('cab-prof-zone',    user.zone);
-  }
+  // Formulaire — modifiable directement par la cabine (voir
+  // api/cabine_update_self.php). Un admin qui consulte via impersonation
+  // voit et modifie exactement le même formulaire.
+  setV('cab-prof-prenom',  user.prenom);
+  setV('cab-prof-nom',     user.nom);
+  setV('cab-prof-cabnom',  user.cabine_nom);
+  setV('cab-prof-tel',     Fmt.phone(user.telephone));
+  setV('cab-prof-wa',      Fmt.phone(user.whatsapp));
+  setV('cab-prof-email',   user.email);
+  setV('cab-prof-zone',    user.zone);
+  setV('cab-prof-exp',     user.experience);
+  setV('cab-prof-motivation', user.motivation);
+  setV('cab-prof-puce-orange', (user.puces && user.puces.orange) || 0);
+  setV('cab-prof-puce-mtn',    (user.puces && user.puces.mtn)    || 0);
+  setV('cab-prof-puce-moov',   (user.puces && user.puces.moov)   || 0);
+  setV('cab-prof-paiement-abo',  user.paiement_abo);
+  setV('cab-prof-paiement-vers', user.paiement_vers);
+  setV('cab-prof-numero-compte', user.numero_compte);
 
   loadCabDevices();
 }
@@ -3328,13 +3324,26 @@ async function handleCabineProfileUpdate(e) {
   const wa        = document.getElementById('cab-prof-wa')?.value.replace(/\D/g, '');
   const email     = document.getElementById('cab-prof-email')?.value.trim();
   const zone      = document.getElementById('cab-prof-zone')?.value.trim();
+  const experience    = document.getElementById('cab-prof-exp')?.value || '';
+  const motivation    = document.getElementById('cab-prof-motivation')?.value.trim() || '';
+  const paiementAbo   = document.getElementById('cab-prof-paiement-abo')?.value || '';
+  const paiementVers  = document.getElementById('cab-prof-paiement-vers')?.value || '';
+  const numeroCompte  = document.getElementById('cab-prof-numero-compte')?.value.trim() || '';
+  const puces = {
+    orange: parseInt(document.getElementById('cab-prof-puce-orange')?.value) || 0,
+    mtn:    parseInt(document.getElementById('cab-prof-puce-mtn')?.value)    || 0,
+    moov:   parseInt(document.getElementById('cab-prof-puce-moov')?.value)   || 0,
+  };
   if (!Auth.isValidGmail(email)) { Toast.error('Adresse Gmail invalide (ex : nom@gmail.com).'); return; }
   const existing = DB.users.byEmail(email);
   if (existing && existing.id !== currentUser.id) { Toast.error('Cet email est déjà utilisé par un autre compte.'); return; }
   // Persisté côté serveur (voir api/cabine_update_self.php) — un bug
   // séparé empêchait jusqu'ici cet enregistrement de s'exécuter, même
   // localement (condition de garde inversée, corrigée ici).
-  const res = await DB.business.cabineUpdateSelf(currentUser.id, { prenom, nom, cabine_nom: cabineNom, telephone: tel, whatsapp: wa, email, zone });
+  const res = await DB.business.cabineUpdateSelf(currentUser.id, {
+    prenom, nom, cabine_nom: cabineNom, telephone: tel, whatsapp: wa, email, zone,
+    experience, motivation, puces, paiement_abo: paiementAbo, paiement_vers: paiementVers, numero_compte: numeroCompte,
+  });
   if (!res.ok) { Toast.error(res.error || 'Échec de la mise à jour du profil.'); return; }
   currentUser = Auth.refresh();
   renderTopbarUser();

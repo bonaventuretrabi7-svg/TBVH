@@ -776,83 +776,104 @@
       </button>
         <div id="cab-pinfo-body" style="display:none;padding:14px;">
 
-          <!-- Avertissement lecture seule -->
-          <div style="display:flex;align-items:center;gap:8px;background:rgba(234,179,8,.1);border:1px solid rgba(234,179,8,.3);border-radius:10px;padding:9px 12px;margin-bottom:14px;">
-            <i class="fa-solid fa-lock" style="color:#FBBF24;font-size:.75rem;flex-shrink:0;"></i>
-            <span style="font-size:.65rem;color:#FDE68A;line-height:1.4;">Ces informations ont été enregistrées lors de votre inscription. Seul un administrateur peut les modifier.</span>
+          <!-- Informations enregistrées à l'inscription — modifiables ici -->
+          <div style="display:flex;align-items:center;gap:8px;background:rgba(96,165,250,.1);border:1px solid rgba(96,165,250,.3);border-radius:10px;padding:9px 12px;margin-bottom:14px;">
+            <i class="fa-solid fa-circle-info" style="color:#60A5FA;font-size:.75rem;flex-shrink:0;"></i>
+            <span style="font-size:.65rem;color:#BFDBFE;line-height:1.4;">Informations enregistrées lors de votre inscription — modifiez-les à tout moment.</span>
           </div>
 
-          <div class="cab-form-row2">
-            <div class="cab-fgroup">
-              <label class="cab-flabel">Prénom</label>
-              <div class="cab-info-field" id="cab-prof-prenom-view">—</div>
+          <form onsubmit="handleCabineProfileUpdate(event)">
+            <div class="cab-form-row2">
+              <div class="cab-fgroup">
+                <label class="cab-flabel">Prénom</label>
+                <input type="text" class="cab-finput" id="cab-prof-prenom" required />
+              </div>
+              <div class="cab-fgroup">
+                <label class="cab-flabel">Nom</label>
+                <input type="text" class="cab-finput" id="cab-prof-nom" required />
+              </div>
             </div>
             <div class="cab-fgroup">
-              <label class="cab-flabel">Nom</label>
-              <div class="cab-info-field" id="cab-prof-nom-view">—</div>
+              <label class="cab-flabel">Nom de la cabine</label>
+              <input type="text" class="cab-finput" id="cab-prof-cabnom" />
             </div>
-          </div>
-          <div class="cab-fgroup">
-            <label class="cab-flabel">Téléphone</label>
-            <div class="cab-info-field" id="cab-prof-tel-view">—</div>
-          </div>
-          <div class="cab-fgroup">
-            <label class="cab-flabel">Email</label>
-            <div class="cab-info-field" id="cab-prof-email-view">—</div>
-          </div>
-          <div class="cab-fgroup">
-            <label class="cab-flabel">Nom de la cabine</label>
-            <div class="cab-info-field" id="cab-prof-cabnom-view">—</div>
-          </div>
-          <div class="cab-fgroup">
-            <label class="cab-flabel">WhatsApp</label>
-            <div class="cab-info-field" id="cab-prof-wa-view">—</div>
-          </div>
-          <div class="cab-fgroup">
-            <label class="cab-flabel">Zone / Quartier</label>
-            <div class="cab-info-field" id="cab-prof-zone-view">—</div>
-          </div>
+            <div class="cab-fgroup">
+              <label class="cab-flabel">Téléphone</label>
+              <input type="tel" class="cab-finput" id="cab-prof-tel" maxlength="14" oninput="formatPhoneInput(this)" />
+            </div>
+            <div class="cab-fgroup">
+              <label class="cab-flabel">WhatsApp</label>
+              <input type="tel" class="cab-finput" id="cab-prof-wa" maxlength="14" oninput="formatPhoneInput(this)" />
+            </div>
+            <div class="cab-fgroup">
+              <label class="cab-flabel">Email (Gmail)</label>
+              <input type="email" class="cab-finput" id="cab-prof-email" placeholder="exemple@gmail.com" required />
+            </div>
+            <div class="cab-fgroup">
+              <label class="cab-flabel">Zone / Quartier</label>
+              <input type="text" class="cab-finput" id="cab-prof-zone" />
+            </div>
 
-          <!-- Formulaire d'édition admin uniquement (masqué par défaut) -->
-          <div id="cab-prof-admin-edit" style="display:none;margin-top:16px;padding-top:14px;border-top:1px solid rgba(255,255,255,.1);">
-            <div style="display:flex;align-items:center;gap:7px;margin-bottom:12px;">
-              <i class="fa-solid fa-shield-halved" style="color:#C4B5FD;font-size:.8rem;"></i>
-              <span style="font-size:.72rem;font-weight:800;color:#C4B5FD;">Modification administrateur</span>
+            <p class="cab-settings-eyebrow" style="margin:16px 0 8px;">Renseignements de partenariat</p>
+            <div class="cab-fgroup">
+              <label class="cab-flabel">Années d'expérience</label>
+              <select class="cab-finput" id="cab-prof-exp">
+                <option value="">— Sélectionnez —</option>
+                <option value="Moins d'1 an">Moins d'1 an</option>
+                <option value="1 à 3 ans">1 à 3 ans</option>
+                <option value="3 à 5 ans">3 à 5 ans</option>
+                <option value="Plus de 5 ans">Plus de 5 ans</option>
+              </select>
             </div>
-            <form onsubmit="handleCabineProfileUpdate(event)">
-              <div class="cab-form-row2">
-                <div class="cab-fgroup">
-                  <label class="cab-flabel">Prénom</label>
-                  <input type="text" class="cab-finput" id="cab-prof-prenom" required />
-                </div>
-                <div class="cab-fgroup">
-                  <label class="cab-flabel">Nom</label>
-                  <input type="text" class="cab-finput" id="cab-prof-nom" required />
-                </div>
+            <div class="cab-fgroup">
+              <label class="cab-flabel">Motivation</label>
+              <textarea class="cab-finput" id="cab-prof-motivation" rows="3"></textarea>
+            </div>
+            <label class="cab-flabel">Puces téléphoniques disponibles</label>
+            <div class="cab-form-row3" style="display:flex;gap:8px;">
+              <div class="cab-fgroup" style="flex:1;">
+                <label class="cab-flabel" style="font-size:.6rem;">Orange</label>
+                <input type="number" min="0" class="cab-finput" id="cab-prof-puce-orange" />
               </div>
-              <div class="cab-fgroup">
-                <label class="cab-flabel">Nom de la cabine</label>
-                <input type="text" class="cab-finput" id="cab-prof-cabnom" />
+              <div class="cab-fgroup" style="flex:1;">
+                <label class="cab-flabel" style="font-size:.6rem;">MTN</label>
+                <input type="number" min="0" class="cab-finput" id="cab-prof-puce-mtn" />
               </div>
-              <div class="cab-fgroup">
-                <label class="cab-flabel">Téléphone</label>
-                <input type="tel" class="cab-finput" id="cab-prof-tel" maxlength="14" oninput="formatPhoneInput(this)" />
+              <div class="cab-fgroup" style="flex:1;">
+                <label class="cab-flabel" style="font-size:.6rem;">Moov</label>
+                <input type="number" min="0" class="cab-finput" id="cab-prof-puce-moov" />
               </div>
-              <div class="cab-fgroup">
-                <label class="cab-flabel">WhatsApp</label>
-                <input type="tel" class="cab-finput" id="cab-prof-wa" maxlength="14" oninput="formatPhoneInput(this)" />
-              </div>
-              <div class="cab-fgroup">
-                <label class="cab-flabel">Email (Gmail)</label>
-                <input type="email" class="cab-finput" id="cab-prof-email" placeholder="exemple@gmail.com" required />
-              </div>
-              <div class="cab-fgroup">
-                <label class="cab-flabel">Zone / Quartier</label>
-                <input type="text" class="cab-finput" id="cab-prof-zone" />
-              </div>
-              <button type="submit" class="cab-btn-primary"><i class="fa-solid fa-save"></i> Enregistrer</button>
-            </form>
-          </div>
+            </div>
+            <div class="cab-fgroup">
+              <label class="cab-flabel">Paiement de l'abonnement via</label>
+              <select class="cab-finput" id="cab-prof-paiement-abo">
+                <option value="">— Sélectionnez —</option>
+                <option value="Orange Money">Orange Money</option>
+                <option value="MTN MoMo">MTN MoMo</option>
+                <option value="Moov Money">Moov Money</option>
+                <option value="Wave">Wave</option>
+              </select>
+            </div>
+            <div class="cab-fgroup">
+              <label class="cab-flabel">Réception des versements via</label>
+              <select class="cab-finput" id="cab-prof-paiement-vers">
+                <option value="">— Sélectionnez —</option>
+                <option value="Orange Money">Orange Money</option>
+                <option value="MTN MoMo">MTN MoMo</option>
+                <option value="Moov Money">Moov Money</option>
+                <option value="Djamo">Djamo</option>
+                <option value="Wave Business">Wave Business</option>
+                <option value="Wave Normal">Wave Normal</option>
+                <option value="Compte bancaire">Compte bancaire</option>
+              </select>
+            </div>
+            <div class="cab-fgroup">
+              <label class="cab-flabel">Numéro de compte de réception</label>
+              <input type="text" class="cab-finput" id="cab-prof-numero-compte" />
+            </div>
+
+            <button type="submit" class="cab-btn-primary"><i class="fa-solid fa-save"></i> Enregistrer</button>
+          </form>
         </div>
 
       <!-- Changer le mot de passe (accordéon) -->

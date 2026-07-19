@@ -2240,6 +2240,59 @@ function editUserForm(id) {
       <label class="form-label">Limite de commandes simultanées</label>
       <input class="form-control" type="number" min="0" id="edit-user-limite" value="${u.limite_commandes || ''}" placeholder="Aucune limite">
       <div style="font-size:.68rem;color:var(--gray-500);margin-top:4px;">Laisser vide ou 0 = pas de limite. Au-delà, cette cabine ne recevra plus de nouvelles commandes.</div>
+    </div>
+    <div class="form-group" style="border-top:1px solid var(--gray-100);padding-top:10px;">
+      <label class="form-label" style="font-weight:700;">Renseignements de partenariat</label>
+      <div style="font-size:.68rem;color:var(--gray-500);margin-bottom:8px;">Enregistrés à l'inscription — la cabine peut aussi les modifier elle-même.</div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Années d'expérience</label>
+      <select class="form-control" id="edit-user-exp">
+        <option value="" ${!u.experience ? 'selected' : ''}>— Sélectionnez —</option>
+        <option value="Moins d'1 an" ${u.experience === "Moins d'1 an" ? 'selected' : ''}>Moins d'1 an</option>
+        <option value="1 à 3 ans" ${u.experience === '1 à 3 ans' ? 'selected' : ''}>1 à 3 ans</option>
+        <option value="3 à 5 ans" ${u.experience === '3 à 5 ans' ? 'selected' : ''}>3 à 5 ans</option>
+        <option value="Plus de 5 ans" ${u.experience === 'Plus de 5 ans' ? 'selected' : ''}>Plus de 5 ans</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Motivation</label>
+      <textarea class="form-control" id="edit-user-motivation" rows="3">${u.motivation || ''}</textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Puces téléphoniques disponibles</label>
+      <div style="display:flex;gap:8px;">
+        <input class="form-control" type="number" min="0" id="edit-user-puce-orange" placeholder="Orange" value="${(u.puces && u.puces.orange) || 0}">
+        <input class="form-control" type="number" min="0" id="edit-user-puce-mtn" placeholder="MTN" value="${(u.puces && u.puces.mtn) || 0}">
+        <input class="form-control" type="number" min="0" id="edit-user-puce-moov" placeholder="Moov" value="${(u.puces && u.puces.moov) || 0}">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Paiement de l'abonnement via</label>
+      <select class="form-control" id="edit-user-paiement-abo">
+        <option value="" ${!u.paiement_abo ? 'selected' : ''}>— Sélectionnez —</option>
+        <option value="Orange Money" ${u.paiement_abo === 'Orange Money' ? 'selected' : ''}>Orange Money</option>
+        <option value="MTN MoMo" ${u.paiement_abo === 'MTN MoMo' ? 'selected' : ''}>MTN MoMo</option>
+        <option value="Moov Money" ${u.paiement_abo === 'Moov Money' ? 'selected' : ''}>Moov Money</option>
+        <option value="Wave" ${u.paiement_abo === 'Wave' ? 'selected' : ''}>Wave</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Réception des versements via</label>
+      <select class="form-control" id="edit-user-paiement-vers">
+        <option value="" ${!u.paiement_vers ? 'selected' : ''}>— Sélectionnez —</option>
+        <option value="Orange Money" ${u.paiement_vers === 'Orange Money' ? 'selected' : ''}>Orange Money</option>
+        <option value="MTN MoMo" ${u.paiement_vers === 'MTN MoMo' ? 'selected' : ''}>MTN MoMo</option>
+        <option value="Moov Money" ${u.paiement_vers === 'Moov Money' ? 'selected' : ''}>Moov Money</option>
+        <option value="Djamo" ${u.paiement_vers === 'Djamo' ? 'selected' : ''}>Djamo</option>
+        <option value="Wave Business" ${u.paiement_vers === 'Wave Business' ? 'selected' : ''}>Wave Business</option>
+        <option value="Wave Normal" ${u.paiement_vers === 'Wave Normal' ? 'selected' : ''}>Wave Normal</option>
+        <option value="Compte bancaire" ${u.paiement_vers === 'Compte bancaire' ? 'selected' : ''}>Compte bancaire</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Numéro de compte de réception</label>
+      <input class="form-control" id="edit-user-numero-compte" value="${u.numero_compte || ''}">
     </div>` : ''}
     ${u.role === 'cabine' && currentUser.admin_level === 'super' ? `
     <div class="form-group" style="border:1px dashed var(--primary);border-radius:10px;padding:10px;">
@@ -2303,6 +2356,17 @@ async function saveUserEdits(id) {
     const limiteEl = document.getElementById('edit-user-limite');
     limite = limiteEl ? parseInt(limiteEl.value) : 0;
     updates.limite_commandes = isNaN(limite) || limite <= 0 ? null : limite;
+
+    updates.experience    = document.getElementById('edit-user-exp')?.value || '';
+    updates.motivation    = document.getElementById('edit-user-motivation')?.value.trim() || '';
+    updates.paiement_abo  = document.getElementById('edit-user-paiement-abo')?.value || '';
+    updates.paiement_vers = document.getElementById('edit-user-paiement-vers')?.value || '';
+    updates.numero_compte = document.getElementById('edit-user-numero-compte')?.value.trim() || '';
+    updates.puces = {
+      orange: parseInt(document.getElementById('edit-user-puce-orange')?.value) || 0,
+      mtn:    parseInt(document.getElementById('edit-user-puce-mtn')?.value)    || 0,
+      moov:   parseInt(document.getElementById('edit-user-puce-moov')?.value)   || 0,
+    };
   }
 
   // Persisté côté serveur (voir api/admin_update_user.php) — sans ça, ce
@@ -2312,6 +2376,9 @@ async function saveUserEdits(id) {
     id, prenom, nom, telephone, email,
     limiteCommandes: u.role === 'cabine' ? updates.limite_commandes : undefined,
     nouveauSolde,
+    experience: updates.experience, motivation: updates.motivation,
+    paiementAbo: updates.paiement_abo, paiementVers: updates.paiement_vers,
+    numeroCompte: updates.numero_compte, puces: updates.puces,
   });
   if (!res.ok) { Toast.error(res.error); return; }
 
@@ -3959,6 +4026,7 @@ async function loadPartnerRequests() {
         <div class="rst-admin-meta"><i class="fa-solid fa-phone"></i> ${Fmt.phone(a.telephone) || '—'} · <i class="fa-regular fa-envelope"></i> ${a.email || '—'}</div>
         ${a.whatsapp ? `<div class="rst-admin-meta"><i class="fa-brands fa-whatsapp"></i> ${Fmt.phone(a.whatsapp)}</div>` : ''}
         <div class="rst-admin-meta">${a.cabine_nom ? 'Cabine : ' + a.cabine_nom + ' · ' : ''}${puces}</div>
+        ${(a.abonnement || a.experience) ? `<div class="rst-admin-meta">${a.abonnement ? 'Abonnement souhaité : ' + a.abonnement : ''}${a.experience ? ' · Expérience : ' + a.experience : ''}</div>` : ''}
         ${paiement}
         ${a.motivation ? `<div class="rst-admin-meta" style="font-style:italic;">"${a.motivation}"</div>` : ''}
         <div class="rst-admin-date"><i class="fa-regular fa-clock"></i> ${dateStr}</div>

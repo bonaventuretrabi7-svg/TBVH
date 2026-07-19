@@ -29,8 +29,16 @@ if (array_key_exists('email', $in) && $in['email'] !== '') {
 $columns = [];
 $params  = [];
 
-foreach (['prenom', 'nom', 'cabine_nom', 'telephone', 'whatsapp', 'email', 'zone'] as $key) {
+foreach (['prenom', 'nom', 'cabine_nom', 'telephone', 'whatsapp', 'email', 'zone',
+          'experience', 'motivation', 'paiement_abo', 'paiement_vers', 'numero_compte'] as $key) {
   if (array_key_exists($key, $in)) { $columns[] = "$key = ?"; $params[] = (string)$in[$key]; }
+}
+
+// Renseignements de partenariat (voir prg-puce-*, index.html à
+// l'inscription — modifiables depuis "Mon profil" côté cabine).
+if (array_key_exists('puces', $in)) {
+  $columns[] = 'puces = ?';
+  $params[] = json_encode($in['puces']);
 }
 
 if (array_key_exists('reseaux_actifs', $in)) {
