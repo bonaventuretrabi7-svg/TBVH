@@ -668,11 +668,10 @@ function _adminSoundWatch() {
   if (_adminLastReclaCount !== null && reclaCount > _adminLastReclaCount) AdminSound.notify('reclamation');
   _adminLastReclaCount = reclaCount;
 
-  let partnerPending = 0;
-  try {
-    const apps = JSON.parse(localStorage.getItem('cbp_applications') || '[]');
-    partnerPending = apps.filter(a => a.statut === 'en_attente').length;
-  } catch (e) { /* stockage invalide — ignoré */ }
+  // Corrigé : lisait auparavant une clé localStorage 'cbp_applications' qui
+  // n'a jamais existé (le cache réel est géré par DB.partnerApplications,
+  // voir js/db.js) — cette alerte sonore ne se déclenchait donc jamais.
+  const partnerPending = DB.partnerApplications.all().filter(a => a.statut === 'en_attente').length;
   if (_adminLastPartnerCount !== null && partnerPending > _adminLastPartnerCount) AdminSound.notify();
   _adminLastPartnerCount = partnerPending;
 
@@ -997,7 +996,7 @@ function loadPermissionCabine(query = '') {
   }).join('');
 }
 
-function toggleCabinePermission(cabineId, service, checkboxEl) {
+async function toggleCabinePermission(cabineId, service, checkboxEl) {
   const cab = DB.users.byId(cabineId);
   if (!cab) return;
   const current = cab.services_actifs || { facture: true, exchange: true, recharge_uv: true };
@@ -1009,6 +1008,11 @@ function toggleCabinePermission(cabineId, service, checkboxEl) {
     return;
   }
 
+  // Persisté côté serveur (voir api/admin_update_user.php) — sans ça, le
+  // moteur d'attribution des commandes (qui lit services_actifs
+  // directement en base) ignorait totalement ce réglage.
+  const res = await ServerAPI.adminUpdateUser({ id: cabineId, servicesActifs: next });
+  if (!res.ok) { checkboxEl.checked = !checkboxEl.checked; Toast.error(res.error || 'Échec de l\'enregistrement.'); return; }
   DB.users.update(cabineId, { services_actifs: next });
   DB.permissionLogs.create({
     admin_id: currentUser.id, admin_name: `${currentUser.prenom} ${currentUser.nom}`,
@@ -2039,7 +2043,12 @@ function viewOwnAdminProfile() {
 function quickSetOwnAdminPhoto(input) {
   const file = input.files[0];
   if (!file) return;
-  adminReadFileAsDataUrl(file).then((photoUrl) => {
+  adminReadFileAsDataUrl(file).then(async (photoUrl) => {
+    // Persisté côté serveur (voir api/admin_update_profile.php) — sans ça,
+    // la photo restait locale à l'appareil et disparaissait sur un autre
+    // appareil connecté au même compte.
+    const res = await ServerAPI.adminUpdateProfile({ id: currentUser.id, photo: photoUrl });
+    if (!res.ok) { Toast.error(res.error || 'Échec de l\'enregistrement de la photo.'); return; }
     DB.users.update(currentUser.id, { photo: photoUrl });
     currentUser = Auth.refresh();
     Toast.success('Photo de profil mise à jour.');
@@ -2295,26 +2304,35 @@ async function saveUserEdits(id) {
   loadDashboard();
 }
 
-function suspendUser(id, name) {
+async function suspendUser(id, name) {
   if (!confirm(`Suspendre le compte de ${name} ?`)) return;
+  // Persisté côté serveur (voir api/admin_set_account_status.php) — sans
+  // ça, le compte restait pleinement fonctionnel malgré la suspension
+  // affichée localement.
+  const res = await ServerAPI.adminSetAccountStatus(id, 'suspendu');
+  if (!res.ok) { Toast.error(res.error || 'Échec de la suspension.'); return; }
   DB.users.update(id, { statut: 'suspendu' });
   Toast.warning(`${name} suspendu.`);
   loadClients();
   loadDashboard();
 }
 
-function activateUser(id, name) {
-  DB.users.update(id, { statut: 'actif' });
+async function activateUser(id, name) {
+  const res = await ServerAPI.adminSetAccountStatus(id, 'actif');
+  if (!res.ok) { Toast.error(res.error || 'Échec de la réactivation.'); return; }
+  DB.users.update(id, { statut: 'actif', tentatives_echouees: 0 });
   Toast.success(`${name} réactivé.`);
   loadClients();
   loadDashboard();
 }
 
-function toggleCabine(id, activate) {
+async function toggleCabine(id, activate) {
   // Une suspension MANUELLE (suspendu_by non nul) ne peut être levée que
   // par l'administrateur qui l'a posée, ou par le super administrateur —
   // une suspension automatique (suspendu_by === null) reste débloquable
   // par n'importe quel admin (voir objectifs 6/7, DB.business.suspendCabineManually/Auto).
+  // Revérifié aussi côté serveur (api/admin_set_account_status.php),
+  // cette vérification locale n'est qu'un retour rapide à l'écran.
   if (activate) {
     const cab = DB.users.byId(id);
     if (cab && cab.statut === 'suspendu' && cab.suspendu_by && cab.suspendu_by !== currentUser.id && currentUser.admin_level !== 'super') {
@@ -2327,11 +2345,17 @@ function toggleCabine(id, activate) {
 
   const wasSuspended = activate && DB.users.byId(id)?.statut === 'suspendu';
 
+  // Persisté côté serveur (voir api/admin_set_account_status.php) — sans
+  // ça, le moteur d'attribution des commandes (qui lit statut/en_pause
+  // directement en base) ignorait totalement l'activation/désactivation.
+  const res = await ServerAPI.adminSetAccountStatus(id, activate ? 'actif' : 'inactif');
+  if (!res.ok) { Toast.error(res.error || 'Échec de l\'opération.'); return; }
+
   const updates = { statut: activate ? 'actif' : 'inactif' };
   // Un déblocage (manuel ou via "Activer") efface toujours les champs de
   // suspension (auto et manuelle), pour éviter qu'une expiration passée ne
   // réactive plus tard un compte que l'admin a explicitement bloqué.
-  if (activate) { updates.suspendu_auto = false; updates.suspendu_by = null; updates.suspendu_motif = null; updates.suspendu_jusqu = null; }
+  if (activate) { updates.suspendu_auto = false; updates.suspendu_by = null; updates.suspendu_motif = null; updates.suspendu_jusqu = null; updates.tentatives_echouees = 0; }
   DB.users.update(id, updates);
   if (wasSuspended) DB.suspensionLogs.close(id, currentUser.id);
   Toast.success(activate ? 'Cabine activée/débloquée.' : 'Cabine désactivée.');
@@ -3747,10 +3771,15 @@ function loadComptesBloquesAdmin() {
   }).join('');
 }
 
-function debloquerCompte(userId) {
+async function debloquerCompte(userId) {
   const user = DB.users.byId(userId);
   if (!user) return;
   if (!confirm(`Débloquer le compte de ${user.prenom || Fmt.phone(user.telephone)} ?`)) return;
+  // Persisté côté serveur (voir api/admin_set_account_status.php) — sans
+  // ça, le compte restait "bloqué" en base pour toujours (login.php
+  // vérifie exactement statut = 'bloqué') malgré le déblocage affiché ici.
+  const res = await ServerAPI.adminSetAccountStatus(userId, 'actif');
+  if (!res.ok) { Toast.error(res.error || 'Échec du déblocage.'); return; }
   DB.users.update(userId, { statut: 'actif', tentatives_echouees: 0 });
   Toast.success('Compte débloqué.');
   loadComptesBloquesAdmin();
@@ -4106,14 +4135,20 @@ function copyAdminLoginLink() {
   navigator.clipboard.writeText(input.value || '').then(() => Toast.success('Lien copié !'));
 }
 
-function saveZeroTxnNote(id, value) {
+async function saveZeroTxnNote(id, value) {
   const c = DB.users.byId(id);
   if (!c || (c.motif_zero_txn || '') === value) return;
+  // Persisté côté serveur (voir api/admin_update_user.php) — sans ça, ce
+  // commentaire de suivi restait invisible pour les autres administrateurs.
+  const res = await ServerAPI.adminUpdateUser({ id, motifZeroTxn: value });
+  if (!res.ok) { Toast.error(res.error || 'Échec de l\'enregistrement.'); return; }
   DB.users.update(id, { motif_zero_txn: value });
   Toast.success('Commentaire enregistré.');
 }
 
-function setZeroTxnAppelStatut(id, value) {
+async function setZeroTxnAppelStatut(id, value) {
+  const res = await ServerAPI.adminUpdateUser({ id, appelStatut: value || null });
+  if (!res.ok) { Toast.error(res.error || 'Échec de l\'enregistrement.'); return; }
   DB.users.update(id, { appel_statut: value || null });
   const filter = document.getElementById('zt-appel-filter');
   loadZeroTransactionAdmin(filter ? filter.value : 'all');
@@ -4215,14 +4250,20 @@ function loadCabinesInactivesAdmin(filterStatut = 'all') {
   }).join('');
 }
 
-function saveInactifNote(id, value) {
+async function saveInactifNote(id, value) {
   const c = DB.users.byId(id);
   if (!c || (c.motif_inactif || '') === value) return;
+  // Persisté côté serveur (voir api/admin_update_user.php) — sans ça, ce
+  // commentaire de suivi restait invisible pour les autres administrateurs.
+  const res = await ServerAPI.adminUpdateUser({ id, motifInactif: value });
+  if (!res.ok) { Toast.error(res.error || 'Échec de l\'enregistrement.'); return; }
   DB.users.update(id, { motif_inactif: value });
   Toast.success('Commentaire enregistré.');
 }
 
-function setInactifAppelStatut(id, value, isCabine) {
+async function setInactifAppelStatut(id, value, isCabine) {
+  const res = await ServerAPI.adminUpdateUser({ id, appelStatut: value || null });
+  if (!res.ok) { Toast.error(res.error || 'Échec de l\'enregistrement.'); return; }
   DB.users.update(id, { appel_statut: value || null });
   if (isCabine) {
     const f = document.getElementById('cai-appel-filter');

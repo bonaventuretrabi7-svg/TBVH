@@ -45,6 +45,17 @@ try {
     $columns[] = 'limite_commandes = ?';
     $params[]  = ($in['limite_commandes'] === null || $in['limite_commandes'] === '') ? null : (int)$in['limite_commandes'];
   }
+  if ($target['role'] === 'cabine' && array_key_exists('services_actifs', $in)) {
+    $columns[] = 'services_actifs = ?';
+    $params[]  = json_encode($in['services_actifs']);
+  }
+  // Notes de suivi admin ("Zéro transaction" / "Client-cabine inactif") —
+  // partagées par client ET cabine (voir loadClientsInactifsAdmin()/
+  // loadCabinesInactivesAdmin(), js/admin.js, qui réutilisent les mêmes
+  // champs pour les deux rôles).
+  foreach (['motif_zero_txn', 'motif_inactif', 'appel_statut'] as $key) {
+    if (array_key_exists($key, $in)) { $columns[] = "$key = ?"; $params[] = $in[$key] === null ? null : (string)$in[$key]; }
+  }
   if ($columns) {
     $params[] = $targetId;
     $pdo->prepare('UPDATE profiles SET ' . implode(', ', $columns) . ' WHERE id = ?')->execute($params);
@@ -69,4 +80,4 @@ $stmt = $pdo->prepare('SELECT * FROM profiles WHERE id = ?');
 $stmt->execute([$targetId]);
 $profile = $stmt->fetch();
 unset($profile['mot_de_passe_hash']);
-echo json_encode(['ok' => true, 'profile' => $profile]);
+echo json_encode(['ok' => true, 'profile' => decodeJsonColumns($profile, ['reseaux_actifs', 'services_actifs', 'ussd_enabled'])]);

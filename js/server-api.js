@@ -205,7 +205,7 @@ const ServerAPI = (() => {
      api/admin_update_user.php, même patron que adminUpdateProfile()
      ci-dessus mais pour client/cabine (admin_update_profile.php est
      réservé aux comptes admin). */
-  async function adminUpdateUser({ id, prenom, nom, telephone, email, limiteCommandes, nouveauSolde }) {
+  async function adminUpdateUser({ id, prenom, nom, telephone, email, limiteCommandes, nouveauSolde, servicesActifs, motifZeroTxn, motifInactif, appelStatut }) {
     const body = { id };
     if (prenom !== undefined) body.prenom = prenom;
     if (nom !== undefined) body.nom = nom;
@@ -213,12 +213,26 @@ const ServerAPI = (() => {
     if (email !== undefined) body.email = email;
     if (limiteCommandes !== undefined) body.limite_commandes = limiteCommandes;
     if (nouveauSolde !== undefined) body.nouveau_solde = nouveauSolde;
+    if (servicesActifs !== undefined) body.services_actifs = servicesActifs;
+    if (motifZeroTxn !== undefined) body.motif_zero_txn = motifZeroTxn;
+    if (motifInactif !== undefined) body.motif_inactif = motifInactif;
+    if (appelStatut !== undefined) body.appel_statut = appelStatut;
 
     const { res, data } = await _call('admin_update_user.php', { auth: true, body });
     if (!res.ok || !data || data.error) {
       return { ok: false, error: (data && data.error) || 'Échec de la modification du compte.' };
     }
     return { ok: true, profile: data.profile };
+  }
+
+  /* Change le statut d'un compte (bloqué/suspendu/inactif/actif) — voir
+     api/admin_set_account_status.php. */
+  async function adminSetAccountStatus(id, statut) {
+    const { res, data } = await _call('admin_set_account_status.php', { auth: true, body: { id, statut } });
+    if (!res.ok || !data || data.error) {
+      return { ok: false, error: (data && data.error) || 'Échec du changement de statut.' };
+    }
+    return { ok: true };
   }
 
   /* Lecture/écriture des réglages globaux (voir api/settings_get.php et
@@ -744,7 +758,7 @@ const ServerAPI = (() => {
   }
 
   return {
-    login, logout, createAccount, adminCreateAccount, adminUpdateProfile, adminUpdateUser, getSettings, updateSettings, listProfiles,
+    login, logout, createAccount, adminCreateAccount, adminUpdateProfile, adminUpdateUser, adminSetAccountStatus, getSettings, updateSettings, listProfiles,
     isConfigured, getToken, setToken, whoami, favorisList, favorisCreate, favorisRemove,
     accessLogsList, accessLogsCreate, permissionLogsList, permissionLogsCreate,
     maintenanceLogsList, maintenanceLogsCreate, presencePing, presenceOnline,

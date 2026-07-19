@@ -601,6 +601,9 @@ const DB = (() => {
         notif_son_actif: row.notif_son_actif === null || row.notif_son_actif === undefined ? undefined : !!row.notif_son_actif,
         notif_son_preset_commande: row.notif_son_preset_commande || undefined,
         notif_son_preset_reclamation: row.notif_son_preset_reclamation || undefined,
+        motif_zero_txn: row.motif_zero_txn || undefined,
+        motif_inactif: row.motif_inactif || undefined,
+        appel_statut: row.appel_statut || undefined,
       };
       if (plainPin) out.mot_de_passe = hashPwd(plainPin);
       return out;

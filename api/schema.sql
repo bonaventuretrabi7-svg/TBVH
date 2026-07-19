@@ -65,6 +65,9 @@ CREATE TABLE IF NOT EXISTS profiles (
   quartier              VARCHAR(190) NULL,
   date_naissance        DATE         NULL,
   docs                  JSON         NULL,
+  motif_zero_txn        TEXT         NULL,
+  motif_inactif         TEXT         NULL,
+  appel_statut          VARCHAR(32)  NULL,
   UNIQUE KEY uniq_telephone_role (telephone, role),
   UNIQUE KEY uniq_email_role (email, role)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
