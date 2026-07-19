@@ -428,9 +428,17 @@ async function boot() {
     DB.presence.ping(currentUser.id);
     DB.presence.refresh().then(loadDashboard);
     setInterval(async () => {
+      // Signature avant rafraîchissement (voir DB.pollSignature, js/db.js) :
+      // le re-rendu complet de la vue affichée plus bas ne se déclenche
+      // que si elle a changé — évite de reconstruire tout le HTML à chaque
+      // tick (coûteux sur Android) quand rien de nouveau ne s'est produit.
+      const _pollBefore = DB.pollSignature(currentUser.id, 'admin');
       DB.presence.ping(currentUser.id);
       DB.presence.refresh();
-      refreshUsersFromServer();
+      // Awaited désormais (ne l'était pas avant) : sans ça, la liste des
+      // comptes fraîchement synchronisée n'était pas fiablement prise en
+      // compte avant la comparaison de signature/le re-rendu ci-dessous.
+      await refreshUsersFromServer();
       await DB.transactions.refresh();
       await DB.business.sweepStaleOrders();
       await DB.business.sweepAutoUnsuspensions();
@@ -443,8 +451,12 @@ async function boot() {
       // haut, déjà réutilisée par le bouton "Actualiser") — couvre
       // automatiquement TOUS les onglets admin (retraits, réclamations,
       // comptes bloqués, zéro transaction...), remplace le repérage au cas
-      // par cas d'avant (une seule vue, retraits-admin, était couverte).
-      _adminViewLoader(_adminResume.view)?.();
+      // par cas d'avant (une seule vue, retraits-admin, était couverte) —
+      // mais seulement si quelque chose a réellement changé depuis le tick
+      // précédent.
+      if (DB.pollSignature(currentUser.id, 'admin') !== _pollBefore) {
+        _adminViewLoader(_adminResume.view)?.();
+      }
     }, DB.presence.HEARTBEAT_MS);
     window.addEventListener('beforeunload', () => DB.presence.leave(currentUser.id));
 

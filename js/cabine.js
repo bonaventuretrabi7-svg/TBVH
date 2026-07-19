@@ -266,6 +266,12 @@ async function boot() {
   // puis 3s : le meilleur compromis possible sans WebSocket/SSE sur cet
   // hébergement mutualisé, sans le saturer de requêtes).
   setInterval(async () => {
+    // Signature avant rafraîchissement (voir DB.pollSignature, js/db.js) :
+    // les re-rendus lourds plus bas (liste de commandes, section affichée)
+    // ne se déclenchent que si elle a changé — évite de reconstruire tout
+    // le HTML à chaque tick (coûteux sur Android) quand rien de nouveau ne
+    // s'est produit.
+    const _pollBefore = DB.pollSignature(currentUser.id, 'cabine');
     await DB.transactions.refresh();
     await DB.business.sweepStaleOrders();
     await DB.business.sweepAutoUnsuspensions();
@@ -289,18 +295,19 @@ async function boot() {
     loadCabBalanceCard();
     loadCabRealtimeStats();
     _refreshSuspensionBanner(currentUser);
+    const pollChanged = DB.pollSignature(currentUser.id, 'cabine') !== _pollBefore;
     // Ne pas re-rendre la liste tant qu'une preuve de paiement (facture)
     // est en cours de sélection/aperçu : un re-rendu complet remplacerait
     // le <input type="file"> et l'aperçu affiché, faisant perdre au
     // cabiniste sa sélection avant qu'il ait pu cliquer "Terminer".
     const hasPendingProof = Object.keys(_facturePendingProofs).length > 0;
-    if (!hasPendingProof && (_cabFilter === 'all' || _cabFilter === 'en_attente')) loadCabOrders(_cabFilter);
+    if (pollChanged && !hasPendingProof && (_cabFilter === 'all' || _cabFilter === 'en_attente')) loadCabOrders(_cabFilter);
     // Re-rend la section ACTUELLEMENT affichée (voir _cabSectionLoader()
     // ci-dessus) — couvre automatiquement tous les onglets (retraits,
     // transferts, réclamations, profil...), pas seulement le tableau de
     // bord comme avant. 'home' déjà couvert ci-dessus (loadCabBalanceCard/
     // loadCabRealtimeStats), pas la peine de le rappeler une 2e fois.
-    if (_cabResume.section && _cabResume.section !== 'home') _cabSectionLoader(_cabResume.section)?.();
+    if (pollChanged && _cabResume.section && _cabResume.section !== 'home') _cabSectionLoader(_cabResume.section)?.();
   }, DB.presence.HEARTBEAT_MS);
 }
 

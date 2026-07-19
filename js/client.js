@@ -606,6 +606,11 @@ function startClientPresence() {
   DB.presence.ping(currentUser.id);
   DB.presence.refresh();
   setInterval(async () => {
+    // Signature avant rafraîchissement (voir DB.pollSignature, js/db.js) :
+    // le re-rendu complet de la section affichée plus bas ne se déclenche
+    // que si elle a changé — évite de reconstruire tout le HTML à chaque
+    // tick (coûteux sur Android) quand rien de nouveau ne s'est produit.
+    const _pollBefore = DB.pollSignature(currentUser.id, 'client');
     DB.presence.ping(currentUser.id);
     DB.presence.refresh();
     // Reprend son propre profil (solde compris) — une recharge faite par
@@ -630,8 +635,11 @@ function startClientPresence() {
     updateNotifBadge();
     // Re-rend la section ACTUELLEMENT affichée (voir _clientSectionLoader()
     // ci-dessus) — couvre automatiquement tous les onglets, pas seulement
-    // Historique/Portefeuille comme avant.
-    _clientSectionLoader(_clientResume.section || 'transfer')?.();
+    // Historique/Portefeuille comme avant — mais seulement si quelque
+    // chose a réellement changé depuis le tick précédent.
+    if (DB.pollSignature(currentUser.id, 'client') !== _pollBefore) {
+      _clientSectionLoader(_clientResume.section || 'transfer')?.();
+    }
   }, DB.presence.HEARTBEAT_MS);
   window.addEventListener('beforeunload', () => DB.presence.leave(currentUser.id));
 }

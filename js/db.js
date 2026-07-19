@@ -693,13 +693,38 @@ const DB = (() => {
      même compte resté ouvert mais inactif. onlineCabineIds()/onlineIds()
      restent synchrones (lisent ce même cache local fusionné) : appelées
      depuis DB.business.findReassignmentTarget, encore 100% synchrone. */
+  // Signature légère de tout ce qu'un cycle de sondage périodique
+  // (HEARTBEAT_MS ci-dessous) vient de re-synchroniser depuis le serveur —
+  // comparée avant/après par chaque espace (voir startClientPresence()/
+  // js/client.js, le setInterval de boot()/js/cabine.js et js/admin.js)
+  // pour savoir si un re-rendu de la section affichée est réellement
+  // nécessaire, plutôt que de reconstruire tout son HTML à chaque tick
+  // même quand rien n'a changé (coûteux sur Android bas de gamme). Ne
+  // couvre que ce qu'un cycle de sondage rafraîchit vraiment (transactions/
+  // notifications/profil, + tous les comptes pour l'admin) : une
+  // collection jamais retouchée ici (ex. retraits/transferts_cabine côté
+  // cabine) n'aurait de toute façon pas de données plus fraîches à
+  // afficher, gater dessus est donc sans risque de régression de fraîcheur.
+  function pollSignature(userId, role) {
+    const txns   = role === 'admin'  ? transactions.all()
+                 : role === 'cabine' ? transactions.byCabine(userId)
+                 : transactions.byClient(userId);
+    const notifs = role === 'admin' ? notifications.all() : notifications.forUser(userId);
+    const me     = users.byId(userId);
+    const extra  = role === 'admin' ? users.all() : null;
+    return JSON.stringify({ txns, notifs, me, extra });
+  }
+
   const presence = {
     // Cadence du sondage périodique (présence + resynchronisation générale)
     // des 3 espaces (voir startClientPresence()/js/client.js, le
     // setInterval de boot()/js/cabine.js, et celui de js/admin.js — tous
-    // partagent cette même constante). Resserré à 2s (depuis 3s) sur
-    // demande explicite pour l'espace client/cabine.
-    HEARTBEAT_MS: 2000,
+    // partagent cette même constante). Resserré à 1s (depuis 2s, avant ça
+    // 3s) sur demande explicite — en dessous de cette valeur, le risque de
+    // saturer l'hébergement mutualisé (chaque tick relance plusieurs
+    // requêtes : transactions, notifications, présence, sweep...) dépasse
+    // le bénéfice perçu.
+    HEARTBEAT_MS: 1000,
     STALE_MS: 25000,
 
     _all() { return JSON.parse(localStorage.getItem(KEY.presence) || '{}'); },
@@ -2267,7 +2292,7 @@ const DB = (() => {
   };
 
   /* â”€â”€ Public API â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-  return { init, users, transactions, retraits, retards, transferts_cabine, notifications, commissions, settings, reclamations, refundRequests, resetRequests, partnerApplications, referrals, accessLogs, permissionLogs, maintenanceLogs, resubscriptions, favoris, forfaits, business, uid, now, SUBSCRIPTION_QUOTAS, SUBSCRIPTION_PRICES, presence, partnerDevices, RETARD_MS, TRANSFERT_CABINE_FRAIS, normalizeContact, suspensionLogs, Net, syncQueue, drainSyncQueue };
+  return { init, users, transactions, retraits, retards, transferts_cabine, notifications, commissions, settings, reclamations, refundRequests, resetRequests, partnerApplications, referrals, accessLogs, permissionLogs, maintenanceLogs, resubscriptions, favoris, forfaits, business, uid, now, SUBSCRIPTION_QUOTAS, SUBSCRIPTION_PRICES, presence, partnerDevices, RETARD_MS, TRANSFERT_CABINE_FRAIS, normalizeContact, suspensionLogs, Net, syncQueue, drainSyncQueue, pollSignature };
 })();
 
 /* ── Maintenance (service/réseau) — fonctions globales (non namespacées
