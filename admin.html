@@ -1291,6 +1291,11 @@
         <div class="card">
           <div class="card-header">
             <span class="card-title"><i class="fa-solid fa-money-bill-wave" style="color:var(--secondary)"></i> Cabines</span>
+            <select class="filter-select" id="retraits-threshold-filter" onchange="loadRetraitsAdmin()">
+              <option value="0">Tous les soldes</option>
+              <option value="50000">Solde ≥ 50 000 FCFA</option>
+              <option value="100000">Solde ≥ 100 000 FCFA</option>
+            </select>
             <button class="btn btn-ghost btn-sm" onclick="loadRetraitsAdmin()">
               <i class="fa-solid fa-rotate-right"></i> Actualiser
             </button>

@@ -1070,24 +1070,43 @@ function toggleCabineRowMenu(btn, cabineId) {
    renseignes a l'inscription (paiement_vers / numero_compte), et deux
    actions admin : corriger le moyen de paiement, ou traiter un retrait
    (deduit le montant du solde et l'enregistre via DB.retraits.create). */
+/* Seuils d'alerte de solde cabine — voir loadRetraitsAdmin() ci-dessous :
+   le nom passe en rouge dès 50 000 FCFA disponibles, en rouge plus soutenu
+   + gras à partir de 100 000 FCFA, pour repérer d'un coup d'œil les cabines
+   dont le retrait devient urgent à traiter. */
+const RETRAIT_SEUIL_ALERTE  = 50000;
+const RETRAIT_SEUIL_URGENT  = 100000;
+
 function loadRetraitsAdmin() {
-  const cabines = DB.users.byRole('cabine');
+  const seuil = parseInt(document.getElementById('retraits-threshold-filter')?.value || '0', 10);
+  let cabines = DB.users.byRole('cabine');
+  if (seuil > 0) cabines = cabines.filter(c => DB.business.cabineSoldeDisponible(c) >= seuil);
+  // Triées par solde décroissant dès qu'un seuil est actif (ou toujours,
+  // pour faire remonter naturellement les soldes les plus élevés en haut) —
+  // c'est le "trier" demandé, pas seulement un filtre.
+  cabines = [...cabines].sort((a, b) => DB.business.cabineSoldeDisponible(b) - DB.business.cabineSoldeDisponible(a));
   const tbody = document.getElementById('retraits-admin-tbody');
   if (!tbody) return;
 
   if (!cabines.length) {
-    tbody.innerHTML = `<tr><td colspan="5"><div class="empty-state" style="padding:24px"><div class="empty-title">Aucune cabine</div></div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="5"><div class="empty-state" style="padding:24px"><div class="empty-title">${seuil > 0 ? 'Aucune cabine à ce seuil de solde' : 'Aucune cabine'}</div></div></td></tr>`;
     return;
   }
 
-  tbody.innerHTML = cabines.map(c => `
+  tbody.innerHTML = cabines.map(c => {
+    const dispo = DB.business.cabineSoldeDisponible(c);
+    const nameStyle = dispo >= RETRAIT_SEUIL_URGENT ? 'color:var(--danger);font-weight:800;'
+      : dispo >= RETRAIT_SEUIL_ALERTE ? 'color:var(--danger);'
+      : '';
+    return `
     <tr>
-      <td><div class="user-chip"><div class="avatar" style="background:linear-gradient(135deg,var(--secondary),var(--secondary-dark))">${Fmt.initials(c.nom,c.prenom)}</div><div><div class="name">${c.prenom} ${c.nom}</div><div style="font-size:.72rem;color:var(--gray-400)">${c.zone || 'N/A'}</div></div></div></td>
-      <td><strong>${Fmt.money(DB.business.cabineSoldeDisponible(c))}</strong></td>
+      <td><div class="user-chip"><div class="avatar" style="background:linear-gradient(135deg,var(--secondary),var(--secondary-dark))">${Fmt.initials(c.nom,c.prenom)}</div><div><div class="name" style="${nameStyle}">${c.prenom} ${c.nom}</div><div style="font-size:.72rem;color:var(--gray-400)">${c.zone || 'N/A'}</div></div></div></td>
+      <td><strong>${Fmt.money(dispo)}</strong></td>
       <td>${c.paiement_vers ? `<span class="badge badge-info">${c.paiement_vers}</span>` : '<span style="color:var(--gray-400)">Non renseigné</span>'}</td>
       <td>${c.numero_compte ? `<code>${c.numero_compte}</code>` : '<span style="color:var(--gray-400)">—</span>'}${c.retrait_derniere_maj ? `<div style="font-size:.65rem;color:var(--gray-400);margin-top:3px;">Modifié le ${Fmt.datetime(c.retrait_derniere_maj)}</div>` : ''}</td>
       <td><button class="menu-btn-row" onclick="toggleRetraitRowMenu(this,'${c.id}')" title="Actions"><i class="fa-solid fa-ellipsis-vertical"></i></button></td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
 }
 
 /* Actions de ligne pour une cabine — voir loadRetraitsAdmin(). */
