@@ -170,14 +170,16 @@ function showCabineLoginGate() {
 async function submitCabineLoginGate() {
   const email    = (document.getElementById('cab-login-email')?.value || '').trim();
   const pin      = [...document.querySelectorAll('#cab-login-pin-row .pln-pin-box')].map(b => b.value).join('');
-  const remember = !!document.getElementById('cab-login-remember')?.checked;
   const denied   = document.getElementById('cab-login-denied');
   denied.style.display = 'none';
 
   if (!Auth.isValidGmail(email)) { Toast.error('Adresse Gmail invalide (ex : nom@gmail.com).'); return; }
   if (!Auth.isValidPin(pin))     { Toast.error('Saisissez votre code PIN à 4 chiffres.'); return; }
 
-  const res = await Auth.login(email, pin, remember, 'cabine');
+  // "Rester connecté" n'est plus une option — toute connexion réussie reste
+  // active tant que le cabiniste ne se déconnecte pas lui-même (voir
+  // _hasDeviceLimit(), js/auth.js).
+  const res = await Auth.login(email, pin, true, 'cabine');
   if (!res.ok) { Toast.error(res.error); return; }
 
   if (res.user.role !== 'cabine') {

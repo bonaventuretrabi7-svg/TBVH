@@ -3025,14 +3025,16 @@ function prgSelectPay(groupId, card) {
 async function submitPartnerLogin() {
   const email    = (document.getElementById('prt-tel')?.value || '').trim();
   const pin      = [...document.querySelectorAll('#prt-pin-row .pln-pin-box')].map(b => b.value).join('');
-  const remember = !!document.getElementById('prt-remember')?.checked;
   const denied   = document.getElementById('prt-denied');
   denied.style.display = 'none';
 
   if (!Auth.isValidGmail(email)) { Toast.error('Adresse Gmail invalide (ex : nom@gmail.com).'); return; }
   if (!Auth.isValidPin(pin))     { Toast.error('Saisissez votre code PIN à 4 chiffres.'); return; }
 
-  const res = await Auth.login(email, pin, remember, 'cabine');
+  // "Rester connecté" n'est plus une option — toute connexion réussie reste
+  // active tant que le partenaire ne se déconnecte pas lui-même (voir
+  // _hasDeviceLimit(), js/auth.js).
+  const res = await Auth.login(email, pin, true, 'cabine');
 
   if (!res.ok) { Toast.error(res.error); return; }
 
@@ -3108,7 +3110,10 @@ async function submitAdminLogin() {
   if (!Auth.isValidGmail(email)) { Toast.error('Adresse Gmail invalide (ex : nom@gmail.com).'); return; }
   if (!Auth.isValidPin(pin))     { Toast.error('Saisissez votre code PIN à 4 chiffres.'); return; }
 
-  const res = await Auth.login(email, pin, false, 'admin');
+  // "Rester connecté" n'est plus une option — toute connexion réussie reste
+  // active tant que l'administrateur ne se déconnecte pas lui-même (voir
+  // _hasDeviceLimit(), js/auth.js).
+  const res = await Auth.login(email, pin, true, 'admin');
 
   if (!res.ok) { Toast.error(res.error); return; }
 

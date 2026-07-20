@@ -242,14 +242,16 @@ function showAdminLoginGate() {
 async function submitAdminLoginGate() {
   const email    = (document.getElementById('admin-login-email')?.value || '').trim();
   const pin      = [...document.querySelectorAll('#admin-login-pin-row .adx-pin-box')].map(b => b.value).join('');
-  const remember = !!document.getElementById('admin-login-remember')?.checked;
   const denied   = document.getElementById('admin-login-denied');
   denied.style.display = 'none';
 
   if (!Auth.isValidGmail(email)) { Toast.error('Adresse Gmail invalide (ex : nom@gmail.com).'); return; }
   if (!Auth.isValidPin(pin))     { Toast.error('Saisissez votre code PIN à 4 chiffres.'); return; }
 
-  const res = await Auth.login(email, pin, remember, 'admin');
+  // "Rester connecté" n'est plus une option — toute connexion réussie reste
+  // active tant que l'administrateur ne se déconnecte pas lui-même (voir
+  // _hasDeviceLimit(), js/auth.js).
+  const res = await Auth.login(email, pin, true, 'admin');
   if (!res.ok) { Toast.error(res.error); return; }
 
   if (res.user.role !== 'admin') {

@@ -45,12 +45,13 @@ const Auth = (() => {
   }
 
   // Rôles suivis dans "Mes appareils connectés"/éligibles à "rester
-  // connecté" (cabine de longue date, étendu à client et administrateur
-  // simple, jamais au super admin) — aucune limite de nombre d'appareils
-  // simultanés (l'ancienne limite de 2 avec éviction automatique a été
-  // retirée).
+  // connecté" — cabine, client et administrateur (simple ET super, à la
+  // demande explicite de l'administration : rester connecté tant qu'on ne
+  // se déconnecte pas soi-même, sans exception). Aucune limite de nombre
+  // d'appareils simultanés (l'ancienne limite de 2 avec éviction
+  // automatique a été retirée).
   function _hasDeviceLimit(user) {
-    return user.role === 'cabine' || user.role === 'client' || (user.role === 'admin' && user.admin_level === 'simple');
+    return user.role === 'cabine' || user.role === 'client' || user.role === 'admin';
   }
 
   // Règles partagées cabine/admin : connexion réservée à une adresse Gmail
