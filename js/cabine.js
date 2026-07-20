@@ -2005,52 +2005,73 @@ function pickCabTransferAmount(amount) {
   handleCabTransferMontantChange();
 }
 
+let _cabTransferMatches = [];
+let _cabTransferRecipientName = null;
+let _cabTransferLookupTimer = null;
+
+/* Cherche la cabine destinataire directement en base (api/cabine_lookup_by_name.php)
+   — cet appareil ne connaît pas forcément toutes les autres cabines dans
+   son cache local (contrairement à l'admin), donc une recherche purement
+   locale pouvait afficher "Cabine introuvable" pour une cabine bien réelle,
+   bloquant le bouton "Envoyer" (conditionné par ce résultat). Débounce
+   (300ms) pour ne pas interroger le serveur à chaque frappe. */
 function handleCabTransferLookup(nomQuery) {
   const preview = document.getElementById('cab-transfer-preview');
   _cabTransferRecipientId = null;
+  _cabTransferRecipientName = null;
+  _cabTransferMatches = [];
 
   _cabResume.transferDraft = _cabResume.transferDraft || { nom: '', montant: '' };
   _cabResume.transferDraft.nom = nomQuery || '';
   _saveCabResume();
 
-  const needle = (nomQuery || '').trim().toLowerCase();
+  const needle = (nomQuery || '').trim();
+  clearTimeout(_cabTransferLookupTimer);
   if (!needle) { preview.innerHTML = ''; handleCabTransferMontantChange(); return; }
 
-  const matches = DB.users.byRole('cabine').filter(c =>
-    c.statut === 'actif' && c.id !== currentUser.id && (c.cabine_nom || '').trim().toLowerCase() === needle
-  );
+  preview.innerHTML = `<div class="tf-preview-pick-hint"><i class="fa-solid fa-spinner fa-spin"></i> Recherche…</div>`;
+  _cabTransferLookupTimer = setTimeout(async () => {
+    // Une réponse arrivée après que le champ a de nouveau changé ne doit
+    // plus rien afficher (dépassée par une recherche plus récente).
+    if ((document.getElementById('cab-transfer-nom')?.value || '').trim() !== needle) return;
 
-  if (!matches.length) {
-    preview.innerHTML = `<div class="tf-preview tf-preview--error">
-      <span class="tf-preview-ico"><i class="fa-solid fa-circle-xmark"></i></span>
-      <div><div class="tf-preview-name">Cabine introuvable</div><div class="tf-preview-sub">Vérifiez le nom ou son statut (inactive ?)</div></div>
-    </div>`;
-    handleCabTransferMontantChange();
-    return;
-  }
+    const res = await ServerAPI.cabineLookupByName(needle);
+    const matches = (res.ok ? res.matches : []).filter(c => c.id !== currentUser.id);
+    _cabTransferMatches = matches;
 
-  if (matches.length > 1) {
-    preview.innerHTML = `<div class="tf-preview-pick-hint">Plusieurs cabines portent ce nom, choisissez :</div>` +
-      matches.map(c => `
-        <label class="tf-preview-pick-row">
-          <input type="radio" name="cab-transfer-pick" value="${c.id}" onchange="_cabTransferPick('${c.id}')">
-          <span>${c.prenom} ${c.nom} — <strong>${c.cabine_nom}</strong> (${c.zone || 'N/A'})</span>
-        </label>`).join('');
-    handleCabTransferMontantChange();
-    return;
-  }
+    if (!matches.length) {
+      preview.innerHTML = `<div class="tf-preview tf-preview--error">
+        <span class="tf-preview-ico"><i class="fa-solid fa-circle-xmark"></i></span>
+        <div><div class="tf-preview-name">Cabine introuvable</div><div class="tf-preview-sub">Vérifiez le nom ou son statut (inactive ?)</div></div>
+      </div>`;
+      handleCabTransferMontantChange();
+      return;
+    }
 
-  _renderCabTransferMatch(matches[0]);
+    if (matches.length > 1) {
+      preview.innerHTML = `<div class="tf-preview-pick-hint">Plusieurs cabines portent ce nom, choisissez :</div>` +
+        matches.map(c => `
+          <label class="tf-preview-pick-row">
+            <input type="radio" name="cab-transfer-pick" value="${c.id}" onchange="_cabTransferPick('${c.id}')">
+            <span>${c.prenom} ${c.nom} — <strong>${c.cabine_nom}</strong> (${c.zone || 'N/A'})</span>
+          </label>`).join('');
+      handleCabTransferMontantChange();
+      return;
+    }
+
+    _renderCabTransferMatch(matches[0]);
+  }, 300);
 }
 
 function _cabTransferPick(id) {
-  const c = DB.users.byId(id);
+  const c = _cabTransferMatches.find(m => m.id === id);
   if (c) _renderCabTransferMatch(c, true);
 }
 
 function _renderCabTransferMatch(c, keepList = false) {
   const preview = document.getElementById('cab-transfer-preview');
   _cabTransferRecipientId = c.id;
+  _cabTransferRecipientName = c.cabine_nom;
 
   const confirmHtml = `<div class="tf-preview tf-preview--ok">
     <span class="tf-preview-ico"><i class="fa-solid fa-circle-check"></i></span>
@@ -2067,7 +2088,7 @@ async function handleCabTransferSubmit() {
   const montant = parseFloat(document.getElementById('cab-transfer-montant').value);
   if (!_cabTransferRecipientId || !montant || montant <= 0) { Toast.error('Renseignez un destinataire et un montant valides.'); return; }
 
-  const res = await DB.business.cabineTransfer(currentUser.id, DB.users.byId(_cabTransferRecipientId).cabine_nom, montant);
+  const res = await DB.business.cabineTransfer(currentUser.id, _cabTransferRecipientName, montant);
   if (!res.ok) { Toast.error(res.error); return; }
 
   Toast.success(`${Fmt.money(montant)} envoyés à ${res.recipient.prenom} ${res.recipient.nom}.`);
@@ -2083,6 +2104,7 @@ async function handleCabTransferSubmit() {
   submitBtn.classList.remove('ready');
   document.querySelectorAll('.tf-amount-chip').forEach(chip => chip.classList.remove('sel'));
   _cabTransferRecipientId = null;
+  _cabTransferRecipientName = null;
   _cabResume.transferDraft = null;
   _saveCabResume();
   loadCabHome();

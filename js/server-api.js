@@ -697,6 +697,14 @@ const ServerAPI = (() => {
     return { ok: true, recipient: data.recipient };
   }
 
+  // Recherche une cabine par nom exact — voir handleCabTransferLookup()
+  // (js/cabine.js) et api/cabine_lookup_by_name.php.
+  async function cabineLookupByName(nom) {
+    const { res, data } = await _call('cabine_lookup_by_name.php', { auth: true, body: { nom } });
+    if (!res.ok || !data || data.error) return { ok: false, error: (data && data.error) || 'Échec de la recherche.' };
+    return { ok: true, matches: data.matches || [] };
+  }
+
   // Transfert client-à-client, identifié par numéro de téléphone — voir
   // api/client_transfer.php.
   async function clientTransfer(toPhone, montant) {
@@ -823,7 +831,7 @@ const ServerAPI = (() => {
     ordersCreate, ordersCreateAdvanced, cadeauClaim, updateProfilePhoto, ordersAccept, ordersRefuse, ordersAssignPending, ordersReassign,
     ordersSweep, ordersSweepUnsuspend, ordersSweepQuota, ordersList, retardsList,
     ordersRecharge, ordersRefund, ordersSuspend, ordersReactivate, ordersDelete, cabineSuspendManual,
-    cabineSelfRecharge, cabineUpdateSelf, cabineUpdatePin, ordersHold, cabineResubscribe, adminSetAbonnement, cabineTransfer, clientTransfer, clientLookup, clientLoginLookup,
+    cabineSelfRecharge, cabineUpdateSelf, cabineUpdatePin, ordersHold, cabineResubscribe, adminSetAbonnement, cabineTransfer, cabineLookupByName, clientTransfer, clientLookup, clientLoginLookup,
     adminCreateLoginLink, adminMagicLogin, adminImpersonate,
     forfaitsList, forfaitsCreate, forfaitsUpdate, forfaitsRemove, commissionsList, commissionsUpdateRate,
     reclamationsList, reclamationsCreate, reclamationsResolve, reclamationsConfirmReceived,
