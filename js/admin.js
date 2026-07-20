@@ -153,7 +153,7 @@ function toggleTxnRowMenu(btn, txnId) {
     (t.statut === 'en_attente' || t.statut === 'terminé') && { label: 'Rembourser', icon: 'fa-hand-holding-dollar', fn: `refundTxn('${txnId}')`, danger: true },
     (t.statut === 'en_attente' || t.statut === 'terminé') && { label: 'Suspendre', icon: 'fa-ban', fn: `openSuspendModal('${txnId}')` },
     t.statut === 'suspendue' && { label: 'Réactiver', icon: 'fa-arrow-rotate-right', fn: `reactivateTxn('${txnId}')` },
-    currentUser.admin_level === 'super' && ['en_attente', 'suspendue', 'remboursé'].includes(t.statut) &&
+    currentUser.admin_level === 'super' && ['en_attente', 'suspendue', 'remboursé', 'terminé'].includes(t.statut) &&
       { label: 'Supprimer', icon: 'fa-trash', fn: `deleteTxn('${txnId}')`, danger: true },
     cabine && { label: 'Contacter la cabine (WhatsApp)', icon: 'fa-brands fa-whatsapp', fn: `adminContactWhatsapp('${cabine.whatsapp || cabine.telephone}','${cabine.prenom}')` },
     cabine && { label: 'Appeler la cabine', icon: 'fa-phone', fn: `adminCallPhone('${cabine.telephone}')` },
@@ -1474,7 +1474,7 @@ function loadExchangeAdmin(query = '', statusFilter = 'all') {
     const canRefund     = t.statut === 'en_attente' || t.statut === 'terminé';
     const canSuspend    = t.statut === 'en_attente' || t.statut === 'terminé';
     const canReactivate = t.statut === 'suspendue';
-    const canDelete      = currentUser.admin_level === 'super' && ['en_attente', 'suspendue', 'remboursé'].includes(t.statut);
+    const canDelete      = currentUser.admin_level === 'super' && ['en_attente', 'suspendue', 'remboursé', 'terminé'].includes(t.statut);
     const rc = Fmt.rowColors(t);
     return `<tr style="background:${rc.bg};">
       <td style="box-shadow:inset 3px 0 0 ${rc.line};"><code style="font-size:.72rem;color:var(--primary)">${Fmt.ref(t.id)}</code></td>
@@ -1507,7 +1507,7 @@ function renderCommandeRow(t) {
   const canRefund     = t.statut === 'en_attente' || t.statut === 'terminé';
   const canSuspend    = t.statut === 'en_attente' || t.statut === 'terminé';
   const canReactivate = t.statut === 'suspendue';
-  const canDelete      = currentUser.admin_level === 'super' && ['en_attente', 'suspendue', 'remboursé'].includes(t.statut);
+  const canDelete      = currentUser.admin_level === 'super' && ['en_attente', 'suspendue', 'remboursé', 'terminé'].includes(t.statut);
   const rc = Fmt.rowColors(t);
   return `<tr style="background:${rc.bg};">
     <td style="box-shadow:inset 3px 0 0 ${rc.line};"><code style="font-size:.72rem;color:var(--primary)">${Fmt.ref(t.id)}</code></td>
@@ -1535,7 +1535,7 @@ function toggleCommandeRowMenu(btn, txnId) {
     (t.statut === 'en_attente' || t.statut === 'terminé') && { label: 'Rembourser', icon: 'fa-hand-holding-dollar', fn: `refundTxn('${txnId}')`, danger: true },
     (t.statut === 'en_attente' || t.statut === 'terminé') && { label: 'Suspendre', icon: 'fa-ban', fn: `openSuspendModal('${txnId}')` },
     t.statut === 'suspendue' && { label: 'Réactiver', icon: 'fa-arrow-rotate-right', fn: `reactivateTxn('${txnId}')` },
-    currentUser.admin_level === 'super' && ['en_attente', 'suspendue', 'remboursé'].includes(t.statut) &&
+    currentUser.admin_level === 'super' && ['en_attente', 'suspendue', 'remboursé', 'terminé'].includes(t.statut) &&
       { label: 'Supprimer', icon: 'fa-trash', fn: `deleteTxn('${txnId}')`, danger: true },
   ]);
 }
@@ -1636,7 +1636,7 @@ function loadTransactions(query = '', statusFilter = 'all') {
     const canRefund     = t.statut === 'en_attente' || t.statut === 'terminé';
     const canSuspend    = t.statut === 'en_attente' || t.statut === 'terminé';
     const canReactivate = t.statut === 'suspendue';
-    const canDelete      = currentUser.admin_level === 'super' && ['en_attente', 'suspendue', 'remboursé'].includes(t.statut);
+    const canDelete      = currentUser.admin_level === 'super' && ['en_attente', 'suspendue', 'remboursé', 'terminé'].includes(t.statut);
     const hasActions    = canReassign || canRefund || canSuspend || canReactivate || canDelete;
     const op = OP_COLORS[t.operateur] || { fg: 'var(--gray-600)', bg: 'var(--gray-100)' };
     // Code couleur de ligne par statut (+ "en retard" dérivé) — voir
@@ -2016,11 +2016,18 @@ async function reactivateTxn(txnId) {
   loadCabines();
 }
 
-/* Super admin uniquement — voir api/orders_delete.php (bloqué côté serveur
-   pour une commande 'terminé', la rembourser d'abord). */
+/* Super admin uniquement — voir api/orders_delete.php. Pour une commande
+   'terminé', la suppression n'annule PAS l'effet financier (commission déjà
+   créditée à la cabine, débit éventuel du client) — seule la trace de la
+   commande disparaît ; utiliser "Rembourser" avant de supprimer si un
+   remboursement complet est plutôt souhaité. */
 async function deleteTxn(txnId) {
   if (currentUser.admin_level !== 'super') { Toast.error('Seul le super administrateur peut supprimer une commande.'); return; }
-  if (!confirm('Supprimer définitivement cette commande ? Cette action est irréversible et effacera aussi sa réclamation éventuelle.')) return;
+  const t = DB.transactions.byId(txnId);
+  const msg = t && t.statut === 'terminé'
+    ? 'Cette commande est TERMINÉE : la supprimer n\'annulera pas la commission déjà créditée à la cabine ni le débit du client — seule la commande disparaîtra. Continuer ?'
+    : 'Supprimer définitivement cette commande ? Cette action est irréversible et effacera aussi sa réclamation éventuelle.';
+  if (!confirm(msg)) return;
   const res = await DB.business.deleteTransaction(txnId);
   if (!res.ok) { Toast.error(res.error); return; }
   Toast.success('Commande supprimée.');
@@ -4010,6 +4017,9 @@ async function loadPartnerRequests() {
         ? `<span class="badge badge-success"><i class="fa-solid fa-check"></i> Validée</span>`
         : `<span class="badge badge-failed"><i class="fa-solid fa-xmark"></i> Refusée</span>`;
     const actions = `
+      <button class="btn btn-sm" style="background:var(--gray-100);color:var(--primary);font-size:.62rem;padding:5px 12px;" onclick="viewPartnerApplication('${a.id}')" title="Voir les informations renseignées">
+        <i class="fa-solid fa-eye"></i> Voir
+      </button>
       ${a.telephone ? `<button class="btn btn-sm" style="background:#25D36622;color:#25D366;font-size:.62rem;padding:5px 12px;" onclick="adminContactWhatsapp('${a.telephone}','${a.prenom || ''}')" title="Contacter via WhatsApp">
         <i class="fa-brands fa-whatsapp"></i> WhatsApp
       </button>` : ''}
@@ -4022,10 +4032,10 @@ async function loadPartnerRequests() {
       </button>
       <button class="btn btn-sm btn-danger" onclick="refusePartnerRequest('${a.id}')" style="font-size:.62rem;padding:5px 12px;">
         <i class="fa-solid fa-ban"></i> Refuser
-      </button>` : ''}
+      </button>` : `
       <button class="btn btn-sm" style="background:var(--gray-100);color:var(--danger);font-size:.62rem;padding:5px 12px;" onclick="deletePartnerRequest('${a.id}','${(a.prenom||'')} ${(a.nom||'')}')" title="Supprimer définitivement">
         <i class="fa-solid fa-trash"></i> Supprimer
-      </button>`;
+      </button>`}`;
     const puces = a.puces ? `Orange: ${a.puces.orange||0} · Moov: ${a.puces.moov||0} · MTN: ${a.puces.mtn||0}` : '';
     const paiement = (a.paiement_vers || a.numero_compte)
       ? `<div class="rst-admin-meta">${a.paiement_vers ? 'Paiement via ' + a.paiement_vers : ''}${a.numero_compte ? ' · Compte : ' + Fmt.phone(a.numero_compte) : ''}</div>`
@@ -4048,6 +4058,46 @@ async function loadPartnerRequests() {
       </div>
     </div>`;
   }).join('');
+}
+
+/* Détail complet d'une candidature — la carte compacte de
+   loadPartnerRequests() n'affiche qu'un résumé sur une seule ligne par
+   champ ; cette vue reprend chaque information renseignée par le
+   demandeur (photo en grand, statut, coordonnées, cabine, puces,
+   abonnement souhaité, moyens de paiement, motivation) dans une modale
+   dédiée, lisible. */
+function viewPartnerApplication(appId) {
+  const a = DB.partnerApplications.all().find(x => x.id === appId);
+  if (!a) { Toast.error('Candidature introuvable.'); return; }
+  const statusBadge = a.statut === 'en_attente'
+    ? `<span class="badge badge-pending"><i class="fa-solid fa-clock"></i> En attente</span>`
+    : a.statut === 'validée'
+      ? `<span class="badge badge-success"><i class="fa-solid fa-check"></i> Validée</span>`
+      : `<span class="badge badge-failed"><i class="fa-solid fa-xmark"></i> Refusée</span>`;
+  const puces = a.puces ? `Orange : ${a.puces.orange || 0} · Moov : ${a.puces.moov || 0} · MTN : ${a.puces.mtn || 0}` : '—';
+  document.getElementById('modal-partner-app-content').innerHTML = `
+    <div style="text-align:center;margin-bottom:16px;">
+      ${a.photo
+        ? `<img src="${a.photo}" alt="Photo" style="width:96px;height:96px;border-radius:50%;object-fit:cover;margin:0 auto 10px;display:block;">`
+        : `<div style="width:96px;height:96px;border-radius:50%;background:linear-gradient(135deg,var(--primary),var(--secondary));display:flex;align-items:center;justify-content:center;font-size:1.6rem;font-weight:800;color:#fff;margin:0 auto 10px;">${Fmt.initials(a.nom, a.prenom)}</div>`}
+      <div style="font-size:1.1rem;font-weight:700;">${a.prenom || ''} ${a.nom || ''}</div>
+      <div style="margin-top:6px;">${statusBadge}</div>
+    </div>
+    <div class="stat-mini"><span class="stat-mini-label">Téléphone</span><span class="stat-mini-val">${Fmt.phone(a.telephone) || '—'}</span></div>
+    <div class="stat-mini"><span class="stat-mini-label">WhatsApp</span><span class="stat-mini-val">${a.whatsapp ? Fmt.phone(a.whatsapp) : '—'}</span></div>
+    <div class="stat-mini"><span class="stat-mini-label">Email</span><span class="stat-mini-val">${a.email || '—'}</span></div>
+    <div class="stat-mini"><span class="stat-mini-label">Nom de la cabine</span><span class="stat-mini-val">${a.cabine_nom || '—'}</span></div>
+    <div class="stat-mini"><span class="stat-mini-label">Puces disponibles</span><span class="stat-mini-val">${puces}</span></div>
+    <div class="stat-mini"><span class="stat-mini-label">Abonnement souhaité</span><span class="stat-mini-val">${a.abonnement || '—'}</span></div>
+    <div class="stat-mini"><span class="stat-mini-label">Expérience</span><span class="stat-mini-val">${a.experience || '—'}</span></div>
+    <div class="stat-mini"><span class="stat-mini-label">Paiement de l'abonnement</span><span class="stat-mini-val">${a.paiement_abo || '—'}</span></div>
+    <div class="stat-mini"><span class="stat-mini-label">Réception des versements</span><span class="stat-mini-val">${a.paiement_vers || '—'}${a.numero_compte ? ' · ' + Fmt.phone(a.numero_compte) : ''}</span></div>
+    <div class="stat-mini"><span class="stat-mini-label">Candidature reçue le</span><span class="stat-mini-val">${Fmt.datetime(a.date_created)}</span></div>
+    ${a.motivation ? `<div style="margin-top:12px;padding:10px 12px;background:var(--gray-50);border-radius:10px;font-size:.82rem;font-style:italic;color:var(--gray-600);">"${a.motivation}"</div>` : ''}
+    ${a.telephone ? `<button class="btn btn-sm btn-full" style="margin-top:14px;background:#25D36622;color:#25D366;" onclick="adminContactWhatsapp('${a.telephone}','${a.prenom || ''}')">
+      <i class="fa-brands fa-whatsapp"></i> Contacter via WhatsApp
+    </button>` : ''}`;
+  openModal('modal-view-partner-app');
 }
 
 async function validatePartnerRequest(appId) {
