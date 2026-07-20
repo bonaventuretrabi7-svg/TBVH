@@ -565,6 +565,8 @@ const DB = (() => {
         zone: row.zone || undefined, cabine_nom: row.cabine_nom || undefined,
         commissions_total: row.commissions_total || 0,
         transferts_total: row.transferts_total || 0,
+        commandes_renvoyees: row.commandes_renvoyees || 0,
+        remboursements_recus: row.remboursements_recus || 0,
         limite_commandes: row.limite_commandes ?? undefined,
         tentatives_echouees: row.tentatives_echouees || 0,
         suspendu_auto: row.suspendu_auto || false,
