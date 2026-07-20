@@ -943,7 +943,15 @@ function loadCabines(query = '') {
   if (!tbody) return;
   const nowTs = Date.now();
   tbody.innerHTML = cabines.map(c => {
-    const txnCount = DB.transactions.byCabine(c.id).filter(t => t.statut === 'terminé').length;
+    const doneTxns = DB.transactions.byCabine(c.id).filter(t => t.statut === 'terminé');
+    const txnCount = doneTxns.length;
+    // Colonne "Solde" de cette liste : somme des montants des commandes
+    // traitées par la cabine (DB.business.cabineVolumeTraite(), même calcul
+    // que "Montant disponible" dans l'onglet Retraits et "Solde en attente"
+    // côté cabine). Le solde réel/retirable (profiles.solde,
+    // cabineSoldeDisponible()) reste la seule limite appliquée côté serveur
+    // au moment de payer un retrait (api/retraits_create.php).
+    const volumeTraite = doneTxns.reduce((s, t) => s + (t.montant || 0), 0);
     const pending  = DB.transactions.byCabine(c.id).filter(t => t.statut === 'en_attente');
     const retards  = pending.filter(t => nowTs - new Date(t.date).getTime() > DB.RETARD_MS).length;
     const suspendu = c.statut === 'suspendu';
@@ -965,7 +973,7 @@ function loadCabines(query = '') {
     return `<tr>
       <td><div class="user-chip"><div class="avatar" style="background:linear-gradient(135deg,var(--secondary),var(--secondary-dark))">${Fmt.initials(c.nom,c.prenom)}</div><div><div class="name">${c.prenom} ${c.nom}</div><div style="font-size:.72rem;color:var(--gray-400)">${c.zone || 'N/A'}</div></div></div></td>
       <td><code>${Fmt.phone(c.telephone)}</code></td>
-      <td><strong>${Fmt.money(DB.business.cabineSoldeDisponible(c))}</strong></td>
+      <td><strong>${Fmt.money(volumeTraite)}</strong></td>
       <td><span class="commission-pill">${Fmt.money(c.commissions_total || 0)}</span></td>
       <td><span class="badge badge-info">${txnCount}</span></td>
       <td><span class="badge" style="background:rgba(139,92,246,.12);color:#8B5CF6;">${pending.length}</span></td>
@@ -1080,11 +1088,11 @@ const RETRAIT_SEUIL_URGENT  = 100000;
 function loadRetraitsAdmin() {
   const seuil = parseInt(document.getElementById('retraits-threshold-filter')?.value || '0', 10);
   let cabines = DB.users.byRole('cabine');
-  if (seuil > 0) cabines = cabines.filter(c => DB.business.cabineSoldeDisponible(c) >= seuil);
+  if (seuil > 0) cabines = cabines.filter(c => DB.business.cabineVolumeTraite(c.id) >= seuil);
   // Triées par solde décroissant dès qu'un seuil est actif (ou toujours,
   // pour faire remonter naturellement les soldes les plus élevés en haut) —
   // c'est le "trier" demandé, pas seulement un filtre.
-  cabines = [...cabines].sort((a, b) => DB.business.cabineSoldeDisponible(b) - DB.business.cabineSoldeDisponible(a));
+  cabines = [...cabines].sort((a, b) => DB.business.cabineVolumeTraite(b.id) - DB.business.cabineVolumeTraite(a.id));
   const tbody = document.getElementById('retraits-admin-tbody');
   if (!tbody) return;
 
@@ -1094,7 +1102,7 @@ function loadRetraitsAdmin() {
   }
 
   tbody.innerHTML = cabines.map(c => {
-    const dispo = DB.business.cabineSoldeDisponible(c);
+    const dispo = DB.business.cabineVolumeTraite(c.id);
     const nameStyle = dispo >= RETRAIT_SEUIL_URGENT ? 'color:var(--danger);font-weight:800;'
       : dispo >= RETRAIT_SEUIL_ALERTE ? 'color:var(--danger);'
       : '';
@@ -1115,7 +1123,7 @@ function toggleRetraitRowMenu(btn, cabineId) {
   if (!c) return;
   openRowMenu(btn, [
     { label: 'Modifier le moyen de paiement', icon: 'fa-credit-card', fn: `openEditPaymentModal('${cabineId}')` },
-    DB.business.cabineSoldeDisponible(c) > 0 && { label: 'Traiter un retrait', icon: 'fa-money-bill-wave', fn: `openProcessRetraitModal('${cabineId}')` },
+    DB.business.cabineVolumeTraite(c.id) > 0 && { label: 'Traiter un retrait', icon: 'fa-money-bill-wave', fn: `openProcessRetraitModal('${cabineId}')` },
   ]);
 }
 
@@ -1219,7 +1227,7 @@ function openProcessRetraitModal(cabineId) {
   const c = DB.users.byId(cabineId);
   if (!c) return;
   _processRetraitCabineId = cabineId;
-  const dispo = DB.business.cabineSoldeDisponible(c);
+  const dispo = DB.business.cabineVolumeTraite(cabineId);
   document.getElementById('process-retrait-dispo').textContent = Fmt.money(dispo);
   document.getElementById('process-retrait-restant').textContent = Fmt.money(dispo);
   const montantInput = document.getElementById('process-retrait-montant');
@@ -1237,8 +1245,12 @@ async function confirmProcessRetrait() {
   if (!c) return;
   const montant = parseFloat(document.getElementById('process-retrait-montant').value);
   if (isNaN(montant) || montant <= 0) { Toast.error('Montant invalide.'); return; }
-  if (montant > DB.business.cabineSoldeDisponible(c)) { Toast.error('Le montant dépasse le solde disponible.'); return; }
-
+  // Pas de pré-contrôle client ici contre le solde réel : "Montant
+  // disponible" affiche désormais le volume de commandes traitées (à la
+  // demande de l'administration), qui peut dépasser le solde réellement en
+  // caisse. Le serveur (api/retraits_create.php, débit atomique CAS sur
+  // profiles.solde) reste la seule vraie limite et refusera proprement tout
+  // montant réellement indisponible.
   const res = await DB.retraits.process(c.id, montant);
   if (!res.ok) { Toast.error(res.error); return; }
   await refreshUsersFromServer();

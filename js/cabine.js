@@ -691,7 +691,7 @@ function _renderCabColorPreview(key) {
   const tierClass = 'cbc-card--' + (user.abonnement || 'Premium').toLowerCase();
   preview.className = 'cab-color-preview cbc-card ' + (key === 'auto' ? tierClass : 'cbc-card--c-' + key);
   document.getElementById('cab-color-preview-name').textContent = user.cabine_nom || (user.prenom + ' ' + user.nom);
-  document.getElementById('cab-color-preview-val').textContent = Fmt.money(DB.business.cabineSoldeDisponible(user));
+  document.getElementById('cab-color-preview-val').textContent = Fmt.money(DB.business.cabineVolumeTraite(user.id));
 }
 
 /* Applique la couleur immédiatement (pas de bouton "Valider" séparé) et
@@ -714,12 +714,15 @@ async function previewCabCardColor(key) {
 function loadCabBalanceCard() {
   const user  = DB.users.byId(currentUser.id);
 
-  // Solde en attente = solde réellement disponible sur le compte (voir
-  // DB.business.cabineSoldeDisponible()) — strictement le même calcul
-  // (juste `user.solde`) que "Montant disponible" côté admin (tableau
-  // "Retraits des cabines", loadRetraitsAdmin() dans js/admin.js), pour ne
-  // jamais afficher deux valeurs différentes pour le même compte.
-  const pending = DB.business.cabineSoldeDisponible(user);
+  // Solde en attente = somme des montants des commandes terminées traitées
+  // par la cabine (voir DB.business.cabineVolumeTraite(), à la demande
+  // explicite de l'administration) — strictement le même calcul que
+  // "Montant disponible" côté admin (tableau "Retraits des cabines",
+  // loadRetraitsAdmin() dans js/admin.js), pour ne jamais afficher deux
+  // valeurs différentes pour le même compte. Ne diminue pas après un
+  // retrait payé : le solde réel (profiles.solde) reste la seule limite
+  // effective d'un retrait, appliquée côté serveur (api/retraits_create.php).
+  const pending = DB.business.cabineVolumeTraite(user.id);
 
   // Total payé = tout l'argent réellement sorti du compte, toutes
   // origines confondues : les retraits posés par l'administration

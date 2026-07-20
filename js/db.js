@@ -2075,16 +2075,30 @@ const DB = (() => {
       return { ok: true, transaction: res.transaction, assignedTo: res.assignedTo, frais: res.frais, total: res.total };
     },
 
-    /* Source UNIQUE du "solde disponible" d'une cabine — utilisée à la
-       fois par "Solde en attente" (loadCabBalanceCard(), js/cabine.js) et
-       par "Montant disponible" côté admin (loadRetraitsAdmin()/viewUser(),
-       js/admin.js), pour que les deux espaces affichent toujours
-       exactement le même chiffre pour le même compte. C'est aussi ce
-       solde qui limite un retrait traité par l'administration — jamais un
-       autre calcul (volume de commandes, etc.) ici, pour ne jamais risquer
-       d'autoriser un retrait supérieur à l'argent réellement disponible. */
+    /* Solde réel/retirable d'une cabine (colonne profiles.solde) — utilisé
+       par viewUser(), les modales de recharge et l'export CSV (js/admin.js).
+       Ne diminue qu'après un retrait réellement payé (api/retraits_create.php,
+       débit atomique CAS sur solde >= ? — seule vraie limite financière,
+       toujours appliquée côté serveur quoi que ce module affiche). */
     cabineSoldeDisponible(user) {
       return (user && user.solde) || 0;
+    },
+
+    /* "Montant disponible" (onglet Retraits, loadRetraitsAdmin()/
+       openProcessRetraitModal(), js/admin.js) et "Solde en attente"
+       (loadCabBalanceCard()/_renderCabColorPreview(), js/cabine.js) —
+       somme des montants des commandes TERMINÉES traitées par la cabine,
+       à la demande explicite de l'administration. Ne diminue PAS après un
+       retrait payé (contrairement à cabineSoldeDisponible() ci-dessus) :
+       un même montant peut donc réapparaître "disponible" juste après
+       avoir été payé — accepté sciemment, le débit réel reste protégé
+       côté serveur (CAS sur profiles.solde, voir api/retraits_create.php),
+       qui refuse toujours un retrait au-delà de l'argent réellement en
+       caisse quel que soit ce que cet affichage suggère. */
+    cabineVolumeTraite(cabineId) {
+      return transactions.byCabine(cabineId)
+        .filter(t => t.statut === 'terminé')
+        .reduce((s, t) => s + (t.montant || 0), 0);
     },
 
     /* Réglages propres à la cabine (réseaux actifs, pause du service,
