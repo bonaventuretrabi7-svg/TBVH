@@ -1530,6 +1530,18 @@ body.dark .tf-step-body { border-color: var(--dark-border); }
   font-variant-numeric: tabular-nums;
 }
 
+/* Section "Chap Chap" en version très compacte — bandeau/carte/cartes
+   réduits, à la demande explicite (moins d'espace pris que le tunnel de
+   commande juste au-dessus, qui lui garde sa taille normale). */
+#chapchap-section { padding: 10px 10px; margin-top: 10px; }
+#chapchap-section .tf-slide-hd { padding: 6px 10px; margin-bottom: 10px; font-size: .58rem; gap: 6px; }
+#chapchap-section .op-row { gap: 6px; }
+#chapchap-section .ccp-card { padding: 8px 4px; gap: 3px; border-radius: 14px; }
+#chapchap-section .op-logo-sq { width: 30px; height: 30px; border-radius: 9px; }
+#chapchap-section .ccp-type { font-size: .46rem; }
+#chapchap-section .ccp-num { font-size: .58rem; }
+#chapchap-section .op-name-pill { font-size: .6rem; padding: 4px 9px; }
+
 /* â”€â”€ Service Toggle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 /* Deux cartes (Crédit/Transfert direct, Forfait/Internet-appels-SMS) —
    même traitement que .fcat-btn/.fsub-btn : inactif en gris neutre,
