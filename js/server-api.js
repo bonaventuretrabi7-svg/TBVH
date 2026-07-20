@@ -377,6 +377,16 @@ const ServerAPI = (() => {
     return { ok: true, presence: data.presence };
   }
 
+  // Réseaux sans aucune cabine actuellement joignable — voir
+  // checkMissingNetworks() (js/cabine.js) et api/networks_status.php,
+  // calculé entièrement côté serveur (jamais fiable depuis le cache local
+  // d'une cabine, qui ne connaît pas forcément les autres cabines).
+  async function networksStatus() {
+    const { res, data } = await _call('networks_status.php', { auth: true });
+    if (!res.ok || !data || data.error) return { ok: false, error: (data && data.error) || 'Échec de la synchronisation.' };
+    return { ok: true, missing: data.missing };
+  }
+
   /* Moteur de commandes (Phase 4) — voir DB.business.* (js/db.js) et
      api/orders_*.php. Chaque endpoint est un CAS atomique côté serveur
      (voir le commentaire en tête de chaque fichier PHP) ; ces wrappers ne
@@ -809,7 +819,7 @@ const ServerAPI = (() => {
     login, logout, createAccount, adminCreateAccount, adminUpdateProfile, adminUpdateUser, adminSetAccountStatus, adminUpdateOwnSound, getSettings, updateSettings, listProfiles,
     isConfigured, getToken, setToken, whoami, favorisList, favorisCreate, favorisRemove,
     accessLogsList, accessLogsCreate, permissionLogsList, permissionLogsCreate, pushRegisterToken,
-    maintenanceLogsList, maintenanceLogsCreate, presencePing, presenceOnline,
+    maintenanceLogsList, maintenanceLogsCreate, presencePing, presenceOnline, networksStatus,
     ordersCreate, ordersCreateAdvanced, cadeauClaim, updateProfilePhoto, ordersAccept, ordersRefuse, ordersAssignPending, ordersReassign,
     ordersSweep, ordersSweepUnsuspend, ordersSweepQuota, ordersList, retardsList,
     ordersRecharge, ordersRefund, ordersSuspend, ordersReactivate, ordersDelete, cabineSuspendManual,

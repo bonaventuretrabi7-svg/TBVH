@@ -505,23 +505,25 @@ function _refreshOnlineCount() {
   checkMissingNetworks();
 }
 
-/* Si aucune cabine actuellement connectée n'a un réseau donné activé
-   (reseaux_actifs), avertit ce cabiniste via une puce compacte dans la
-   top nav qui affiche directement les réseaux concernés (plus besoin de
-   taper dessus pour les découvrir) — même cadence de rafraîchissement
-   que le badge "cabines connectées". */
-function checkMissingNetworks() {
+/* Si aucune cabine actuellement connectée n'a un réseau donné activé,
+   avertit ce cabiniste via une puce compacte dans la top nav qui affiche
+   directement les réseaux concernés (plus besoin de taper dessus pour les
+   découvrir) — même cadence de rafraîchissement que le badge "cabines
+   connectées". Calculé côté serveur (api/networks_status.php) plutôt que
+   depuis le cache local des AUTRES cabines : cet appareil ne charge jamais
+   la liste complète des autres cabines (contrairement à l'admin), donc
+   DB.users.byId() pouvait renvoyer undefined pour une cabine pourtant bien
+   en ligne — le réseau apparaissait alors "indisponible" à tort. */
+async function checkMissingNetworks() {
   const chipEl = document.getElementById('cab-missing-network-alert');
   if (!chipEl) return;
   const textEl = document.getElementById('cab-missing-network-text');
 
-  const onlineIds = DB.presence.onlineCabineIds();
-  const onlineCabines = onlineIds.map(id => DB.users.byId(id)).filter(Boolean);
-  const NETWORKS = [{ key: 'mtn', label: 'MTN' }, { key: 'moov', label: 'Moov' }, { key: 'orange', label: 'Orange' }];
-  const missing = NETWORKS.filter(n => !onlineCabines.some(c => c.reseaux_actifs?.[n.key])).map(n => n.label);
+  const res = await ServerAPI.networksStatus();
+  if (!res.ok) return;
 
-  if (missing.length) {
-    if (textEl) textEl.textContent = 'Indisponibles : ' + missing.join(', ');
+  if (res.missing.length) {
+    if (textEl) textEl.textContent = 'Indisponibles : ' + res.missing.join(', ');
     chipEl.style.display = 'flex';
   } else {
     chipEl.style.display = 'none';

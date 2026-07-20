@@ -1736,7 +1736,10 @@ function openBulkReassignModal() {
   _bulkReassignIds = ids;
 
   const select = document.getElementById('bulk-reassign-cabine-select');
-  const cabs = DB.users.byRole('cabine').filter(c => c.statut === 'actif');
+  // En pause exclue au même titre que suspendue (voir api/orders_reassign.php)
+  // : une cabine qui n'est pas en service ne doit jamais apparaître comme
+  // cible possible d'une réassignation.
+  const cabs = DB.users.byRole('cabine').filter(c => c.statut === 'actif' && !c.en_pause);
   select.innerHTML = cabs.length
     ? cabs.map(c => `<option value="${c.id}">${c.prenom} ${c.nom} (${c.cabine_nom || c.zone || 'N/A'})</option>`).join('')
     : `<option value="">Aucune cabine active disponible</option>`;
@@ -1775,7 +1778,8 @@ function openReassignModal(txnId) {
   _reassignTxnId = txnId;
 
   const select = document.getElementById('reassign-cabine-select');
-  const cabs = DB.users.byRole('cabine').filter(c => c.statut === 'actif' && c.id !== txn.cabine_id);
+  // En pause exclue au même titre que suspendue (voir api/orders_reassign.php).
+  const cabs = DB.users.byRole('cabine').filter(c => c.statut === 'actif' && !c.en_pause && c.id !== txn.cabine_id);
   if (!cabs.length) {
     select.innerHTML = `<option value="">Aucune autre cabine active disponible</option>`;
   } else {

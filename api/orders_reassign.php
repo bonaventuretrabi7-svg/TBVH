@@ -22,6 +22,12 @@ $cabStmt = $pdo->prepare("SELECT * FROM profiles WHERE id = ? AND role = 'cabine
 $cabStmt->execute([$newCabineId]);
 $newCab = $cabStmt->fetch();
 if (!$newCab) fail('Cabine invalide.');
+// Une cabine qui n'est pas en service (suspendue ou en pause) ne doit
+// jamais recevoir de commande, y compris via une réassignation manuelle —
+// déjà appliqué pour l'attribution initiale (pickInitialCabine()) et la
+// réassignation automatique (findReassignmentTarget()), manquait ici.
+if ($newCab['statut'] !== 'actif') fail('Cette cabine est suspendue — impossible de lui assigner une commande.');
+if (!empty($newCab['en_pause'])) fail('Cette cabine est en pause — impossible de lui assigner une commande.');
 
 $results = [];
 foreach ($ids as $txnId) {
