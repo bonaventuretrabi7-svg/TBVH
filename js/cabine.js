@@ -314,6 +314,12 @@ async function _cabRefreshCycle() {
   // le HTML à chaque tick (coûteux sur Android) quand rien de nouveau ne
   // s'est produit.
   const _pollBefore = DB.pollSignature(currentUser.id, 'cabine');
+  // Tout lancé EN PARALLÈLE (voir plus bas) plutôt qu'un enchaînement
+  // d'appels attendus un par un : sur un hébergement partagé, chaque
+  // aller-retour réseau compte, et les 7 appels ci-dessous sont
+  // indépendants les uns des autres (chaque sweep gère lui-même son
+  // propre re-fetch interne si besoin) — les enchaîner en série
+  // multipliait par 7 la latence perçue à chaque actualisation.
   await Promise.all([
     DB.transactions.refresh(),
     // Nécessaire pour que "Total payé" (loadCabBalanceCard()) reflète les
@@ -324,10 +330,14 @@ async function _cabRefreshCycle() {
     // sans que le partenaire ait besoin de se déconnecter/reconnecter (voir
     // DB.users.refreshSelf(), js/db.js).
     DB.users.refreshSelf(),
+    DB.business.sweepStaleOrders(),
+    DB.business.sweepAutoUnsuspensions(),
+    DB.business.sweepQuotaDeadlines(),
+    // Notifications réelles (voir api/notifications_list.php) — reflète
+    // désormais ce qui se passe partout (recharge admin, remboursement...),
+    // pas seulement ce que cet appareil a lui-même déclenché.
+    DB.notifications.refresh(currentUser.id),
   ]);
-  await DB.business.sweepStaleOrders();
-  await DB.business.sweepAutoUnsuspensions();
-  await DB.business.sweepQuotaDeadlines();
   currentUser = Auth.refresh();
   // Compte supprimé entre-temps : déconnexion. Une suspension (auto ou
   // manuelle) ne déconnecte plus le partenaire — il doit rester connecté
@@ -335,10 +345,6 @@ async function _cabRefreshCycle() {
   // loadCabBalanceCard/_refreshSuspensionBanner) ; la réception de
   // nouvelles commandes reste bloquée côté serveur simulé (js/db.js).
   if (!currentUser) { Auth.logout(); return; }
-  // Notifications réelles (voir api/notifications_list.php) — reflète
-  // désormais ce qui se passe partout (recharge admin, remboursement...),
-  // pas seulement ce que cet appareil a lui-même déclenché.
-  await DB.notifications.refresh(currentUser.id);
   updateNotifBadge();
   loadCabBalanceCard();
   loadCabRealtimeStats();
@@ -1466,15 +1472,23 @@ function _refreshCabDarkBtn() {
 async function toggleCabPause() {
   const user = DB.users.byId(currentUser.id);
   if (user.en_pause) {
-    // Reprise immédiate, pas besoin de justification. Persisté côté
-    // serveur (voir api/cabine_update_self.php) — c'est cette valeur,
-    // jamais le cache local, que le moteur d'attribution des commandes
-    // consulte pour savoir si de nouvelles commandes doivent t'être
-    // envoyées.
-    const res = await DB.business.cabineUpdateSelf(currentUser.id, { en_pause: false, pause_raison: null, pause_note: null, pause_debut: null });
-    if (!res.ok) { Toast.error(res.error || 'Échec de la reprise — réessayez.'); return; }
+    // Reprise immédiate, pas besoin de justification. Optimiste — même
+    // patron que toggleNetwork()/toggleUssdNetwork()/toggleCabDarkMode() :
+    // l'état local change tout de suite (perçu comme instantané), la
+    // confirmation serveur (voir api/cabine_update_self.php, seule
+    // source consultée par le moteur d'attribution des commandes) se
+    // fait en tâche de fond, avec retour en arrière si elle échoue.
+    const prevPause = { en_pause: user.en_pause, pause_raison: user.pause_raison, pause_note: user.pause_note, pause_debut: user.pause_debut };
+    DB.users.update(currentUser.id, { en_pause: false, pause_raison: null, pause_note: null, pause_debut: null });
     _refreshCabPauseUI();
     Toast.success(`Bon retour, ${user.prenom || 'partenaire'} ! Votre espace est de nouveau en service.`);
+
+    const res = await DB.business.cabineUpdateSelf(currentUser.id, { en_pause: false, pause_raison: null, pause_note: null, pause_debut: null });
+    if (!res.ok) {
+      DB.users.update(currentUser.id, prevPause);
+      _refreshCabPauseUI();
+      Toast.error(res.error || 'Échec de la reprise — réessayez.');
+    }
   } else {
     const form = document.getElementById('cab-pause-form');
     if (form) form.reset();
@@ -1547,14 +1561,23 @@ async function handleCabPauseSubmit(event) {
   }
 
   const pauseDebut = new Date().toISOString();
-  const res = await DB.business.cabineUpdateSelf(currentUser.id, { en_pause: true, pause_raison: raison, pause_note: note, pause_debut: pauseDebut });
-  if (!res.ok) { Toast.error(res.error || 'Échec de la mise en pause — réessayez.'); return; }
+  // Optimiste (voir toggleCabPause() ci-dessus) : la modale se ferme et
+  // l'état passe "en pause" tout de suite, la confirmation serveur se
+  // fait en tâche de fond, avec retour en arrière si elle échoue.
+  DB.users.update(currentUser.id, { en_pause: true, pause_raison: raison, pause_note: note, pause_debut: pauseDebut });
   closeModal('modal-cab-pause');
   _cabResume.pauseDraft = null;
   _saveCabResume();
   _refreshCabPauseUI();
   const heure = new Date(pauseDebut).toLocaleTimeString('fr-CI', { hour: '2-digit', minute: '2-digit' });
   Toast.info(`Espace mis en pause à ${heure} — ${raison}${note ? ' : ' + note : ''}.`);
+
+  const res = await DB.business.cabineUpdateSelf(currentUser.id, { en_pause: true, pause_raison: raison, pause_note: note, pause_debut: pauseDebut });
+  if (!res.ok) {
+    DB.users.update(currentUser.id, { en_pause: false, pause_raison: null, pause_note: null, pause_debut: null });
+    _refreshCabPauseUI();
+    Toast.error(res.error || 'Échec de la mise en pause — réessayez.');
+  }
 }
 
 function _refreshCabPauseUI() {
@@ -1881,10 +1904,16 @@ const RETRAIT_METHODE_STYLE = {
   'Compte bancaire': { color: '#64748B', gradient: 'linear-gradient(150deg,#94A3B8,#475569)', ico: 'fa-building-columns' },
 };
 
-async function loadCabRetraits() {
+// Cache local rendu immédiatement, resynchronisé en tâche de fond (même
+// correctif que loadCabHistory()/loadCabTransferHistory() plus haut).
+function loadCabRetraits() {
+  _renderCabRetraits();
+  DB.retraits.refresh().then(_renderCabRetraits);
+}
+
+function _renderCabRetraits() {
   const list = document.getElementById('cab-retraits-list');
   if (!list) return;
-  await DB.retraits.refresh();
 
   const all       = DB.retraits.byCabine(currentUser.id);
   // Les sanctions (voir DB.business.refundTransaction, type: 'sanction')
@@ -2111,10 +2140,19 @@ async function handleCabTransferSubmit() {
   loadCabTransferHistory();
 }
 
-async function loadCabTransferHistory() {
+/* Cache local rendu IMMÉDIATEMENT (même patron que loadCabReclamations()) —
+   auparavant, attendre le réseau avant le moindre affichage laissait
+   l'écran vide (juste le "Chargement…" statique) le temps d'un aller-
+   retour serveur complet à chaque ouverture de l'onglet, perceptible
+   comme une lenteur à l'appui du bouton. */
+function loadCabTransferHistory() {
+  _renderCabTransferHistory();
+  DB.transferts_cabine.refresh().then(_renderCabTransferHistory);
+}
+
+function _renderCabTransferHistory() {
   const list = document.getElementById('cab-transfer-history-list');
   if (!list) return;
-  await DB.transferts_cabine.refresh();
   const items = DB.transferts_cabine.byCabine(currentUser.id);
   if (!items.length) {
     list.innerHTML = `<div class="cab-empty-state"><i class="fa-solid fa-right-left" style="font-size:2rem;opacity:.3;margin-bottom:8px;display:block;"></i><div>Aucun transfert</div></div>`;
@@ -2211,7 +2249,14 @@ function _renderCabHistTransfertRow(t) {
   </div>`;
 }
 
-async function loadCabHistory() {
+// Cache local rendu immédiatement, resynchronisé en tâche de fond (même
+// correctif que loadCabTransferHistory() ci-dessus).
+function loadCabHistory() {
+  _renderCabHistory();
+  DB.transferts_cabine.refresh().then(_renderCabHistory);
+}
+
+function _renderCabHistory() {
   const list = document.getElementById('cab-historique-list');
   if (!list) return;
 
@@ -2221,8 +2266,6 @@ async function loadCabHistory() {
   // cabine — voir DB.business.cabineSelfRecharge — donc invisibles via
   // byCabine seul) + les transferts cabine-à-cabine (voir
   // loadCabTransferHistory() ci-dessus, même source de données).
-  await DB.transferts_cabine.refresh();
-
   const selfTxns      = DB.transactions.byCabine(currentUser.id).filter(t => !t.client_id);
   const requestedTxns = DB.transactions.byClient(currentUser.id);
   const transferts    = DB.transferts_cabine.byCabine(currentUser.id);
@@ -3064,10 +3107,18 @@ async function requestReclamationRefund(reclaId) {
 }
 
 /* ── Notifications ─────────────────────────────────────────────── */
-async function loadCabNotifications() {
+// Cache local rendu immédiatement, resynchronisé en tâche de fond (même
+// correctif que loadCabHistory()/loadCabRetraits() plus haut) — déjà
+// rafraîchi régulièrement par le cycle de sondage (_cabRefreshCycle()),
+// donc quasi toujours à jour dès l'ouverture.
+function loadCabNotifications() {
+  _renderCabNotifications();
+  DB.notifications.refresh(currentUser.id).then(_renderCabNotifications);
+}
+
+function _renderCabNotifications() {
   const list = document.getElementById('cab-notif-list');
   if (!list) return;
-  await DB.notifications.refresh(currentUser.id);
   const notifs = DB.notifications.forUser(currentUser.id);
   if (!notifs.length) {
     list.innerHTML = `<div class="cab-empty-state">
