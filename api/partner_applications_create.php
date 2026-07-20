@@ -19,6 +19,8 @@ $whatsapp   = trim((string)($in['whatsapp'] ?? ''));
 $cabineNom  = trim((string)($in['cabine_nom'] ?? ''));
 $pin        = (string)($in['pin'] ?? '');
 $photo      = (string)($in['photo'] ?? '');
+$pieceRecto = (string)($in['piece_recto'] ?? '');
+$pieceVerso = (string)($in['piece_verso'] ?? '');
 $codeQr     = (string)($in['code_qr'] ?? '');
 $motivation = trim((string)($in['motivation'] ?? ''));
 $abonnement = (string)($in['abonnement'] ?? '');
@@ -34,11 +36,11 @@ if (!preg_match('/^[^\s@]+@gmail\.com$/i', $email)) fail('Adresse Gmail invalide
 
 $id = uuid4();
 db()->prepare('INSERT INTO partner_applications
-    (id, prenom, nom, email, telephone, whatsapp, cabine_nom, mot_de_passe_hash, photo, code_qr,
+    (id, prenom, nom, email, telephone, whatsapp, cabine_nom, mot_de_passe_hash, photo, piece_recto, piece_verso, code_qr,
      motivation, abonnement, paiement_abo, paiement_vers, numero_compte, experience, puces, statut, date_created)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, \'en_attente\', NOW())')
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, \'en_attente\', NOW())')
     ->execute([$id, $prenom, $nom, $email, $telephone, $whatsapp, $cabineNom, password_hash($pin, PASSWORD_BCRYPT),
-        $photo ?: null, $codeQr ?: null, $motivation, $abonnement ?: null, $paiementAbo ?: null,
+        $photo ?: null, $pieceRecto ?: null, $pieceVerso ?: null, $codeQr ?: null, $motivation, $abonnement ?: null, $paiementAbo ?: null,
         $paiementVers ?: null, $numeroCompte, $experience ?: null, $puces]);
 
 echo json_encode(['ok' => true]);

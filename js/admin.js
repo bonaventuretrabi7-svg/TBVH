@@ -4116,6 +4116,20 @@ function viewPartnerApplication(appId) {
     <div class="stat-mini"><span class="stat-mini-label">Réception des versements</span><span class="stat-mini-val">${a.paiement_vers || '—'}${a.numero_compte ? ' · ' + Fmt.phone(a.numero_compte) : ''}</span></div>
     <div class="stat-mini"><span class="stat-mini-label">Candidature reçue le</span><span class="stat-mini-val">${Fmt.datetime(a.date_created)}</span></div>
     ${a.motivation ? `<div style="margin-top:12px;padding:10px 12px;background:var(--gray-50);border-radius:10px;font-size:.82rem;font-style:italic;color:var(--gray-600);">"${a.motivation}"</div>` : ''}
+    ${(a.piece_recto || a.piece_verso) ? `
+    <div style="margin-top:16px;">
+      <div style="font-size:.72rem;font-weight:700;color:var(--gray-500);text-transform:uppercase;letter-spacing:.03em;margin-bottom:8px;">Pièce d'identité</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        ${a.piece_recto ? `<a href="${a.piece_recto}" target="_blank" rel="noopener" title="Ouvrir en plein écran">
+          <img src="${a.piece_recto}" alt="Pièce d'identité — recto" style="width:100%;aspect-ratio:3/2;object-fit:cover;border-radius:10px;border:1px solid var(--gray-200);">
+          <div style="text-align:center;font-size:.65rem;color:var(--gray-400);margin-top:3px;">Recto</div>
+        </a>` : `<div style="display:flex;align-items:center;justify-content:center;aspect-ratio:3/2;border-radius:10px;background:var(--gray-50);color:var(--gray-400);font-size:.7rem;">Recto absent</div>`}
+        ${a.piece_verso ? `<a href="${a.piece_verso}" target="_blank" rel="noopener" title="Ouvrir en plein écran">
+          <img src="${a.piece_verso}" alt="Pièce d'identité — verso" style="width:100%;aspect-ratio:3/2;object-fit:cover;border-radius:10px;border:1px solid var(--gray-200);">
+          <div style="text-align:center;font-size:.65rem;color:var(--gray-400);margin-top:3px;">Verso</div>
+        </a>` : `<div style="display:flex;align-items:center;justify-content:center;aspect-ratio:3/2;border-radius:10px;background:var(--gray-50);color:var(--gray-400);font-size:.7rem;">Verso absent</div>`}
+      </div>
+    </div>` : `<div style="margin-top:16px;padding:10px 12px;background:var(--gray-50);border-radius:10px;font-size:.75rem;color:var(--gray-400);text-align:center;">Aucune pièce d'identité fournie (candidature déposée avant l'ajout de cette exigence).</div>`}
     ${a.telephone ? `<button class="btn btn-sm btn-full" style="margin-top:14px;background:#25D36622;color:#25D366;" onclick="adminContactWhatsapp('${a.telephone}','${a.prenom || ''}')">
       <i class="fa-brands fa-whatsapp"></i> Contacter via WhatsApp
     </button>` : ''}`;

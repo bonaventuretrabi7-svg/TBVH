@@ -418,6 +418,8 @@ CREATE TABLE IF NOT EXISTS partner_applications (
   cabine_nom        VARCHAR(190) NULL,
   mot_de_passe_hash VARCHAR(255) NOT NULL,
   photo             LONGTEXT     NULL,
+  piece_recto       LONGTEXT     NULL,
+  piece_verso       LONGTEXT     NULL,
   code_qr           LONGTEXT     NULL,
   motivation        TEXT         NULL,
   abonnement        VARCHAR(32)  NULL,

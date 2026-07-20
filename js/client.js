@@ -2830,9 +2830,14 @@ function prgSubmit() {
   btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Envoi…';
 
   const photoFile = document.getElementById('prg-file-photo').files[0];
+  const rectoFile = document.getElementById('prg-file-recto').files[0];
+  const versoFile = document.getElementById('prg-file-verso').files[0];
   const qrFile    = document.getElementById('prg-file-qr')?.files[0];
 
-  Promise.all([prgReadFileAsDataUrl(photoFile), prgReadFileAsDataUrl(qrFile)]).then(async ([photoDataUrl, qrDataUrl]) => {
+  Promise.all([
+    prgReadFileAsDataUrl(photoFile), prgReadFileAsDataUrl(rectoFile),
+    prgReadFileAsDataUrl(versoFile), prgReadFileAsDataUrl(qrFile),
+  ]).then(async ([photoDataUrl, rectoDataUrl, versoDataUrl, qrDataUrl]) => {
     const res = await DB.partnerApplications.create({
       prenom     : document.getElementById('prg-prenom').value.trim(),
       nom        : document.getElementById('prg-nom').value.trim(),
@@ -2840,10 +2845,14 @@ function prgSubmit() {
       telephone  : document.getElementById('prg-tel').value.replace(/\s/g,''),
       whatsapp   : document.getElementById('prg-wa').value.replace(/\s/g,''),
       cabine_nom : document.getElementById('prg-cabine-nom')?.value.trim() || '',
-      // Photo d'identité et code QR — images réelles (data URL), utilisées
-      // notamment pour l'affichage dans l'espace cabine une fois le compte créé.
-      photo       : photoDataUrl,
-      code_qr     : qrDataUrl,
+      // Photo d'identité, pièce d'identité (recto/verso) et code QR —
+      // images réelles (data URL). La pièce recto/verso était jusqu'ici
+      // exigée par prgValidate() mais jamais lue ni envoyée : l'admin ne
+      // pouvait donc jamais la consulter, corrigé ici.
+      photo        : photoDataUrl,
+      piece_recto  : rectoDataUrl,
+      piece_verso  : versoDataUrl,
+      code_qr      : qrDataUrl,
       pin         : [...document.querySelectorAll('#prg-pin-row .adm-pin-box')].map(b => b.value).join(''),
       motivation  : document.getElementById('prg-motivation').value.trim(),
       abonnement  : document.querySelector('.prg-abo2--sel')?.dataset.abo || '',
