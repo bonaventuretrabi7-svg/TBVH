@@ -119,11 +119,11 @@ const Auth = (() => {
   // qu'au moment de la bascule elle-même — une session déjà admin/cabine
   // qui se reconnecte à un autre compte du même type ne touche pas à une
   // sauvegarde déjà en place.
-  function _backupClientSessionIfSwitching(user) {
+  function _backupClientSessionIfSwitching(user, priorToken) {
     if (user.role === 'admin' || user.role === 'cabine') {
       const previous = get();
       if (previous && previous.role === 'client') {
-        sessionStorage.setItem(CLIENT_BACKUP_KEY, JSON.stringify(previous));
+        sessionStorage.setItem(CLIENT_BACKUP_KEY, JSON.stringify({ user: previous, token: priorToken || null }));
       }
     }
   }
@@ -184,6 +184,12 @@ const Auth = (() => {
     if (!expectedRole) return { ok: false, error: 'Rôle de connexion manquant.' };
     if (!ServerAPI.isConfigured) return { ok: false, error: 'Connexion Internet requise pour vous connecter.' };
 
+    // Capturé AVANT ServerAPI.login() : celui-ci écrase immédiatement le
+    // jeton serveur avec celui du nouveau compte (voir _setToken() dans
+    // server-api.js), donc c'est le SEUL moment où le jeton client encore
+    // actif est récupérable pour la sauvegarde ci-dessous.
+    const priorToken = ServerAPI.getToken();
+
     const res = await ServerAPI.login(identifier, password, expectedRole);
     if (res.networkError) return { ok: false, error: 'Connexion Internet requise pour vous connecter.' };
     if (!res.ok) return { ok: false, error: res.error || 'Identifiant ou PIN incorrect.' };
@@ -199,7 +205,7 @@ const Auth = (() => {
     if (!gates.ok) return gates;
     user = gates.user;
 
-    _backupClientSessionIfSwitching(user);
+    _backupClientSessionIfSwitching(user, priorToken);
     save(user);
 
     const bookkeeping = await _applyDeviceBookkeeping(user, remember);
@@ -239,6 +245,7 @@ const Auth = (() => {
      invalide/expiré, à oublier" pour l'appelant. */
   async function resumeSession(token) {
     if (!ServerAPI.isConfigured) return { ok: false, networkError: true, error: 'Connexion Internet requise.' };
+    const priorToken = ServerAPI.getToken();
     ServerAPI.setToken(token);
     const res = await ServerAPI.whoami();
     if (res.networkError) return { ok: false, networkError: true, error: res.error };
@@ -248,7 +255,7 @@ const Auth = (() => {
     const gates = await _checkAccountGates(user);
     if (!gates.ok) return gates;
 
-    _backupClientSessionIfSwitching(gates.user);
+    _backupClientSessionIfSwitching(gates.user, priorToken);
     save(gates.user);
     return { ok: true, user: gates.user };
   }
@@ -385,9 +392,15 @@ const Auth = (() => {
     const raw = sessionStorage.getItem(CLIENT_BACKUP_KEY);
     if (!raw) return null;
     sessionStorage.removeItem(CLIENT_BACKUP_KEY);
-    const user = JSON.parse(raw);
-    save(user);
-    return user;
+    const backup = JSON.parse(raw);
+    // Sans quoi le jeton serveur reste celui du compte admin/cabine quitté
+    // (voir _backupClientSessionIfSwitching ci-dessus) : l'espace client
+    // s'affiche normalement (données locales déjà en cache) mais toute
+    // action authentifiée échoue en "Accès refusé pour ce rôle." — bug
+    // remonté par l'utilisateur sur la confirmation de commande automatique.
+    ServerAPI.setToken(backup.token || null);
+    save(backup.user);
+    return backup.user;
   }
 
   function current() { return get(); }
