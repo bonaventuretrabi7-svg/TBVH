@@ -858,6 +858,11 @@
         <i class="fa-solid fa-clock"></i>
         <span class="nav-label">Commande automatique</span>
       </div>
+      <div class="nav-item" data-view="rem-reta-admin" onclick="loadRemRetaAdmin()">
+        <i class="fa-solid fa-hand-holding-dollar"></i>
+        <span class="nav-label">REM-RETA</span>
+        <span class="nav-badge" id="rem-reta-badge" style="display:none">0</span>
+      </div>
       <div class="nav-item" data-view="partner-requests" onclick="loadPartnerRequests()">
         <i class="fa-solid fa-handshake"></i>
         <span class="nav-label">Demandes de partenariat</span>
@@ -1607,6 +1612,32 @@
               </tbody>
             </table>
           </div>
+        </div>
+      </div>
+
+      <!-- ── REM-RETA ─────────────────────────────────────────────────
+           Commandes refusées ("Ramener") par ORDER_REM_RETA_REFUS_SEUIL
+           cabines différentes (3, voir api/orders_common.php) — au-delà,
+           orders_refuse.php arrête de les réattribuer automatiquement,
+           elles échouent sinon indéfiniment entre cabines. Chaque carte
+           montre le numéro du client, l'heure de création, et l'historique
+           complet des refus (cabine + motif) — voir api/orders_rem_reta_list.php
+           et loadRemRetaAdmin() (js/admin.js). Le bouton Rembourser réutilise
+           refundTxn() déjà existant (même remboursement que partout ailleurs). -->
+      <div class="view" data-view="rem-reta-admin">
+        <div class="page-header">
+          <div class="breadcrumb">Admin › <span>REM-RETA</span></div>
+          <h2>REM-RETA</h2>
+          <p>Commandes refusées par plusieurs cabines différentes, plus jamais réattribuées automatiquement — à traiter manuellement (remboursement client).</p>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title"><i class="fa-solid fa-hand-holding-dollar" style="color:#EF4444"></i> Commandes en attente de décision</span>
+            <button class="btn btn-ghost btn-sm" onclick="adminRefreshClick(this, () => loadRemRetaAdmin())">
+              <i class="fa-solid fa-rotate-right"></i> Actualiser
+            </button>
+          </div>
+          <div id="rem-reta-list" style="padding:16px;"></div>
         </div>
       </div>
 

@@ -58,6 +58,7 @@ function _adminViewLoader(name) {
     'exchange-admin':        loadExchangeAdmin,
     'retards-admin':         loadRetardsAdmin,
     'commande-auto-admin':   loadCommandeAutoAdmin,
+    'rem-reta-admin':        loadRemRetaAdmin,
     'retraits-historique':   () => loadRetraitsHistorique(1),
     transactions:            loadTransactions,
     'commissions-admin':     loadCommissionsAdmin,
@@ -1658,6 +1659,72 @@ function searchRetardsAdmin() {
 }
 
 /* ================================================================
+   REM-RETA — commandes refusées ("Ramener") par plusieurs cabines
+   différentes (voir ORDER_REM_RETA_REFUS_SEUIL, api/orders_common.php),
+   plus jamais réattribuées automatiquement au-delà de ce seuil (voir
+   api/orders_refuse.php) — nécessitent une décision manuelle de
+   l'administration (remboursement du client, voir refundTxn() ci-dessus,
+   déjà existant et réutilisé tel quel).
+================================================================ */
+const REM_RETA_MOTIF_LABELS = {
+  numero_invalide:  'Numéro invalide',
+  solde_invalide:   'Solde invalide',
+  probleme_reseau:  'Problème de réseau',
+  autre:            'Autre',
+};
+
+async function loadRemRetaAdmin() {
+  const container = document.getElementById('rem-reta-list');
+  if (!container) return;
+  container.innerHTML = `<div class="empty-state" style="padding:24px"><div class="empty-title">Chargement…</div></div>`;
+
+  const res = await ServerAPI.ordersRemRetaList();
+  const badge = document.getElementById('rem-reta-badge');
+  if (!res.ok) {
+    container.innerHTML = `<div class="empty-state" style="padding:24px"><div class="empty-title">Échec du chargement</div></div>`;
+    return;
+  }
+  const commandes = res.commandes || [];
+  if (badge) { badge.textContent = commandes.length; badge.style.display = commandes.length ? 'flex' : 'none'; }
+
+  if (!commandes.length) {
+    container.innerHTML = `<div class="empty-state" style="padding:24px"><div class="empty-title">Aucune commande en attente de décision</div><div class="empty-sub">Les commandes refusées par 3 cabines différentes apparaîtront ici.</div></div>`;
+    return;
+  }
+
+  container.innerHTML = commandes.map(c => `
+    <div class="card" style="margin-bottom:14px; border:1px solid var(--gray-200);">
+      <div class="card-header" style="border-bottom:1px solid var(--gray-200);">
+        <span class="card-title">
+          <i class="fa-solid fa-phone" style="color:var(--primary)"></i> ${c.client_telephone ? Fmt.phone(c.client_telephone) : 'Client inconnu'}${c.client_nom ? ' — ' + c.client_nom : ''}
+        </span>
+        <span style="font-size:.72rem;color:var(--gray-500);">Créée le ${Fmt.datetime(c.date)}</span>
+      </div>
+      <div class="card-body" style="padding:14px 16px;">
+        <div style="display:flex;gap:18px;margin-bottom:12px;font-size:.82rem;flex-wrap:wrap;">
+          <div><strong>${Fmt.money(c.montant)}</strong></div>
+          ${c.operateur ? `<div>${Fmt.operator(c.operateur)}</div>` : ''}
+          ${c.service ? `<div>${c.service}</div>` : ''}
+        </div>
+        <div style="font-size:.68rem;font-weight:800;color:var(--gray-500);text-transform:uppercase;letter-spacing:.03em;margin-bottom:8px;">
+          Refusée par ${c.refus_count} cabine${c.refus_count > 1 ? 's' : ''} différente${c.refus_count > 1 ? 's' : ''}
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:14px;">
+          ${c.refus.map(r => `
+            <div style="display:flex;justify-content:space-between;gap:10px;padding:8px 10px;background:var(--gray-50);border-radius:8px;font-size:.76rem;">
+              <span><strong>${r.cabine}</strong></span>
+              <span style="color:var(--gray-500);text-align:right;">${REM_RETA_MOTIF_LABELS[r.motif] || r.motif || 'Motif non précisé'}${r.justification ? ' — ' + r.justification : ''}</span>
+            </div>`).join('')}
+        </div>
+        <button class="btn btn-danger btn-sm" onclick="refundTxn('${c.id}')">
+          <i class="fa-solid fa-money-bill-wave"></i> Rembourser le client
+        </button>
+      </div>
+    </div>
+  `).join('');
+}
+
+/* ================================================================
    COMMANDE AUTOMATIQUE (admin) — création (super admin, sans paiement)
    + suivi de toutes les commandes programmées (client ou admin)
    ================================================================
@@ -2001,6 +2068,7 @@ async function refundTxn(txnId) {
   loadClients();
   loadCabines();
   loadDashboard();
+  loadRemRetaAdmin();
 }
 
 /* ── Demandes de remboursement (soumises par une cabine suite à une
@@ -2771,6 +2839,7 @@ const ADMIN_PERMISSIONS = [
   { key: 'exchange-admin',       label: 'Exchange' },
   { key: 'retards-admin',        label: 'Commandes en retard' },
   { key: 'commande-auto-admin',  label: 'Commande automatique' },
+  { key: 'rem-reta-admin',       label: 'REM-RETA' },
   { key: 'transactions',         label: 'Transactions' },
   { key: 'commissions-admin',    label: 'Commissions' },
   { key: 'maintenance-admin',    label: 'Maintenance' },

@@ -488,6 +488,16 @@ const ServerAPI = (() => {
     return { ok: true, reassignedTo: data.reassignedTo };
   }
 
+  // Onglet admin "REM-RETA" — commandes refusées par plusieurs cabines
+  // (voir ORDER_REM_RETA_REFUS_SEUIL, api/orders_common.php) qui ne sont
+  // plus réattribuées automatiquement et attendent une décision de
+  // remboursement (voir api/orders_rem_reta_list.php).
+  async function ordersRemRetaList() {
+    const { res, data } = await _call('orders_rem_reta_list.php', { auth: true });
+    if (!res.ok || !data || data.error) return { ok: false, error: (data && data.error) || 'Échec de la synchronisation.' };
+    return { ok: true, commandes: data.commandes };
+  }
+
   async function ordersList() {
     const { res, data } = await _call('orders_list.php', { auth: true });
     if (!res.ok || !data || data.error) return { ok: false, error: (data && data.error) || 'Échec de la synchronisation.' };
@@ -883,7 +893,7 @@ const ServerAPI = (() => {
     isConfigured, getToken, setToken, whoami, favorisList, favorisCreate, favorisRemove,
     accessLogsList, accessLogsCreate, permissionLogsList, permissionLogsCreate, pushRegisterToken,
     maintenanceLogsList, maintenanceLogsCreate, presencePing, presenceOnline, networksStatus,
-    ordersCreate, ordersCreateAdvanced, cadeauClaim, updateProfilePhoto, ordersAccept, ordersRefuse, ordersAssignPending, ordersReassign,
+    ordersCreate, ordersCreateAdvanced, cadeauClaim, updateProfilePhoto, ordersAccept, ordersRefuse, ordersRemRetaList, ordersAssignPending, ordersReassign,
     ordersSweep, ordersSweepUnsuspend, ordersSweepQuota, ordersList, retardsList,
     ordersScheduleCreate, ordersScheduleCreateAdmin, ordersScheduleList, ordersSweepScheduled,
     ordersRecharge, ordersRefund, ordersSuspend, ordersReactivate, ordersDelete, cabineSuspendManual,

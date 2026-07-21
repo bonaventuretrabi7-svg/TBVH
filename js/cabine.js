@@ -1244,14 +1244,6 @@ function renderCabOrders(txns) {
       <!-- Boutons action (commandes en cours uniquement) -->
       ${isPend ? `
       <div class="cov-actions">
-        <div class="cov-actions-row">
-          <button class="cov-btn cov-btn--hold" onclick="holdRequest('${t.id}')" ${t.hold_used ? 'disabled' : ''}>
-            <i class="fa-solid ${t.hold_used ? 'fa-lock-open' : 'fa-lock'}"></i> ${t.hold_used ? 'Déjà utilisé' : 'Conserver 5min'}
-          </button>
-          <button class="cov-btn cov-btn--refuse" onclick="refuseRequest('${t.id}')">
-            <i class="fa-solid fa-circle-xmark"></i> Ramener
-          </button>
-        </div>
         ${t.type === 'facture' ? `
         <div class="factp-wrap" id="factp-wrap-${t.id}">
           <input type="file" id="factp-file-${t.id}" class="factp-file-input" onchange="handleFactureProofSelect('${t.id}', this)">
@@ -1266,6 +1258,14 @@ function renderCabOrders(txns) {
         <button class="cov-btn cov-btn--done" onclick="acceptRequest('${t.id}')">
           <i class="fa-solid fa-check"></i> Terminer
         </button>`}
+        <div class="cov-actions-row">
+          <button class="cov-btn cov-btn--hold" onclick="holdRequest('${t.id}')" ${t.hold_used ? 'disabled' : ''}>
+            <i class="fa-solid ${t.hold_used ? 'fa-lock-open' : 'fa-lock'}"></i> ${t.hold_used ? 'Déjà utilisé' : 'Conserver 5min'}
+          </button>
+          <button class="cov-btn cov-btn--refuse" onclick="refuseRequest('${t.id}')">
+            <i class="fa-solid fa-circle-xmark"></i> Ramener
+          </button>
+        </div>
       </div>` : ''}
 
     </div>`;

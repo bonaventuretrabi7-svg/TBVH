@@ -225,6 +225,23 @@ CREATE TABLE IF NOT EXISTS cabine_refusals (
   KEY idx_refusals_cabine (cabine_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- ── Historique des refus manuels PAR COMMANDE, avec motif (distinct de
+--    cabine_refusals ci-dessus, qui ne sert qu'à la fenêtre glissante
+--    "5 renvois en 2 min" et ne garde ni transaction_id ni motif) — sert à
+--    compter les refus d'une même commande (voir orders_refuse.php : au 3e
+--    refus, plus de réattribution automatique) et à afficher l'historique
+--    complet dans l'onglet admin "REM-RETA" (api/orders_rem_reta_list.php).
+CREATE TABLE IF NOT EXISTS commande_refus (
+  id             CHAR(36)     NOT NULL PRIMARY KEY,
+  transaction_id CHAR(36)     NOT NULL,
+  cabine_id      CHAR(36)     NOT NULL,
+  motif          VARCHAR(64)  NULL,
+  justification  TEXT         NULL,
+  date           DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_transaction (transaction_id),
+  KEY idx_cabine (cabine_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- ── Transferts cabine-à-cabine ───────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS transferts_cabine (
   id             CHAR(36)  NOT NULL PRIMARY KEY,
