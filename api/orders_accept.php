@@ -70,7 +70,14 @@ try {
   throw $e;
 }
 
-createNotification($txn['client_id'], 'Votre transfert de ' . number_format((float)$txn['montant'], 0, ',', ' ') . ' F (' . $txn['operateur'] . ' ' . $txn['numero_beneficiaire'] . ') est terminé !', 'success');
+// Libellé adapté au type — "transfert" ne veut rien dire pour une
+// Facture/Recharge UV/Exchange (voir orders_create_advanced.php) : ces
+// commandes utilisent `service` au lieu de operateur+numero_beneficiaire.
+$isAdvanced = in_array($txn['type'] ?? '', ['facture', 'recharge_uv', 'exchange'], true);
+$clientMsg = $isAdvanced
+  ? 'Votre demande de ' . number_format((float)$txn['montant'], 0, ',', ' ') . ' F (' . $txn['service'] . ') est terminée !'
+  : 'Votre transfert de ' . number_format((float)$txn['montant'], 0, ',', ' ') . ' F (' . $txn['operateur'] . ' ' . $txn['numero_beneficiaire'] . ') est terminé !';
+createNotification($txn['client_id'], $clientMsg, 'success');
 createNotification($me['id'], 'Commission de ' . number_format((float)$commission, 0, ',', ' ') . ' F enregistrée.', 'commission');
 if ($quotaReached) {
   createNotification($me['id'], 'Quota de commission du forfait ' . $plan . ' atteint (' . number_format((float)$quota, 0, ',', ' ') . ' F). Votre abonnement a pris fin.', 'warning');

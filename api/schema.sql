@@ -179,6 +179,7 @@ CREATE TABLE IF NOT EXISTS transactions (
   date_remboursement            DATETIME     NULL,
   preuve_paiement                LONGTEXT     NULL,
   retard_logged_cabine_id        CHAR(36)     NULL,
+  alerte_envoyee                 TINYINT(1)   NOT NULL DEFAULT 0,
   dernier_renvoi_motif           VARCHAR(64)  NULL,
   dernier_renvoi_justification   TEXT         NULL,
   dernier_renvoi_date            DATETIME     NULL,

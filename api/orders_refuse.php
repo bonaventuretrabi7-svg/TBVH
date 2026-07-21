@@ -52,7 +52,7 @@ if ((int)$countStmt->fetchColumn() >= 5) {
 $target = findReassignmentTarget($pdo, $me['id'], $txn['operateur'], $txn['type']);
 $reassignedTo = null;
 if ($target) {
-  $claim = $pdo->prepare("UPDATE transactions SET cabine_id = ?, date_assignation = NOW() WHERE id = ? AND cabine_id IS NULL AND statut = 'en_attente'");
+  $claim = $pdo->prepare("UPDATE transactions SET cabine_id = ?, date_assignation = NOW(), alerte_envoyee = 0 WHERE id = ? AND cabine_id IS NULL AND statut = 'en_attente'");
   $claim->execute([$target['id'], $txnId]);
   if ($claim->rowCount() > 0) {
     $reassignedTo = $target['id'];

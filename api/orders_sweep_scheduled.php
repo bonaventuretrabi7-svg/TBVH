@@ -30,6 +30,12 @@ foreach ($due as $cp) {
   $cab = $result['cabine'];
   if ($cp['client_id']) {
     createNotification($cp['client_id'], 'Votre commande programmée (' . $cp['operateur'] . ' ' . number_format((float)$cp['montant'], 0, ',', ' ') . ' F) vient de démarrer.', 'info');
+
+    $nameStmt = $pdo->prepare('SELECT nom, prenom FROM profiles WHERE id = ?');
+    $nameStmt->execute([$cp['client_id']]);
+    $clientRow  = $nameStmt->fetch();
+    $clientName = $clientRow ? trim($clientRow['prenom'] . ' ' . $clientRow['nom']) : 'Un client';
+    notifyAllCabines('Le client ' . $clientName . ' a passé une commande ' . $cp['operateur'] . ' de ' . number_format((float)$cp['montant'], 0, ',', ' ') . ' F.', 'new_request');
   }
   if ($cab) {
     createNotification($cab['id'], 'Nouvelle demande de transfert ' . $cp['operateur'] . ' ' . number_format((float)$cp['montant'], 0, ',', ' ') . ' F.', 'new_request');

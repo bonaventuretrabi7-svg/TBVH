@@ -163,3 +163,15 @@ function createNotification(string $userId, string $message, string $type = 'inf
       ->execute([uuid4(), $userId, $message, $type]);
   sendPushToProfile($userId, 'KBINE PLUS', $message);
 }
+
+// Diffusion à TOUTES les cabines (recharge/transfert/cadeau client, commande
+// passée) — demande explicite du client de l'app : chaque cabine doit être
+// notifiée de l'activité de N'IMPORTE QUEL client, pas seulement de celle
+// qui la concerne directement. Best-effort comme createNotification()
+// elle-même, appelée une fois par cabine.
+function notifyAllCabines(string $message, string $type = 'info'): void {
+  $stmt = db()->query("SELECT id FROM profiles WHERE role = 'cabine'");
+  foreach ($stmt->fetchAll() as $row) {
+    createNotification($row['id'], $message, $type);
+  }
+}

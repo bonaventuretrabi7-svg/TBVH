@@ -8,10 +8,15 @@ require __DIR__ . '/bootstrap.php';
 // côté appareil et restait donc invisible de l'administration (voir
 // loadTransactions()/loadRechargeUvAdmin()/loadExchangeAdmin(), js/admin.js,
 // déjà filtrés sur `type` mais jamais alimentés côté serveur pour ces 3
-// types). Version minimale : pas de circuit d'acceptation cabiniste, la
-// commande reste 'en_attente' comme aujourd'hui — `cabine_id` toujours
-// NULL (profiles n'a pas de colonne cabine_id, le me.cabine_id lu
-// localement n'a donc jamais de valeur réelle serveur).
+// types). Assignation à une cabine éligible dès la création (même
+// pickInitialCabine() qu'api/orders_create.php, déjà prêt pour ce cas via
+// cabineAcceptsService()) — sans quoi la commande restait "en_attente"
+// pour toujours : aucune cabine ne pouvait la voir ni la marquer
+// "terminé", donc le client ne recevait jamais la notification de fin
+// (bug remonté : "le client ne reçoit pas de notification" sur une
+// Recharge UV). js/cabine.js sait déjà afficher/terminer ces types
+// (acceptRequest()/submitFactureProofAndComplete()) une fois assignés.
+require __DIR__ . '/orders_common.php';
 $me = requireAuth(['client']);
 
 $in        = body();
@@ -46,6 +51,16 @@ try {
       VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, \'en_attente\', ?, ?, NOW())')
       ->execute([$txnId, $me['id'], $type, $service, $operateur, $numero, $montant, $FRAIS_SERVICE_AVANCE, $details, $notes]);
 
+  // Attribution initiale — voir pickInitialCabine() (orders_common.php),
+  // même contrat qu'api/orders_create.php : aucune exigence de présence en
+  // ligne, sélection aléatoire parmi les cabines éligibles ayant activé ce
+  // service (cabineAcceptsService()).
+  $cab = pickInitialCabine($pdo, null, $type);
+  if ($cab) {
+    $pdo->prepare("UPDATE transactions SET cabine_id = ?, date_assignation = NOW() WHERE id = ? AND cabine_id IS NULL AND statut = 'en_attente'")
+        ->execute([$cab['id'], $txnId]);
+  }
+
   $pdo->commit();
 } catch (Throwable $e) {
   if ($pdo->inTransaction()) $pdo->rollBack();
@@ -53,6 +68,11 @@ try {
 }
 
 createNotification($me['id'], 'Votre demande de ' . number_format((float)$montant, 0, ',', ' ') . ' F (' . $service . ') est en attente de traitement.', 'info');
+if ($cab) {
+  createNotification($cab['id'], 'Nouvelle demande de ' . $service . ' — ' . number_format((float)$montant, 0, ',', ' ') . ' F.', 'new_request');
+}
+$clientName = trim($me['prenom'] . ' ' . $me['nom']);
+notifyAllCabines('Le client ' . $clientName . ' a passé une commande ' . $service . ' de ' . number_format((float)$montant, 0, ',', ' ') . ' F.', 'new_request');
 
 $txnStmt = $pdo->prepare('SELECT * FROM transactions WHERE id = ?');
 $txnStmt->execute([$txnId]);

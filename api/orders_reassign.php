@@ -47,7 +47,7 @@ foreach ($ids as $txnId) {
   }
 
   $oldCabineId = $txn['cabine_id'];
-  $upd = $pdo->prepare("UPDATE transactions SET cabine_id = ?, date_assignation = NOW() WHERE id = ? AND statut = 'en_attente'");
+  $upd = $pdo->prepare("UPDATE transactions SET cabine_id = ?, date_assignation = NOW(), alerte_envoyee = 0 WHERE id = ? AND statut = 'en_attente'");
   $upd->execute([$newCabineId, $txnId]);
   if ($upd->rowCount() === 0) {
     $results[] = ['id' => $txnId, 'ok' => false, 'error' => 'Commande introuvable ou déjà traitée.'];

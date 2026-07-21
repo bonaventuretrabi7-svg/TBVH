@@ -52,6 +52,8 @@ try {
 }
 
 createNotification($me['id'], 'Félicitations ! ' . number_format((float)$CADEAU_MONTANT, 0, ',', ' ') . ' F ont été crédités sur votre solde (récompense 100 commandes).', 'success');
+$clientName = trim($me['prenom'] . ' ' . $me['nom']);
+notifyAllCabines('Le client ' . $clientName . ' a reçu un cadeau de ' . number_format((float)$CADEAU_MONTANT, 0, ',', ' ') . ' F (récompense 100 commandes).', 'success');
 
 $txnStmt = $pdo->prepare('SELECT * FROM transactions WHERE id = ?');
 $txnStmt->execute([$txnId]);

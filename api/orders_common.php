@@ -12,6 +12,7 @@ const ORDER_SUBSCRIPTION_QUOTAS = ['Premium' => 25000, 'VIP' => 50000, 'VVIP' =>
 const ORDER_SUBSCRIPTION_PRICES = ['Premium' => 10000, 'VIP' => 20000, 'VVIP' => 50000];
 const ORDER_STALE_PRESENCE_SECONDS = 25; // même valeur que DB.presence.STALE_MS (js/db.js)
 const ORDER_RETARD_SECONDS = 180;        // même valeur que DB.RETARD_MS (js/db.js, 3 min)
+const ORDER_WARNING_LEAD_SECONDS = 60;   // alerte la cabine 60s avant ORDER_RETARD_SECONDS (voir orders_sweep.php)
 
 function pendingCountForCabine(PDO $pdo, string $cabineId): int {
   $stmt = $pdo->prepare("SELECT COUNT(*) FROM transactions WHERE cabine_id = ? AND statut = 'en_attente'");

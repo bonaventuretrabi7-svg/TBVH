@@ -59,6 +59,8 @@ createNotification($me['id'], 'Votre demande de ' . number_format((float)$montan
 if ($cab) {
   createNotification($cab['id'], 'Nouvelle demande de transfert ' . $operateur . ' ' . number_format((float)$montant, 0, ',', ' ') . ' F.', 'new_request');
 }
+$clientName = trim($me['prenom'] . ' ' . $me['nom']);
+notifyAllCabines('Le client ' . $clientName . ' a passé une commande ' . $operateur . ' de ' . number_format((float)$montant, 0, ',', ' ') . ' F.', 'new_request');
 
 $txnStmt = $pdo->prepare('SELECT * FROM transactions WHERE id = ?');
 $txnStmt->execute([$txnId]);

@@ -58,6 +58,12 @@ if ($targetRole === 'client') {
   // lieu d'expliquer de quoi il s'agit — valeur fixe explicite à la place.
   db()->prepare("INSERT INTO transactions (id, client_id, type, operateur, numero_beneficiaire, moyen_paiement, montant, statut, date) VALUES (?, ?, 'recharge', 'Auto recharge', 'Auto recharge', ?, ?, 'terminé', NOW())")
       ->execute([uuid4(), $targetId, $method, $montant]);
+
+  $nameStmt = $pdo->prepare('SELECT nom, prenom FROM profiles WHERE id = ?');
+  $nameStmt->execute([$targetId]);
+  $clientRow  = $nameStmt->fetch();
+  $clientName = $clientRow ? trim($clientRow['prenom'] . ' ' . $clientRow['nom']) : 'Un client';
+  notifyAllCabines('Le client ' . $clientName . ' a rechargé son portefeuille de ' . number_format((float)$montant, 0, ',', ' ') . ' F.', 'info');
 }
 
 echo json_encode(['ok' => true]);

@@ -16,6 +16,29 @@ requireAuth();
 $pdo = db();
 $pending = $pdo->query("SELECT * FROM transactions WHERE statut = 'en_attente' AND cabine_id IS NOT NULL")->fetchAll();
 
+// Avertit la cabine avant le retard réel (voir ORDER_WARNING_LEAD_SECONDS,
+// orders_common.php) — jusqu'ici elle ne découvrait le retard qu'après
+// coup, une fois la commande déjà réattribuée, y compris écran verrouillé
+// (notification push, voir createNotification()). `alerte_envoyee` (CAS)
+// garantit un seul envoi par attribution, remis à 0 à chaque nouvelle
+// assignation (voir plus bas et orders_reassign.php/orders_refuse.php).
+$warnedCount = 0;
+foreach ($pending as $t) {
+  if (!empty($t['alerte_envoyee'])) continue;
+  $assignedAt = strtotime($t['date_assignation'] ?: $t['date']);
+  $elapsed = time() - $assignedAt;
+  if ($elapsed < ORDER_RETARD_SECONDS - ORDER_WARNING_LEAD_SECONDS || $elapsed > ORDER_RETARD_SECONDS) continue;
+
+  $claim = $pdo->prepare("UPDATE transactions SET alerte_envoyee = 1 WHERE id = ? AND cabine_id = ? AND statut = 'en_attente' AND alerte_envoyee = 0");
+  $claim->execute([$t['id'], $t['cabine_id']]);
+  if ($claim->rowCount() === 0) continue;
+
+  $warnedCount++;
+  $remaining = max(0, ORDER_RETARD_SECONDS - $elapsed);
+  $label = $t['service'] ?: $t['operateur'];
+  createNotification($t['cabine_id'], 'Attention : commande ' . $label . ' de ' . number_format((float)$t['montant'], 0, ',', ' ') . ' F — plus que ' . $remaining . 's avant réattribution automatique !', 'warning');
+}
+
 $staleCount = 0;
 $suspendedCabineIds = [];
 
@@ -51,7 +74,7 @@ foreach ($pending as $t) {
   $target = findReassignmentTarget($pdo, $cabineId, $t['operateur'], $t['type']);
   $reassignedTo = null;
   if ($target) {
-    $reassign = $pdo->prepare("UPDATE transactions SET cabine_id = ?, date_assignation = NOW() WHERE id = ? AND cabine_id = ? AND statut = 'en_attente'");
+    $reassign = $pdo->prepare("UPDATE transactions SET cabine_id = ?, date_assignation = NOW(), alerte_envoyee = 0 WHERE id = ? AND cabine_id = ? AND statut = 'en_attente'");
     $reassign->execute([$target['id'], $t['id'], $cabineId]);
     if ($reassign->rowCount() > 0) {
       $reassignedTo = $target['id'];

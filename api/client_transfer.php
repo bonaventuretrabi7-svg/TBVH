@@ -53,6 +53,8 @@ try {
 }
 
 $fromName = trim($me['prenom'] . ' ' . $me['nom']);
+$toName   = trim($to['prenom'] . ' ' . $to['nom']);
 createNotification($to['id'], 'Vous avez reçu ' . number_format((float)$montant, 0, ',', ' ') . ' F de la part de ' . $fromName . '.', 'transfer');
+notifyAllCabines($fromName . ' a transféré ' . number_format((float)$montant, 0, ',', ' ') . ' F à ' . $toName . '.', 'transfer');
 
 echo json_encode(['ok' => true, 'recipient' => ['id' => $to['id'], 'prenom' => $to['prenom'], 'nom' => $to['nom']]]);
