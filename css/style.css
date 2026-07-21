@@ -6325,7 +6325,7 @@ body.dark .pf-kpi-val { color: var(--dark-text); }
 }
 .ag-input::placeholder { color: rgba(0,0,0,.35); font-weight: 400; letter-spacing: 0; }
 #ag-reg-surnom { text-align: center; padding-left: 12px; }
-#ag-reg-tel { text-align: center; padding-left: 12px; }
+#ag-reg-tel { text-align: left; }
 
 /* Cases PIN */
 .pin-row {
