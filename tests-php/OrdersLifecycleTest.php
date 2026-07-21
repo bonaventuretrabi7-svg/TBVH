@@ -175,4 +175,24 @@ final class OrdersLifecycleTest extends ApiTestCase
         $updatedTarget = Fixtures::fetchTransaction($target['id']);
         $this->assertNull($updatedTarget['cabine_id'], 'la limite de commandes doit bloquer la réassignation');
     }
+
+    public function testAdminReassignRefusesCabineWithNetworkDisabled(): void
+    {
+        $client = Fixtures::createProfile('client');
+        $cabineNoOrange = Fixtures::createProfile('cabine', ['reseaux_actifs' => json_encode(['orange' => false, 'moov' => true, 'mtn' => true])]);
+        $target = Fixtures::createTransaction(['client_id' => $client['profile']['id'], 'cabine_id' => null, 'operateur' => 'Orange']);
+        $admin = Fixtures::createProfile('admin');
+
+        $res = ApiClient::post('/orders_reassign.php', [
+            'transaction_ids' => [$target['id']],
+            'cabine_id' => $cabineNoOrange['profile']['id'],
+        ], $admin['token']);
+
+        $this->assertTrue($res->ok());
+        $this->assertSame(0, $res->json['okCount']);
+        $this->assertSame(1, $res->json['failCount']);
+
+        $updatedTarget = Fixtures::fetchTransaction($target['id']);
+        $this->assertNull($updatedTarget['cabine_id'], 'une cabine ayant désactivé le réseau de la commande ne doit jamais pouvoir la recevoir');
+    }
 }

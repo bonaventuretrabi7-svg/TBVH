@@ -46,6 +46,16 @@ foreach ($ids as $txnId) {
     continue;
   }
 
+  // Une cabine qui a désactivé le réseau de la commande (Orange/MTN/Moov)
+  // ne doit jamais la recevoir, même via une réassignation manuelle par
+  // l'administration — déjà appliqué pour l'attribution initiale
+  // (pickInitialCabine()) et la réassignation automatique
+  // (findReassignmentTarget()), manquait ici.
+  if (!cabineAcceptsNetwork($newCab, $txn['operateur'])) {
+    $results[] = ['id' => $txnId, 'ok' => false, 'error' => 'Cette cabine n\'a pas activé le réseau ' . $txn['operateur'] . '.'];
+    continue;
+  }
+
   $oldCabineId = $txn['cabine_id'];
   $upd = $pdo->prepare("UPDATE transactions SET cabine_id = ?, date_assignation = NOW(), alerte_envoyee = 0 WHERE id = ? AND statut = 'en_attente'");
   $upd->execute([$newCabineId, $txnId]);
