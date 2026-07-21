@@ -26,8 +26,18 @@ jobs:
   sweep:
     runs-on: ubuntu-latest
     steps:
+      # Diagnostic TEMPORAIRE (à retirer une fois le secret confirmé) —
+      # n'affiche jamais la valeur elle-même, seulement sa longueur, pour
+      # vérifier si le secret CRON_SECRET est bien vu par ce workflow.
+      - name: Vérifier que CRON_SECRET est configuré
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          echo "Longueur du secret vu par ce workflow : ${#CRON_SECRET} caractères"
       - name: Déclencher les commandes automatiques arrivées à échéance
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
           curl -sf -X POST 'https://kbineplus.com/api/orders_sweep_scheduled.php' \
-            -H "X-Cron-Secret: ${{ secrets.CRON_SECRET }}" \
+            -H "X-Cron-Secret: $CRON_SECRET" \
             -o /dev/stderr -w '\nHTTP %{http_code}\n'
