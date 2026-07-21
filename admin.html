@@ -2891,8 +2891,12 @@
           </div>
         </div>
 
-        <!-- ── Client : uniquement téléphone + code à 4 chiffres ── -->
+        <!-- ── Client : surnom + téléphone + code à 4 chiffres ── -->
         <div id="create-client-fields" style="display:none">
+          <div class="form-group">
+            <label class="form-label">Surnom *</label>
+            <input type="text" class="form-control" id="new-surnom-client" maxlength="40" placeholder="Ex : LE KING DE BONOA" />
+          </div>
           <div class="form-group">
             <label class="form-label">Code PIN (4 chiffres) *</label>
             <input type="password" class="form-control" id="new-pin-client" maxlength="4" inputmode="numeric" placeholder="••••" />

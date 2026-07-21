@@ -3552,9 +3552,11 @@ function handleCreateUser(e) {
   }
 
   if (role === 'client') {
-    const pin = document.getElementById('new-pin-client').value;
+    const surnom = document.getElementById('new-surnom-client').value.trim();
+    const pin    = document.getElementById('new-pin-client').value;
+    if (!surnom) { Toast.error('Le surnom est obligatoire.'); return; }
     if (!/^\d{4}$/.test(pin)) { Toast.error('Le code PIN doit contenir exactement 4 chiffres.'); return; }
-    finishCreateUser({ prenom: tel, nom: '', telephone: tel, mot_de_passe: pin, role: 'client', solde: 0 });
+    finishCreateUser({ prenom: surnom, nom: '', telephone: tel, mot_de_passe: pin, role: 'client', solde: 0 });
     return;
   }
 

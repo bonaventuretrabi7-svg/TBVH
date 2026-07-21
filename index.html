@@ -26,7 +26,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" />
-  <link rel="stylesheet" href="css/style.css?v=122" />
+  <link rel="stylesheet" href="css/style.css?v=130" />
   <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin />
   <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
@@ -1000,10 +1000,11 @@
       <button class="elc-wall-btn" onclick="openPartnerAuthModal()"><i class="fa-solid fa-right-to-bracket"></i> Se connecter</button>
     </div>
     <div id="cs-depenses-content">
-      <!-- Récap total mois -->
+      <!-- Récap total + bascule Jour/Mois + navigation, tout dans la même
+           carte (voir loadDepenses(), js/client.js) -->
       <div class="dp-recap" id="dp-recap"></div>
-      <!-- Semaines -->
-      <div id="dp-weeks"></div>
+      <!-- Total par service (voir loadDepenses(), js/client.js) -->
+      <div id="dp-services"></div>
     </div>
   </div>
 
@@ -1934,6 +1935,22 @@
     </div>
     <div class="modal-body">
       <div id="pc-notif-list" class="notif-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Détail des transactions d'un service (clic sur une ligne de "Vos
+     dépenses", voir dpShowServiceDetail(), js/client.js) -->
+<div class="modal-overlay" id="modal-dp-service-detail">
+  <div class="modal" style="max-width:420px;">
+    <div class="modal-header">
+      <span class="modal-title" id="dp-detail-title">Service</span>
+      <button class="modal-close" onclick="closeModal('modal-dp-service-detail')"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="dp-week-block" style="margin-bottom:0;">
+        <div class="dp-week-rows" id="dp-detail-list"></div>
+      </div>
     </div>
   </div>
 </div>
@@ -3225,7 +3242,7 @@
   <div class="modal svc-modal" style="max-width:440px;border-radius:20px;">
 
     <div class="svc-modal-header">
-      <div class="svc-modal-title" style="color:#67e8f9;">
+      <div class="svc-modal-title" style="color:#0e7490;">
         <i class="fa-solid fa-bolt-lightning" style="color:#06b6d4;"></i> Recharge UV
       </div>
       <button class="svc-modal-close" onclick="closeModal('modal-uv')"><i class="fa-solid fa-xmark"></i></button>
@@ -3282,8 +3299,8 @@
           <div class="svc-step-head-title">Numéro à recharger</div>
         </div>
         <div class="svc-field">
-          <div style="display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.06);border:1.5px solid rgba(255,255,255,.12);border-radius:10px;padding:0 12px;">
-            <span style="color:rgba(255,255,255,.4);font-size:.8rem;">🇨🇮</span>
+          <div style="display:flex;align-items:center;gap:8px;background:#F8F9FC;border:1.5px solid #E0E4EC;border-radius:10px;padding:0 12px;">
+            <span style="color:rgba(0,0,0,.4);font-size:.8rem;">🇨🇮</span>
             <input type="tel" id="uv-numero" class="svc-input" placeholder="XX XX XX XX XX" maxlength="14"
               inputmode="numeric" oninput="formatPhoneInput(this)"
               style="border:none;background:transparent;padding:11px 0;flex:1;">
@@ -3291,10 +3308,10 @@
         </div>
         <div class="svc-field">
           <label class="svc-label"><i class="fa-solid fa-coins"></i> Montant (FCFA)</label>
-          <div style="display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.06);border:1.5px solid rgba(255,255,255,.12);border-radius:10px;padding:0 12px;">
+          <div style="display:flex;align-items:center;gap:8px;background:#F8F9FC;border:1.5px solid #E0E4EC;border-radius:10px;padding:0 12px;">
             <input type="number" id="uv-montant" class="svc-input" placeholder="Min. 10 000 FCFA" min="10000"
               style="border:none;background:transparent;padding:11px 0;flex:1;">
-            <span style="color:rgba(255,255,255,.4);font-size:.75rem;font-weight:700;">FCFA</span>
+            <span style="color:rgba(0,0,0,.4);font-size:.75rem;font-weight:700;">FCFA</span>
           </div>
         </div>
         <button class="svc-continue-btn" onclick="uvGoStep3()">Continuer <i class="fa-solid fa-arrow-right"></i></button>
@@ -3347,7 +3364,7 @@
         <div class="svc-field" id="uv-pay-number-field">
           <input type="tel" id="uv-pay-number" class="svc-input" placeholder="Ex : 07 00 00 00 00" maxlength="10">
         </div>
-        <div class="svc-field" id="uv-pay-solde-note" style="display:none;font-size:.72rem;color:rgba(255,255,255,.4);">
+        <div class="svc-field" id="uv-pay-solde-note" style="display:none;font-size:.72rem;color:rgba(0,0,0,.45);">
           <i class="fa-solid fa-circle-info"></i> Le montant sera prélevé directement sur votre solde disponible.
         </div>
         <button class="svc-continue-btn" onclick="uvShowRecap()">Voir récapitulatif <i class="fa-solid fa-arrow-right"></i></button>
@@ -3356,7 +3373,7 @@
       <!-- étape 5 : Récap + Valider -->
       <div id="uv-step-recap" style="display:none;">
         <button class="svc-back-btn" onclick="uvGoBackToForm()"><i class="fa-solid fa-arrow-left"></i> Modifier</button>
-        <div style="font-size:.75rem;font-weight:700;color:rgba(255,255,255,.5);margin-bottom:10px;"><i class="fa-solid fa-receipt"></i> Récapitulatif</div>
+        <div style="font-size:.75rem;font-weight:700;color:rgba(0,0,0,.55);margin-bottom:10px;"><i class="fa-solid fa-receipt"></i> Récapitulatif</div>
         <div id="uv-recap-content"></div>
         <div class="tf-recap-timer">
           <i class="fa-solid fa-hourglass-half"></i>
@@ -3543,7 +3560,7 @@
 <div class="modal-overlay" id="modal-cadeau">
   <div class="modal svc-modal" style="max-width:380px;border-radius:20px;">
     <div class="svc-modal-header">
-      <div class="svc-modal-title" style="color:#f9a8d4;">
+      <div class="svc-modal-title" style="color:#be185d;">
         <i class="fa-solid fa-gift" style="color:#ec4899;"></i> Récompense KBINE PLUS
       </div>
       <button class="svc-modal-close" onclick="closeModal('modal-cadeau')"><i class="fa-solid fa-xmark"></i></button>
@@ -3561,7 +3578,7 @@
 <script src="js/update-notifier.js?v=2"></script>
 <script src="js/vendor-qrcode.js?v=1"></script>
 <script src="js/push-notifications.js?v=1"></script>
-<script src="js/client.js?v=1"></script>
+<script src="js/client.js?v=6"></script>
 </body>
 </html>
 

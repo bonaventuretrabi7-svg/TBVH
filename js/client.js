@@ -878,6 +878,70 @@ async function showSection(name) {
 }
 
 /* ── Dépenses du mois ────────────────────────────────────────── */
+// Vue de l'onglet Dépenses : 'month' (par défaut, navigation par mois) ou
+// 'day' (demande explicite : voir les dépenses des jours antérieurs,
+// jour par jour plutôt que mois par mois). dpMonthOffset/dpDayOffset sont
+// indépendants — basculer de vue ne perd pas la position dans l'autre.
+let dpViewMode = 'month';
+let dpMonthOffset = 0;
+let dpDayOffset = 0;
+
+function dpToggleView(mode) {
+  dpViewMode = mode;
+  loadDepenses();
+}
+function dpChangeMonth(delta) {
+  dpMonthOffset = Math.min(0, dpMonthOffset + delta);
+  loadDepenses();
+}
+function dpChangeDay(delta) {
+  dpDayOffset = Math.min(0, dpDayOffset + delta);
+  loadDepenses();
+}
+
+// Transactions du mois actuellement affiché (posées par loadDepenses()) —
+// sert de source à dpShowServiceDetail() pour retrouver, au clic sur une
+// ligne de service, les transactions exactes qui composent son total.
+let _dpCurrentPeriodTxns = [];
+
+// Détail des transactions d'UN service (clic sur une ligne de "Vos
+// dépenses") — demande explicite : voir individuellement les transactions
+// qui composent le total affiché, pas seulement le chiffre agrégé.
+function dpShowServiceDetail(label) {
+  const items = _dpCurrentPeriodTxns
+    .filter(t => dpServiceMeta(t).label === label)
+    .sort((a, b) => new Date(b.date) - new Date(a.date));
+
+  const titleEl = document.getElementById('dp-detail-title');
+  if (titleEl) titleEl.textContent = label;
+  document.getElementById('dp-detail-list').innerHTML = items.map(dpTxnDetailRow).join('') ||
+    `<div class="hx-empty"><i class="fa-solid fa-inbox"></i><span>Aucune transaction</span></div>`;
+  openModal('modal-dp-service-detail');
+}
+
+// Ligne de détail d'UNE transaction (dans le modal ouvert par
+// dpShowServiceDetail() ci-dessus) — le transfert client-à-client n'a pas
+// de véritable "opérateur" (operateur vaut 'send-client', une valeur
+// technique jamais montrée telle quelle, voir api/client_transfer.php),
+// donc affiché différemment des autres services.
+function dpTxnDetailRow(t) {
+  const dateStr = new Date(t.date).toLocaleDateString('fr-CI', { day: '2-digit', month: 'short' });
+  const isClientTransfer = t.type === 'transfert_client_envoi';
+  const title = isClientTransfer ? 'Vers ' + Fmt.phone(t.numero_beneficiaire) : (t.operateur || t.service || 'Transaction');
+  const sub   = isClientTransfer ? '' : (t.numero_beneficiaire ? Fmt.phone(t.numero_beneficiaire) : (t.service || ''));
+  return `
+    <div class="dp-row">
+      <div class="dp-row-info">
+        <div class="dp-row-op">${title}</div>
+        ${sub ? `<div class="dp-row-num">${sub}</div>` : ''}
+      </div>
+      <div class="dp-row-right">
+        <div class="dp-row-amt">-${Fmt.money(t.montant)}</div>
+        <div class="dp-row-date">${dateStr}</div>
+      </div>
+    </div>`;
+}
+
 function loadDepenses() {
   const locked  = document.getElementById('cs-depenses-locked');
   const content = document.getElementById('cs-depenses-content');
@@ -892,112 +956,139 @@ function loadDepenses() {
   content.style.display = '';
   if (dBar) dBar.style.display = '';
 
-  const now   = new Date();
-  const year  = now.getFullYear();
-  const month = now.getMonth();
+  const viewToggleHtml = `
+    <button type="button" class="dp-view-btn ${dpViewMode === 'day' ? 'active' : ''}" onclick="dpToggleView('day')">Jour</button>
+    <button type="button" class="dp-view-btn ${dpViewMode === 'month' ? 'active' : ''}" onclick="dpToggleView('month')">Mois</button>
+  `;
 
-  // Filtrer : transactions du mois en cours, statut terminé uniquement
+  // Fenêtre affichée (un jour précis ou un mois entier selon dpViewMode) —
+  // demande explicite : pouvoir aussi voir les dépenses des jours
+  // antérieurs, pas seulement mois par mois.
+  let matchesPeriod, navLabel, heroLabel;
+  if (dpViewMode === 'day') {
+    const day = new Date();
+    day.setDate(day.getDate() + dpDayOffset);
+    const y = day.getFullYear(), m = day.getMonth(), d = day.getDate();
+    matchesPeriod = t => {
+      const td = new Date(t.date);
+      return td.getFullYear() === y && td.getMonth() === m && td.getDate() === d;
+    };
+    navLabel = dpDayOffset === 0 ? "Aujourd'hui" : dpDayOffset === -1 ? 'Hier'
+      : day.toLocaleDateString('fr-CI', { day: 'numeric', month: 'long', year: 'numeric' });
+    heroLabel = dpDayOffset === 0 ? "Total dépensé aujourd'hui"
+      : dpDayOffset === -1 ? 'Total dépensé hier'
+      : `Total dépensé le ${navLabel}`;
+  } else {
+    const base = new Date();
+    base.setDate(1); // évite un débordement de mois (ex. 31 -> mois suivant) en ajustant le jour avant setMonth()
+    base.setMonth(base.getMonth() + dpMonthOffset);
+    const y = base.getFullYear(), m = base.getMonth();
+    matchesPeriod = t => {
+      const td = new Date(t.date);
+      return td.getFullYear() === y && td.getMonth() === m;
+    };
+    navLabel = base.toLocaleDateString('fr-CI', { month: 'long', year: 'numeric' });
+    heroLabel = `Total dépensé en ${base.toLocaleDateString('fr-CI', { month: 'long' })}`;
+  }
+
+  const monthNavHtml = dpViewMode === 'day' ? `
+    <button type="button" class="dp-month-arrow" onclick="dpChangeDay(-1)" title="Jour précédent">
+      <i class="fa-solid fa-chevron-left"></i>
+    </button>
+    <span class="dp-month-lbl">${navLabel}</span>
+    <button type="button" class="dp-month-arrow" onclick="dpChangeDay(1)" title="Jour suivant" ${dpDayOffset === 0 ? 'disabled' : ''}>
+      <i class="fa-solid fa-chevron-right"></i>
+    </button>` : `
+    <button type="button" class="dp-month-arrow" onclick="dpChangeMonth(-1)" title="Mois précédent">
+      <i class="fa-solid fa-chevron-left"></i>
+    </button>
+    <span class="dp-month-lbl">${navLabel}</span>
+    <button type="button" class="dp-month-arrow" onclick="dpChangeMonth(1)" title="Mois suivant" ${dpMonthOffset === 0 ? 'disabled' : ''}>
+      <i class="fa-solid fa-chevron-right"></i>
+    </button>`;
+
+  // Filtrer : transactions de la période affichée, statut terminé uniquement
   const all = DB.transactions.byClient(currentUser.id);
-  const monthly = all.filter(t => {
-    const d = new Date(t.date);
-    return d.getFullYear() === year && d.getMonth() === month && t.statut === 'terminé';
-  });
+  const periodTxns = all.filter(t => matchesPeriod(t) && t.statut === 'terminé');
 
-  // Les rechargements sont des crédits (pas des dépenses) : affichés dans la
-  // liste par semaine ci-dessous, mais exclus de tous les totaux/statistiques
-  // de cet onglet (total du mois, répartition par réseau, compteur de
-  // commandes) pour ne pas fausser "Total dépensé".
-  const monthlySpend = monthly.filter(t => t.type !== 'recharge');
-  const totalMonth = monthlySpend.reduce((s, t) => s + (t.montant || 0), 0);
+  // Les rechargements (portefeuille) et les transferts client REÇUS sont des
+  // crédits, jamais des dépenses — exclus de tous les totaux/statistiques de
+  // cet onglet (total, répartition par réseau, compteur de commandes, récap
+  // par service) pour ne pas fausser "Total dépensé".
+  const periodSpend  = periodTxns.filter(t => t.type !== 'recharge' && t.type !== 'transfert_client_reception');
+  const totalPeriod  = periodSpend.reduce((s, t) => s + (t.montant || 0), 0);
 
-  // Récap mois
-  const opBreak = {};
-  monthlySpend.forEach(t => { opBreak[t.operateur] = (opBreak[t.operateur] || 0) + t.montant; });
-
-  const topOp  = Object.entries(opBreak).sort((a,b)=>b[1]-a[1])[0];
-  const topOpName = topOp ? topOp[0] : '—';
-  const topOpClr  = {Orange:'#FF6200',MTN:'#FFCC00',Moov:'#0066CC'}[topOpName] || '#7c3aed';
-
+  // Bascule Jour/Mois + navigation intégrées DANS la carte du total (demande
+  // explicite), plutôt qu'en carte séparée en dessous.
   document.getElementById('dp-recap').innerHTML = `
     <div class="sec-hero">
       <div class="sec-hero-icon"><i class="fa-solid fa-arrow-trend-down"></i></div>
-      <div class="sec-hero-amount">${Fmt.money(totalMonth)}</div>
-      <div class="sec-hero-label">Total dépensé en ${now.toLocaleDateString('fr-CI',{month:'long'})}</div>
-      <div class="sec-hero-chips">
-        <div class="sec-chip">
-          <i class="fa-solid fa-receipt"></i>
-          <span>${monthlySpend.length} commande${monthlySpend.length>1?'s':''}</span>
-        </div>
-        <div class="sec-chip">
-          <i class="fa-solid fa-signal" style="color:${topOpClr}"></i>
-          <span>${topOpName}</span>
-        </div>
-      </div>
+      <div class="sec-hero-amount">-${Fmt.money(totalPeriod)}</div>
+      <div class="sec-hero-label">${heroLabel}</div>
+      <div class="dp-view-toggle">${viewToggleHtml}</div>
+      <div class="dp-month-nav">${monthNavHtml}</div>
     </div>
   `;
 
-  // Grouper par semaine du mois
-  const weeks = { 'Semaine 1': [], 'Semaine 2': [], 'Semaine 3': [], 'Semaine 4': [] };
-  monthly.forEach(t => {
-    const day = new Date(t.date).getDate();
-    const wk  = day <= 7 ? 'Semaine 1' : day <= 14 ? 'Semaine 2' : day <= 21 ? 'Semaine 3' : 'Semaine 4';
-    weeks[wk].push(t);
+  // Grouper par service (demande explicite : ne voir QUE le total de
+  // chaque service, plus le détail transaction par transaction/semaine par
+  // semaine d'avant) — voir dpServiceMeta() pour la correspondance
+  // type/service -> libellé+icône+couleur affichés. Gardé en mémoire pour
+  // que dpShowServiceDetail() (clic sur une ligne) puisse retrouver les
+  // transactions exactes de la période affichée sans tout recalculer.
+  _dpCurrentPeriodTxns = periodSpend;
+  const svcTotals = {};
+  periodSpend.forEach(t => {
+    const meta = dpServiceMeta(t);
+    svcTotals[meta.label] = (svcTotals[meta.label] || 0) + (t.montant || 0);
   });
 
-  const weeksHtml = Object.entries(weeks).map(([label, items]) => {
-    if (!items.length) return '';
-    items.sort((a, b) => new Date(b.date) - new Date(a.date));
-    // Total de la semaine : mêmes dépenses uniquement (voir monthlySpend
-    // ci-dessus), un rechargement listé dans la semaine ne doit pas s'y
-    // ajouter.
-    const weekTotal = items.filter(t => t.type !== 'recharge').reduce((s, t) => s + (t.montant || 0), 0);
-    const rows = items.map(t => {
-      // Rechargement : ligne distincte (crédit), pas une dépense par
-      // opérateur — icône éclair + montant en vert précédé d'un "+".
-      if (t.type === 'recharge') {
-        const dateStr = new Date(t.date).toLocaleDateString('fr-CI',{day:'2-digit',month:'short'});
-        return `
-        <div class="dp-row">
-          <div class="dp-row-avatar" style="background:#f59e0b;color:#fff"><i class="fa-solid fa-bolt"></i></div>
-          <div class="dp-row-info">
-            <div class="dp-row-op">Recharge</div>
-            <div class="dp-row-num">${t.moyen_paiement || ''}</div>
-          </div>
-          <div class="dp-row-right">
-            <div class="dp-row-amt" style="color:#22c55e">+${Fmt.money(t.montant)}</div>
-            <div class="dp-row-date">${dateStr}</div>
-          </div>
-        </div>`;
-      }
-      const opClr = {Orange:'#FF6200', MTN:'#FFCC00', Moov:'#0066CC'}[t.operateur] || '#7c3aed';
-      const opTxt = t.operateur === 'MTN' ? '#1a1a1a' : '#fff';
-      const dateStr = new Date(t.date).toLocaleDateString('fr-CI',{day:'2-digit',month:'short'});
+  const svcRows = Object.entries(svcTotals)
+    .sort((a, b) => b[1] - a[1])
+    .map(([label, total]) => {
+      const meta = DP_SERVICE_META[label];
       return `
-      <div class="dp-row">
-        <div class="dp-row-avatar" style="background:${opClr};color:${opTxt}">${(t.operateur||'?')[0]}</div>
+      <div class="dp-row" onclick="dpShowServiceDetail('${label}')" style="cursor:pointer;">
+        <div class="dp-row-avatar" style="background:${meta.color};color:#fff"><i class="fa-solid ${meta.icon}"></i></div>
         <div class="dp-row-info">
-          <div class="dp-row-op">${t.operateur}</div>
-          <div class="dp-row-num">${Fmt.phone(t.numero_beneficiaire)}</div>
+          <div class="dp-row-op">${label}</div>
         </div>
         <div class="dp-row-right">
-          <div class="dp-row-amt">${Fmt.money(t.montant)}</div>
-          <div class="dp-row-date">${dateStr}</div>
+          <div class="dp-row-amt">-${Fmt.money(total)}</div>
         </div>
       </div>`;
     }).join('');
 
-    return `
-    <div class="dp-week-block">
-      <div class="dp-week-head">
-        <span class="dp-week-label"><i class="fa-solid fa-calendar-week"></i> ${label}</span>
-        <span class="dp-week-total">${Fmt.money(weekTotal)}</span>
-      </div>
-      <div class="dp-week-rows">${rows}</div>
-    </div>`;
-  }).join('');
+  document.getElementById('dp-services').innerHTML = svcRows
+    ? `<div class="dp-week-block">
+         <div class="dp-week-head"><span class="dp-week-label"><i class="fa-solid fa-chart-pie"></i> Vos dépenses</span></div>
+         <div class="dp-week-rows">${svcRows}</div>
+       </div>`
+    : `<div class="hx-empty"><i class="fa-solid fa-inbox"></i><span>Aucune dépense ce mois</span></div>`;
+}
 
-  document.getElementById('dp-weeks').innerHTML = weeksHtml ||
-    `<div class="hx-empty"><i class="fa-solid fa-inbox"></i><span>Aucune dépense ce mois</span></div>`;
+// Libellé/icône/couleur par service — voir loadDepenses() ci-dessus. Les
+// transferts réseau (Orange/MTN/Moov) et forfaits partagent tous deux
+// type=NULL côté transaction (voir orders_create.php), distingués
+// uniquement par `service` ("Transfert direct"/"Forfait" — voir
+// tf.displayService) ; les services avancés (Facture/Exchange/Recharge UV)
+// et le transfert client ont chacun leur propre `type` dédié.
+const DP_SERVICE_META = {
+  'Transfert direct': { icon: 'fa-right-left',   color: '#3b82f6' },
+  'Forfait':          { icon: 'fa-wifi',          color: '#8a63ff' },
+  'Facture':          { icon: 'fa-file-invoice',  color: '#ef4444' },
+  'Exchange':         { icon: 'fa-arrows-rotate', color: '#14b8a6' },
+  'Recharge UV':      { icon: 'fa-bolt',          color: '#f59e0b' },
+  'Transfert client': { icon: 'fa-paper-plane',   color: '#22c55e' },
+};
+function dpServiceMeta(t) {
+  const label = t.type === 'facture' ? 'Facture'
+    : t.type === 'exchange' ? 'Exchange'
+    : t.type === 'recharge_uv' ? 'Recharge UV'
+    : t.type === 'transfert_client_envoi' ? 'Transfert client'
+    : t.service === 'Forfait' ? 'Forfait'
+    : 'Transfert direct';
+  return { label, ...DP_SERVICE_META[label] };
 }
 
 /* Sections verrouillées pour les invités */
@@ -1110,6 +1201,9 @@ async function loadClientNotifications() {
         <div class="notif-time"><i class="fa-regular fa-clock"></i> ${Fmt.datetime(n.date)}</div>
       </div>
       ${!n.lu ? '<div class="notif-unread-dot"></div>' : ''}
+      <button class="notif-delete-btn" onclick="event.stopPropagation(); deleteClientNotif('${n.id}', this)" title="Supprimer">
+        <i class="fa-solid fa-trash"></i>
+      </button>
     </div>`).join('');
   updateNotifBadge();
 }
@@ -1119,6 +1213,19 @@ async function markClientNotifRead(id, el) {
   el.querySelector('.notif-unread-dot')?.remove();
   updateNotifBadge();
   await DB.notifications.markRead(id);
+}
+
+// Même patron que deleteCabNotif() (js/cabine.js) — supprime immédiatement
+// côté affichage, puis côté serveur (voir api/notifications_delete.php,
+// déjà utilisé par la cabine mais jusqu'ici jamais exposé côté client).
+async function deleteClientNotif(id, btn) {
+  const list = document.getElementById('pc-notif-list');
+  btn.closest('.notif-item')?.remove();
+  if (list && !list.children.length) {
+    list.innerHTML = `<div class="empty-state"><div class="empty-icon"><i class="fa-solid fa-bell-slash"></i></div><div class="empty-title">Aucune notification</div></div>`;
+  }
+  updateNotifBadge();
+  await DB.notifications.delete(id);
 }
 
 /* Après toute connexion réussie */
@@ -6847,7 +6954,7 @@ function openCadeauModal() {
       <div class="cadeau-prog-wrap">
         <div class="cadeau-prog-ring-wrap">
           <svg width="130" height="130" viewBox="0 0 130 130">
-            <circle cx="65" cy="65" r="54" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="9"/>
+            <circle cx="65" cy="65" r="54" fill="none" stroke="rgba(0,0,0,.08)" stroke-width="9"/>
             <circle cx="65" cy="65" r="54" fill="none"
               stroke="url(#gift-grad)" stroke-width="9"
               stroke-linecap="round"
