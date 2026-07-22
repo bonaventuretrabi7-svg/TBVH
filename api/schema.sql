@@ -108,7 +108,7 @@ CREATE TABLE IF NOT EXISTS settings (
   platform_name     VARCHAR(190) NOT NULL DEFAULT 'KBINE PLUS',
   currency          VARCHAR(16)  NOT NULL DEFAULT 'FCFA',
   commission_rate   DECIMAL(6,2) NOT NULL DEFAULT 5,
-  min_transfer      BIGINT       NOT NULL DEFAULT 500,
+  min_transfer      BIGINT       NOT NULL DEFAULT 200,
   max_transfer      BIGINT       NOT NULL DEFAULT 100000,
   recharge_min      BIGINT       NOT NULL DEFAULT 1000,
   maintenance       JSON         NULL,

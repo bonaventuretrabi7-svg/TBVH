@@ -4858,7 +4858,7 @@ async function loadSettings() {
       <input type="text" class="form-control" id="s-currency" value="${(d ? d.currency : s.currency) || 'F'}" oninput="_saveSettingsDraft()" /></div>
     <div class="grid-2" style="gap:12px;">
       <div class="form-group"><label class="form-label">Transfert minimum (F)</label>
-        <input type="number" class="form-control" id="s-min" value="${(d ? d.minTransfer : s.minTransfer) || 500}" oninput="_saveSettingsDraft()" /></div>
+        <input type="number" class="form-control" id="s-min" value="${(d ? d.minTransfer : s.minTransfer) || 200}" oninput="_saveSettingsDraft()" /></div>
       <div class="form-group"><label class="form-label">Transfert maximum (F)</label>
         <input type="number" class="form-control" id="s-max" value="${(d ? d.maxTransfer : s.maxTransfer) || 100000}" oninput="_saveSettingsDraft()" /></div>
     </div>

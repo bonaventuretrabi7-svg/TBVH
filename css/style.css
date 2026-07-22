@@ -585,6 +585,59 @@ body.dark .modal-close { background: var(--dark-border); color: var(--dark-muted
 }
 body.dark .modal-footer { border-color: var(--dark-border); }
 
+/* ── Modale "Perturbation réseau" (maintenance réseau globale) ───────────
+   Voir warnNetworkMaintenance() dans js/db.js — réutilise .modal-overlay
+   (fond + transition open/close déjà défini ci-dessus). Fond blanc avec
+   halo orange clair (--primary), badge toujours teinté par le réseau
+   bloqué (--netm-clr). */
+.netm-overlay { z-index: 3000; }
+.netm-card {
+  --netm-clr: #FF6200; --netm-txt: #ffffff;
+  position: relative;
+  width: 100%; max-width: 340px;
+  border-radius: 26px; overflow: hidden;
+  background: #ffffff;
+  border: 1.5px solid rgba(255,98,0,.15);
+  box-shadow: var(--shadow-lg);
+  padding: 30px 24px 26px; text-align: center;
+  transform: translateY(20px) scale(.97);
+  transition: transform .25s cubic-bezier(.34,1.46,.64,1);
+}
+.netm-overlay.open .netm-card { transform: translateY(0) scale(1); }
+.netm-close {
+  position: absolute; top: 12px; right: 12px; z-index: 2;
+  width: 28px; height: 28px; border-radius: 50%; border: none;
+  background: rgba(0,0,0,.06); color: rgba(0,0,0,.5);
+  display: flex; align-items: center; justify-content: center;
+  font-size: .75rem; cursor: pointer; transition: background .15s;
+}
+.netm-close:hover { background: rgba(0,0,0,.12); }
+.netm-icon {
+  width: 92px; height: 92px; border-radius: 22px; margin: 0 auto 18px;
+  overflow: hidden; position: relative;
+  box-shadow: 0 6px 18px rgba(0,0,0,.15);
+}
+.netm-icon-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.netm-title { color: #1a1a2e; font-weight: 900; font-size: 1.05rem; margin-bottom: 6px; }
+.netm-sub { color: rgba(0,0,0,.45); font-size: .75rem; margin-bottom: 18px; }
+#global-maintenance-message { color: #DC2626; font-weight: 800; }
+.netm-badge {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: var(--netm-clr); color: var(--netm-txt);
+  padding: 8px 18px; border-radius: 99px;
+  font-weight: 800; font-size: .85rem; margin-bottom: 16px;
+}
+.netm-badge-icon { position: relative; display: inline-flex; width: 15px; height: 15px; align-items: center; justify-content: center; font-size: .8rem; }
+.netm-badge-slash {
+  position: absolute; width: 145%; height: 2px; background: var(--netm-txt);
+  transform: rotate(-45deg);
+}
+.netm-wait {
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+  color: #000; font-size: .78rem; font-weight: 600;
+  background: rgba(34,197,94,.18); border-radius: 99px; padding: 8px 14px;
+}
+
 /* ── Toast Notifications ──────────────────────────────────────── */
 #toast-container {
   position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
@@ -1860,7 +1913,7 @@ body.dark .amount-custom-suffix { color: var(--dark-muted); }
 .forfait-card.selected.op-moov   { border-color: #1D7AE0; box-shadow: 0 0 0 3px rgba(29,122,224,.2); }
 .forfait-card.selected.op-mtn    { border-color: #CA8A04; box-shadow: 0 0 0 3px rgba(202,138,4,.2); }
 
-.fc-top { display: flex; align-items: center; gap: 7px; margin-bottom: 7px; }
+.fc-top { display: flex; align-items: center; gap: 7px; margin-bottom: 5px; }
 .fc-icon {
   width: 28px; height: 28px; border-radius: 9px; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
@@ -1888,7 +1941,7 @@ body.dark .amount-custom-suffix { color: var(--dark-muted); }
 .forfait-card.selected.op-moov   .fc-check { color: #1D7AE0; }
 .forfait-card.selected.op-mtn    .fc-check { color: #CA8A04; }
 
-.fc-sep { height: 1px; background: var(--gray-200); margin-bottom: 7px; }
+.fc-sep { height: 1px; background: var(--gray-200); margin-bottom: 4px; }
 
 /* Bandeau "Les avantages du pass" — couleur de marque par réseau, pour
    repérer l'opérateur d'un coup d'œil même une fois la carte en fond
@@ -7500,10 +7553,14 @@ body.dark .avail-val { color: var(--dark-text); }
    garde son fond sombre d'origine). Couvre aussi la bascule Jour/Mois et
    la navigation imbriquées dedans, qui doivent passer du blanc-sur-sombre
    au noir-sur-blanc. */
-#dp-recap .sec-hero { background: #ffffff; border-color: #E8ECF4; }
+#dp-recap .sec-hero { background: none; border: none; padding-left: 0; padding-right: 0; }
 #dp-recap .sec-hero-amount {
   color: #0A0A0F; background: none; -webkit-text-fill-color: initial;
 }
+/* Icône + halo retirés de cette carte (voir loadDepenses(), js/client.js) —
+   demande explicite, gardés uniquement sur le Portefeuille (.sec-hero-icon
+   toujours présent là-bas). */
+#dp-recap .sec-hero::before { display: none; }
 #dp-recap .sec-hero-label { color: rgba(0,0,0,.45); }
 #dp-recap .dp-view-btn {
   background: #F1F3F8; border-color: #E0E4EC; color: rgba(0,0,0,.55);
@@ -10136,6 +10193,27 @@ body.dark .rh-card-ref { color: var(--dark-text, #F1F3F9); }
   transition: background .15s;
 }
 .impersonation-banner button:hover { background: rgba(255,255,255,.28); }
+
+/* Carte de maintenance globale — voir renderGlobalMaintenanceBanner()
+   (js/client.js) et Admin › Maintenance (js/admin.js). Réutilise .netm-card
+   (même identité visuelle que la modale "Perturbation réseau"/"Service
+   indisponible", css ci-dessus), déplacée en JS juste avant .pgc-qr-card
+   pour occuper exactement sa place dans le flux : même chevauchement du
+   bas de .pgc-hero-card (margin-top -108px, voir .pgc-qr-card ci-dessus),
+   mais beaucoup plus large (le QR, lui, reste width:fit-content). */
+.gmc-inline {
+  position: relative; z-index: 165; /* au-dessus de .pgc-qr-card (160) */
+  width: 92%; max-width: 640px;
+  margin: -108px auto 16px;
+  box-sizing: border-box;
+}
+/* Masque complètement les boutons d'action (Recharger/Dépenses/...) tant
+   que la maintenance globale est active — !important pour primer sur le
+   style inline posé par renderSidebar() (affiché/masqué selon connexion),
+   sans qu'il faille dupliquer cette logique ici : on retire juste la
+   classe une fois la maintenance terminée et son affichage d'origine
+   reprend la main tel quel. */
+.gmc-hidden { display: none !important; }
 
 /* Sort le bandeau du flux normal, sur client.html uniquement (scopé via
    .client-page pour ne rien changer sur cabine.html/admin.html), pour

@@ -158,7 +158,7 @@ const tf = {
   },
   isValid() {
     if (!this.operator) return false;
-    if (this.serviceType === 'direct' && this.directAmount < 500) return false;
+    if (this.serviceType === 'direct' && this.directAmount < 200) return false;
     if (this.serviceType === 'forfait' && !this.forfait) return false;
     if (!/^0[0-9]{9}$/.test(this.recipient)) return false;
     if (!this.paymentMethod) return false;
@@ -486,6 +486,7 @@ async function boot() {
     if (guestQrImg) guestQrImg.src = _buildQrDataUrl('KBINE-PLUS');
 
     renderFidelite();
+    renderGlobalMaintenanceBanner();
     renderActualites();
     initRevCarousel();
     initClientCounterAnim();
@@ -649,6 +650,12 @@ function startClientPresence() {
     // appareil a lui-même déclenché.
     await DB.notifications.refresh(currentUser.id);
     updateNotifBadge();
+    // Le bandeau de maintenance globale doit apparaître/disparaître sans
+    // attendre un rechargement de page dès que l'admin bascule le réglage
+    // (voir renderGlobalMaintenanceBanner() plus bas) — pas de garde sur
+    // pollSignature ici, DB.settings.get() est déjà cache-first (lecture
+    // locale instantanée, jamais d'attente réseau).
+    renderGlobalMaintenanceBanner();
     // Re-rend la section ACTUELLEMENT affichée (voir _clientSectionLoader()
     // ci-dessus) — couvre automatiquement tous les onglets, pas seulement
     // Historique/Portefeuille comme avant — mais seulement si quelque
@@ -847,7 +854,7 @@ function _clientSectionLoader(name) {
 async function showSection(name) {
   const maintenanceKeys = { depenses: 'depenses', historique: 'historique' };
   if (maintenanceKeys[name] && await isServiceInMaintenance(maintenanceKeys[name])) {
-    warnMaintenance('Cette section est actuellement en maintenance.');
+    warnServiceMaintenance(maintenanceKeys[name]);
     return;
   }
   const guestGateMsg = {
@@ -1022,7 +1029,6 @@ function loadDepenses() {
   // explicite), plutôt qu'en carte séparée en dessous.
   document.getElementById('dp-recap').innerHTML = `
     <div class="sec-hero">
-      <div class="sec-hero-icon"><i class="fa-solid fa-arrow-trend-down"></i></div>
       <div class="sec-hero-amount">-${Fmt.money(totalPeriod)}</div>
       <div class="sec-hero-label">${heroLabel}</div>
       <div class="dp-view-toggle">${viewToggleHtml}</div>
@@ -1860,7 +1866,7 @@ const OP_THEME = {
   Moov:   { clr: '#1D7AE0', text: '#fff' },
 };
 async function tfSelectOp(op, el) {
-  if (await isNetworkInMaintenance(op)) { warnMaintenance(`Le réseau ${op} est actuellement en maintenance.`); return; }
+  if (await isNetworkInMaintenance(op)) { warnNetworkMaintenance(op); return; }
   tf.operator     = op;
   tf.forfait      = null;
   tf.directAmount = 0;
@@ -1968,7 +1974,7 @@ function tfCustomAmount(val) {
   const amount = parseInt(val) || 0;
   tf.directAmount = amount;
   document.querySelectorAll('#tf-order-now .amount-tile').forEach(t => t.classList.remove('selected'));
-  if (amount >= 500) {
+  if (amount >= 200) {
     document.getElementById('prev-service-label').textContent = Fmt.money(amount) + ' · direct';
     tfAfterAmountSet();
   } else {
@@ -2426,7 +2432,7 @@ function tfUpdateSummary() {
   set('sum-pay',     pm ? pm.nom : '-');
   set('sum-total',   tf.amount   ? Fmt.money(tf.amount + 15) : '-');
   vcCheck('vc-op',   !!tf.operator);
-  vcCheck('vc-svc',  tf.amount >= 500);
+  vcCheck('vc-svc',  tf.amount >= 200);
   vcCheck('vc-dest', /^0[0-9]{9}$/.test(tf.recipient));
   vcCheck('vc-pay',  !!tf.paymentMethod);
 }
@@ -3264,6 +3270,7 @@ function prgSelectAbo(card) {
 function openPartnerLoginModal() {
   // Reset tout
   document.getElementById('prt-tel').value = '';
+  document.getElementById('prt-live-preview').style.display = 'none';
   document.getElementById('prt-denied').style.display = 'none';
   document.querySelectorAll('#prt-pin-row .pln-pin-box').forEach(b => { b.value = ''; });
   // Revenir à l'étape 1 sans animation
@@ -3293,6 +3300,24 @@ function openPartnerLoginModal() {
     };
   });
   setTimeout(() => document.getElementById('prt-tel')?.focus(), 120);
+}
+
+// Aperçu en direct sur l'étape 1 (Gmail) — dès que la saisie correspond à
+// un compte connu du cache local (DB.users.byEmail(), synchrone, aucun
+// aller-retour réseau), son nom s'affiche immédiatement sous le champ,
+// sans attendre l'étape PIN suivante (prtGoStep(2) fait déjà cette même
+// résolution, mais seulement une fois révélée sur l'écran suivant).
+function prtLivePreview() {
+  const preview = document.getElementById('prt-live-preview');
+  if (!preview) return;
+  const email = (document.getElementById('prt-tel').value || '').trim();
+  const user = Auth.isValidGmail(email) ? DB.users.byEmail(email) : null;
+  if (!user) { preview.style.display = 'none'; return; }
+  const initials = ((user.prenom || '')[0] || '') + ((user.nom || '')[0] || '') || '?';
+  document.getElementById('prt-live-ava').textContent  = initials.toUpperCase();
+  document.getElementById('prt-live-name').textContent = `${user.prenom || ''} ${user.nom || ''}`.trim() || 'Partenaire';
+  document.getElementById('prt-live-tel').textContent  = Fmt.phone(user.telephone);
+  preview.style.display = 'flex';
 }
 
 function prtGoStep(step) {
@@ -3408,6 +3433,7 @@ async function submitPartnerLogin() {
 
 function openAdminAuthModal() {
   document.getElementById('adm-tel').value = '';
+  document.getElementById('adm-live-preview').style.display = 'none';
   document.getElementById('adm-denied').style.display = 'none';
   document.querySelectorAll('#adm-pin-row .adx-pin-box').forEach(b => { b.value = ''; });
   // Reset étape 1
@@ -3429,6 +3455,20 @@ function openAdminAuthModal() {
     box.onkeydown = e => { if (e.key === 'Backspace' && !box.value && idx > 0) boxes[idx - 1].focus(); };
   });
   setTimeout(() => document.getElementById('adm-tel')?.focus(), 120);
+}
+
+// Aperçu en direct sur l'étape 1 (Gmail) — même principe que
+// prtLivePreview() ci-dessus pour l'Espace Partenaire.
+function admLivePreview() {
+  const preview = document.getElementById('adm-live-preview');
+  if (!preview) return;
+  const email = (document.getElementById('adm-tel').value || '').trim();
+  const user = Auth.isValidGmail(email) ? DB.users.byEmail(email) : null;
+  if (!user) { preview.style.display = 'none'; return; }
+  const initials = ((user.prenom || '')[0] || '') + ((user.nom || '')[0] || '') || 'A';
+  document.getElementById('adm-live-ava').textContent  = initials.toUpperCase();
+  document.getElementById('adm-live-name').textContent = `${user.prenom || ''} ${user.nom || ''}`.trim() || 'Administrateur';
+  preview.style.display = 'flex';
 }
 
 function admGoStep(step) {
@@ -4249,7 +4289,7 @@ function schedOnCustomDateChange() {
 function schedSyncStepper(autoAdvance = true) {
   const montantOk = schedState.type === 'forfait'
     ? !!schedState.forfait
-    : (parseInt(document.getElementById('sched-amount')?.value, 10) || 0) >= 500;
+    : (parseInt(document.getElementById('sched-amount')?.value, 10) || 0) >= 200;
   const dateVal = document.getElementById('sched-date')?.value;
   const timeVal = document.getElementById('sched-time')?.value;
   const dtOk = !!dateVal && !!timeVal && new Date(`${dateVal}T${timeVal}:00`).getTime() > Date.now() + 60000;
@@ -4287,7 +4327,7 @@ function schedSyncStepper(autoAdvance = true) {
 }
 
 async function schedSelectOp(op, el) {
-  if (await isNetworkInMaintenance(op)) { warnMaintenance(`Le réseau ${op} est actuellement en maintenance.`); return; }
+  if (await isNetworkInMaintenance(op)) { warnNetworkMaintenance(op); return; }
   schedState.operateur = op;
   document.querySelectorAll('#sched-op-row .op-card').forEach(c => c.classList.remove('active'));
   el.classList.add('active');
@@ -4695,7 +4735,7 @@ function _schedResetForm() {
 }
 
 async function schedSubmit() {
-  if (await isServiceInMaintenance('commande_auto')) { warnMaintenance('La commande automatique est actuellement en maintenance.'); return; }
+  if (await isServiceInMaintenance('commande_auto')) { warnServiceMaintenance('commande_auto'); return; }
   if (!schedState.operateur) { Toast.error('Choisissez un réseau.'); return; }
   if (!/^0[0-9]{9}$/.test(schedState.recipient)) { Toast.error('Numéro du bénéficiaire invalide (10 chiffres).'); return; }
 
@@ -4712,7 +4752,7 @@ async function schedSubmit() {
     } : null;
   } else {
     montant = parseInt(document.getElementById('sched-amount').value, 10) || 0;
-    if (montant < 500 || montant > 100000) { Toast.error('Montant entre 500 et 100 000 FCFA.'); return; }
+    if (montant < 200 || montant > 100000) { Toast.error('Montant entre 200 et 100 000 FCFA.'); return; }
     service = 'Transfert direct';
     details = ['Orange', 'MTN', 'Moov'].includes(schedState.operateur)
       ? { direct_ussd_network: schedState.operateur, direct_ussd_numero: schedState.recipient }
@@ -5262,7 +5302,7 @@ async function _applyRechargeNetworkGating() {
 
 async function selectRchMethod(el) {
   const method = el.dataset.method;
-  if (await isNetworkInMaintenanceForService('recharge', method)) { warnMaintenance(`${method} est actuellement indisponible pour la recharge.`); return; }
+  if (await isNetworkInMaintenanceForService('recharge', method)) { warnNetworkMaintenance(method); return; }
   document.querySelectorAll('.rch-mth').forEach(m => m.classList.remove('rch-mth--active'));
   el.classList.add('rch-mth--active');
   const color  = el.dataset.color || 'var(--primary)';
@@ -5277,7 +5317,7 @@ async function selectRchMethod(el) {
 }
 
 async function openRechargeModalGated() {
-  if (await isServiceInMaintenance('recharger')) { warnMaintenance('La recharge de portefeuille est actuellement en maintenance.'); return; }
+  if (await isServiceInMaintenance('recharger')) { warnServiceMaintenance('recharger'); return; }
   document.getElementById('rch-step-2').style.display = 'none';
   const step1 = document.getElementById('rch-step-1');
   step1.style.display = 'block';
@@ -5855,6 +5895,38 @@ document.addEventListener('DOMContentLoaded', _initHomeFloatBalance);
 document.body.classList.remove('dark');
 localStorage.removeItem('kbine_dark');
 
+// Carte de maintenance globale gérée par l'admin (voir loadMaintenanceAdmin()/
+// saveMaintenanceAdmin(), js/admin.js, settings.maintenance.global) — jusqu'ici
+// enregistré côté admin mais jamais lu ni affiché côté client (bug : activer
+// la maintenance globale ne montrait rien au client). Lu via DB.settings.get()
+// (déjà synchronisé, cache-first), comme renderActualites() ci-dessous.
+// Recouvre le QR code (déplacée juste avant .pgc-qr-card de #hbc-user ou
+// #hbc-guest selon la connexion, voir .gmc-inline, css/style.css) et masque
+// entièrement les boutons d'action (Recharger/Dépenses/...) le temps que la
+// maintenance est active — via une classe plutôt qu'un style inline, pour
+// ne pas écraser la logique connecté/invité déjà posée par renderSidebar()
+// sur ces mêmes éléments.
+async function renderGlobalMaintenanceBanner() {
+  const card = document.getElementById('global-maintenance-card');
+  if (!card) return;
+  const g = (await DB.settings.get()).maintenance?.global;
+  const active = !!(g?.enabled && g.message);
+
+  const wrap   = document.getElementById(currentUser ? 'hbc-user' : 'hbc-guest');
+  const qrCard = wrap?.querySelector('.pgc-qr-card');
+
+  if (active && wrap && qrCard) {
+    wrap.insertBefore(card, qrCard);
+    document.getElementById('global-maintenance-message').textContent = g.message;
+    card.style.display = 'block';
+  } else {
+    card.style.display = 'none';
+  }
+  qrCard?.classList.toggle('gmc-hidden', active);
+  document.getElementById('hbc-user-panel')?.classList.toggle('gmc-hidden', active);
+  document.getElementById('hbc-guest-panel')?.classList.toggle('gmc-hidden', active);
+}
+
 // Annonces KBINE PLUS gérées par l'admin (voir loadActualitesAdmin(),
 // js/admin.js) — remplace l'ancien bandeau Football/Politique codé en dur
 // (aucun rapport avec l'app, jamais réellement "temps réel" : rendre ça
@@ -5909,7 +5981,7 @@ function _ctSetStep(step) {
 }
 
 async function openClientTransferModal() {
-  if (await isServiceInMaintenance('transferer')) { warnMaintenance('Le transfert entre clients est actuellement en maintenance.'); return; }
+  if (await isServiceInMaintenance('transferer')) { warnServiceMaintenance('transferer'); return; }
   if (!Auth.current()) { openPrivateSpaceNotice('Connectez-vous pour transférer de l\'argent à un autre client.'); return; }
   _ctData = {};
   document.getElementById('ct-phone').value   = '';
@@ -6168,7 +6240,7 @@ async function _applyFactureServiceGating() {
 }
 
 async function openFactureModal() {
-  if (await isServiceInMaintenance('facture')) { warnMaintenance('Le paiement de factures est actuellement en maintenance.'); return; }
+  if (await isServiceInMaintenance('facture')) { warnServiceMaintenance('facture'); return; }
   if (!Auth.current()) { openPrivateSpaceNotice('Connectez-vous pour accéder à vos factures.'); return; }
   _factService = '';
   _factData    = {};
@@ -6352,7 +6424,7 @@ function _factBuildForm(service) {
 }
 
 async function factSelectNetwork(net, el) {
-  if (net !== 'Solde disponible' && await isNetworkInMaintenance(net)) { warnMaintenance(`Le réseau ${net} est actuellement en maintenance.`); return; }
+  if (net !== 'Solde disponible' && await isNetworkInMaintenance(net)) { warnNetworkMaintenance(net); return; }
   document.querySelectorAll('.fact-net').forEach(b => b.classList.remove('active'));
   el.classList.add('active');
   _factData.network = net;
@@ -6536,7 +6608,7 @@ function _uvSetStep(step) {
 }
 
 async function openUVModal() {
-  if (await isServiceInMaintenance('recharge_uv')) { warnMaintenance('La recharge UV est actuellement en maintenance.'); return; }
+  if (await isServiceInMaintenance('recharge_uv')) { warnServiceMaintenance('recharge_uv'); return; }
   if (!Auth.current()) { openPrivateSpaceNotice('Connectez-vous pour recharger vos unités virtuelles.'); return; }
   _uvData = {};
   document.querySelectorAll('.uv-op-card, .uv-pay-card').forEach(b => b.classList.remove('active'));
@@ -6557,7 +6629,7 @@ async function openUVModal() {
 }
 
 async function uvSelectNetwork(net, el) {
-  if (await isNetworkInMaintenance(net)) { warnMaintenance(`Le réseau ${net} est actuellement en maintenance.`); return; }
+  if (await isNetworkInMaintenance(net)) { warnNetworkMaintenance(net); return; }
   document.querySelectorAll('.uv-op-card').forEach(b => b.classList.remove('active'));
   el.classList.add('active');
   _uvData.network = net;
@@ -6600,7 +6672,7 @@ function uvGoBackToStep2() {
 }
 
 async function uvSelectPayNetwork(net, el) {
-  if (net !== 'Solde disponible' && await isNetworkInMaintenance(net)) { warnMaintenance(`Le réseau ${net} est actuellement en maintenance.`); return; }
+  if (net !== 'Solde disponible' && await isNetworkInMaintenance(net)) { warnNetworkMaintenance(net); return; }
   document.querySelectorAll('.uv-pay-card').forEach(b => b.classList.remove('active'));
   el.classList.add('active');
   _uvData.payNetwork = net;
@@ -6734,7 +6806,7 @@ async function _applyExchangeNetworkGating() {
 }
 
 async function openExchangeModal() {
-  if (await isServiceInMaintenance('exchange')) { warnMaintenance('L\'exchange est actuellement en maintenance.'); return; }
+  if (await isServiceInMaintenance('exchange')) { warnServiceMaintenance('exchange'); return; }
   if (!Auth.current()) { openPrivateSpaceNotice('Connectez-vous pour effectuer un exchange.'); return; }
   _exchData = {};
   document.querySelectorAll('.exch-debit-net, .exch-recep-net').forEach(b => b.classList.remove('active'));
@@ -6755,7 +6827,7 @@ async function openExchangeModal() {
 }
 
 async function exchSelectDebitNet(net, el) {
-  if (await isNetworkInMaintenanceForService('exchange', net)) { warnMaintenance(`Le réseau ${net} est actuellement indisponible pour l'Exchange.`); return; }
+  if (await isNetworkInMaintenanceForService('exchange', net)) { warnNetworkMaintenance(net); return; }
   document.querySelectorAll('.exch-debit-net').forEach(b => b.classList.remove('active'));
   el.classList.add('active');
   _exchData.debitNet = net;
@@ -6763,7 +6835,7 @@ async function exchSelectDebitNet(net, el) {
 }
 
 async function exchSelectRecepNet(net, el) {
-  if (await isNetworkInMaintenanceForService('exchange', net)) { warnMaintenance(`Le réseau ${net} est actuellement indisponible pour l'Exchange.`); return; }
+  if (await isNetworkInMaintenanceForService('exchange', net)) { warnNetworkMaintenance(net); return; }
   document.querySelectorAll('.exch-recep-net').forEach(b => b.classList.remove('active'));
   el.classList.add('active');
   _exchData.recepNet = net;

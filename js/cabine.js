@@ -2630,7 +2630,7 @@ function _cabUvSetStepDots(step) {
 }
 
 async function cabUvSelectNetwork(net, el) {
-  if (await isNetworkInMaintenance(net)) { warnMaintenance(`Le réseau ${net} est actuellement en maintenance.`); return; }
+  if (await isNetworkInMaintenance(net)) { warnNetworkMaintenance(net); return; }
   document.querySelectorAll('#cab-uv-step-1 .svc-net-btn').forEach(b => b.classList.remove('active'));
   el.classList.add('active');
   _cabUvNet = net;
@@ -2665,8 +2665,8 @@ async function cabUvShowRecap() {
   if (!net)             { Toast.error('Choisissez un réseau.'); return; }
   if (!number)          { Toast.error('Saisissez le numéro de téléphone.'); return; }
   if (montant < 10000)  { Toast.error('Montant minimum : 10 000 FCFA.'); return; }
-  if (await isServiceInMaintenance('recharge_uv')) { warnMaintenance('La recharge UV est actuellement en maintenance.'); return; }
-  if (await isNetworkInMaintenance(net)) { warnMaintenance(`Le réseau ${net} est actuellement en maintenance.`); return; }
+  if (await isServiceInMaintenance('recharge_uv')) { warnServiceMaintenance('recharge_uv'); return; }
+  if (await isNetworkInMaintenance(net)) { warnNetworkMaintenance(net); return; }
 
   const { frais, total, soldeApres } = DB.business.previewCabineSelfRecharge(currentUser.id, montant);
   _cabUvPending = { network: net, numero: number, montant };

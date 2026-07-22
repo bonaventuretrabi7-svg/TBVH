@@ -11,7 +11,7 @@
        Ni l'un ni l'autre ne garantit le changement (décision algorithmique
        de Google, pas immédiate), mais ce sont les deux signaux officiels. -->
   <meta property="og:site_name" content="KBINE PLUS" />
-  <meta name="description" content="KBINE PLUS — transfert d'unités, recharge, factures et services mobile money en Côte d'Ivoire." />
+  <meta name="description" content="KBINE PLUS est une plateforme ivoirienne de transfert d'unités en ligne qui connecte les clients à un réseau de partenaires (cabines) répartis à proximité. Passez votre commande en quelques clics depuis l'Espace Client, et un cabiniste disponible la traite en temps réel, sans file d'attente ni déplacement." />
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -55,6 +55,7 @@
     <span>Connecté en tant que client par <strong id="impersonation-admin-name">—</strong></span>
     <button onclick="returnFromImpersonation()"><i class="fa-solid fa-arrow-right-from-bracket"></i> Retour à l'administration</button>
   </div>
+
 
   <!-- Widget flottant : minuteur de réclamation (5min) pour la dernière
        commande dont le client a fermé le suivi — visible depuis n'importe
@@ -135,6 +136,22 @@
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- Maintenance globale — recouvre entièrement le QR code (masqué le
+         temps de la maintenance, voir .gmc-hidden) et les boutons d'action
+         (Recharger/Dépenses/Transférer/...), plutôt qu'un simple bandeau qui
+         les laissait cliquables/scannables. Même identité visuelle que la
+         modale "Perturbation réseau" (.netm-card, voir
+         warnNetworkMaintenance()/js/db.js). Position de repos ici (masqué) ;
+         renderGlobalMaintenanceBanner() (js/client.js) la déplace juste
+         avant .pgc-qr-card de #hbc-user/#hbc-guest (selon connexion) pour
+         qu'elle occupe exactement la même place dans le flux — même
+         chevauchement -108px que .pgc-qr-card, mais beaucoup plus large. -->
+    <div id="global-maintenance-card" class="netm-card gmc-inline" style="display:none;">
+      <div class="netm-icon"><img src="img/bonaventure.jpg" alt="" class="netm-icon-img"></div>
+      <div class="netm-title">Maintenance en cours</div>
+      <div class="netm-sub" id="global-maintenance-message"></div>
     </div>
 
     <!-- -- Panel unifié : toutes les actions (connecté) -- -->
@@ -397,11 +414,11 @@
               <div class="amount-custom-wrap">
                 <span class="amount-custom-icon"><i class="fa-solid fa-coins"></i></span>
                 <input type="number" class="form-control" id="tf-amount-custom"
-                  placeholder="Ex : 3 500" min="500" max="100000"
+                  placeholder="Ex : 3 500" min="200" max="100000"
                   oninput="tfCustomAmount(this.value)" />
                 <span class="amount-custom-suffix">FCFA</span>
               </div>
-              <div class="form-hint">Min. 500 FCFA · Max. 100 000 FCFA</div>
+              <div class="form-hint">Min. 200 FCFA · Max. 100 000 FCFA</div>
             </div>
             <div id="panel-forfait" style="display:none;">
               <div class="forfait-cats" id="forfait-cats-list"></div>
@@ -679,10 +696,10 @@
               <div style="font-size:.6rem;font-weight:600;color:var(--gray-500);margin-bottom:5px;">Autre montant</div>
               <div class="amount-custom-wrap">
                 <span class="amount-custom-icon"><i class="fa-solid fa-coins"></i></span>
-                <input type="number" class="form-control" id="sched-amount" placeholder="Ex : 3 500" min="500" max="100000" oninput="schedCustomAmount(this.value)">
+                <input type="number" class="form-control" id="sched-amount" placeholder="Ex : 3 500" min="200" max="100000" oninput="schedCustomAmount(this.value)">
                 <span class="amount-custom-suffix">FCFA</span>
               </div>
-              <div class="form-hint">Min. 500 FCFA · Max. 100 000 FCFA</div>
+              <div class="form-hint">Min. 200 FCFA · Max. 100 000 FCFA</div>
             </div>
             <div class="sched-field" id="sched-forfait-field" style="display:none;">
               <div class="forfait-cats" id="sched-forfait-cats"></div>
@@ -1996,7 +2013,20 @@
             <div class="pln-input-wrap">
               <input id="prt-tel" type="email" inputmode="email" maxlength="60"
                      class="pln-input" placeholder="exemple@gmail.com"
+                     oninput="prtLivePreview()"
                      onkeydown="if(event.key==='Enter')prtGoStep(2);" autocomplete="off">
+            </div>
+          </div>
+
+          <!-- Aperçu en direct : dès que le Gmail tapé correspond à un
+               compte connu localement (DB.users.byEmail(), synchrone),
+               son nom s'affiche immédiatement — pas besoin d'attendre
+               l'étape PIN suivante pour confirmer qu'on a le bon compte. -->
+          <div class="pln-user-card" id="prt-live-preview" style="display:none;margin:0 0 14px;">
+            <div class="pln-user-ava" id="prt-live-ava">?</div>
+            <div>
+              <div class="pln-user-name" id="prt-live-name">—</div>
+              <div class="pln-user-tel" id="prt-live-tel">—</div>
             </div>
           </div>
 
@@ -2567,9 +2597,23 @@
             <div class="adx-input-wrap">
               <input id="adm-tel" type="email" inputmode="email" maxlength="60"
                      class="adx-input" placeholder="exemple@gmail.com"
+                     oninput="admLivePreview()"
                      onkeydown="if(event.key==='Enter')admGoStep(2);" autocomplete="off">
             </div>
           </div>
+
+          <!-- Aperçu en direct : même principe que prt-live-preview
+               (index.html, Espace Partenaire) — le nom sort dès que le
+               Gmail tapé correspond à un compte connu localement, sans
+               attendre l'étape PIN suivante. -->
+          <div class="adx-user-card" id="adm-live-preview" style="display:none;margin:0 0 14px;">
+            <div class="adx-user-ava" id="adm-live-ava">?</div>
+            <div>
+              <div class="adx-user-name" id="adm-live-name">—</div>
+              <div class="adx-user-role"><i class="fa-solid fa-shield-halved"></i> Accès administrateur</div>
+            </div>
+          </div>
+
           <button class="adx-cta" onclick="admGoStep(2)">
             <span>Continuer</span>
             <div class="adx-cta-arr"><i class="fa-solid fa-arrow-right"></i></div>

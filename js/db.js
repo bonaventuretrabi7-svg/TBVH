@@ -145,7 +145,7 @@ const DB = (() => {
       platformName: 'KBINE PLUS',
       currency: 'F',
       commissionRate: 5,
-      minTransfer: 500,
+      minTransfer: 200,
       maxTransfer: 100000,
       rechargeMin: 1000,
       maintenance: {
@@ -2543,6 +2543,86 @@ async function isNetworkInMaintenanceForService(serviceKey, rawNetwork) {
 
 function warnMaintenance(msg) {
   Toast.error(msg || 'Ce service est actuellement en maintenance.');
+}
+
+/* Modale "maintenance" (réseau OU service) — remplace le simple Toast de
+   warnMaintenance() pour TOUT blocage de maintenance, qu'il vise un
+   RÉSEAU précis (Orange/MTN/Moov/Wave, voir warnNetworkMaintenance()) ou
+   un SERVICE entier sans réseau particulier (Recharge portefeuille,
+   Transfert entre clients, Facture, Exchange..., voir
+   warnServiceMaintenance()) — demande explicite : même visuel partout,
+   peu importe où le client tape. _showMaintenanceModal() factorise le
+   DOM (créé une seule fois, réutilisé) entre les deux variantes.
+   Fonctions globales (pas DB.*), au même titre que warnMaintenance()
+   ci-dessus, partagées par client.html ET cabine.html. */
+const NETM_THEME = {
+  Orange: { clr: '#FF6200', txt: '#ffffff' },
+  MTN:    { clr: '#FFCC00', txt: '#3D2E00' },
+  Moov:   { clr: '#1D7AE0', txt: '#ffffff' },
+  Wave:   { clr: '#00C2CB', txt: '#00363A' },
+};
+
+function _showMaintenanceModal({ title, sub, badgeLabel, badgeClr, badgeTxt }) {
+  let overlay = document.getElementById('netm-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'netm-overlay';
+    overlay.className = 'modal-overlay netm-overlay';
+    overlay.innerHTML = `
+      <div class="netm-card" id="netm-card">
+        <button type="button" class="netm-close" onclick="document.getElementById('netm-overlay').classList.remove('open')"><i class="fa-solid fa-xmark"></i></button>
+        <div class="netm-icon"><img src="img/bonaventure.jpg" alt="" class="netm-icon-img"></div>
+        <div class="netm-title" id="netm-title"></div>
+        <div class="netm-sub" id="netm-sub"></div>
+        <div class="netm-badge">
+          <span class="netm-badge-icon"><i class="fa-solid fa-wifi"></i><i class="netm-badge-slash"></i></span>
+          <span id="netm-badge-label"></span>
+        </div>
+        <div class="netm-wait"><i class="fa-solid fa-clock"></i> Patientez</div>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.classList.remove('open'); });
+  }
+  const card = overlay.querySelector('#netm-card');
+  card.style.setProperty('--netm-clr', badgeClr);
+  card.style.setProperty('--netm-txt', badgeTxt);
+  overlay.querySelector('#netm-title').textContent = title;
+  overlay.querySelector('#netm-sub').textContent = sub;
+  overlay.querySelector('#netm-badge-label').textContent = badgeLabel;
+  requestAnimationFrame(() => overlay.classList.add('open'));
+}
+
+function warnNetworkMaintenance(rawNetwork) {
+  const net   = normalizeMaintenanceNetwork(rawNetwork) || rawNetwork || '';
+  const theme = NETM_THEME[net] || { clr: '#9CA3AF', txt: '#1f2937' };
+  _showMaintenanceModal({
+    title: 'Perturbation réseau',
+    sub: 'Ce réseau est temporairement instable',
+    badgeLabel: net, badgeClr: theme.clr, badgeTxt: theme.txt,
+  });
+}
+
+// Libellés affichés dans le badge — mêmes clés que isServiceInMaintenance()
+// (voir seed()/settings.maintenance.services, js/db.js) et les appels
+// warnServiceMaintenance() dans js/client.js/js/cabine.js.
+const SERVICE_MAINT_LABELS = {
+  depenses:      'Dépenses',
+  historique:    'Historique',
+  commande_auto: 'Commande automatique',
+  recharger:     'Recharge portefeuille',
+  transferer:    'Transfert entre clients',
+  facture:       'Paiement de factures',
+  recharge_uv:   'Recharge UV',
+  exchange:      'Exchange',
+};
+
+function warnServiceMaintenance(serviceKey) {
+  _showMaintenanceModal({
+    title: 'Service indisponible',
+    sub: 'Ce service est temporairement indisponible',
+    badgeLabel: SERVICE_MAINT_LABELS[serviceKey] || serviceKey,
+    badgeClr: '#FF6200', badgeTxt: '#ffffff',
+  });
 }
 
 /* ── Fenêtre d'éligibilité à réclamation — fonctions globales (non
