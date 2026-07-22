@@ -316,16 +316,23 @@ const DB = (() => {
     }
   }
 
-  /* Sous-section d'un forfait Orange "Appels", déduite de son id (stable
-     depuis le catalogue d'origine) — regroupe visuellement les Pass Mix
-     1-3j / 5-7j / 30j entre eux et les 7 destinations Pass International
-     ensemble sous "International", sans dépendre de l'état de migration
-     de la catégorie elle-même (voir migrateForfaitSubcategories()). */
+  /* Sous-section d'un forfait Orange "Appels"/"Internet", déduite de son id
+     (stable depuis le catalogue d'origine) — regroupe visuellement les Pass
+     Mix 1-3j/5-7j/30j entre eux, les 7 destinations Pass International
+     ensemble sous "International", et les Pass Internet (réseaux sociaux/
+     1-3j/5-7j/mois/nuit) chacun sous leur propre section — sans dépendre de
+     l'état de migration de la catégorie elle-même (voir
+     migrateForfaitSubcategories()). */
   function _forfaitSubcategoryForId(id) {
     if (/^omx([1-4])$/.test(id))     return 'Pass Mix 1-3 jours';
     if (/^omx([5-8])$/.test(id))     return 'Pass Mix 5-7 jours';
     if (/^omx(9|1[0-2])$/.test(id))  return 'Pass Mix 30 jours';
     if (/^(obf|oml|osn|ogn|oni|ong|oae)/.test(id)) return 'International';
+    if (/^os[1-3]$/.test(id))        return 'Pass réseaux sociaux';
+    if (/^o13[1-9]$/.test(id))       return 'Pass de 1-3 Jours';
+    if (/^o57[1-4]$/.test(id))       return 'Pass de 5-7 Jours';
+    if (/^om[1-5]$/.test(id))        return 'Pass internet Mois';
+    if (/^on1$/.test(id))            return 'Pass nuit';
     return null;
   }
 
@@ -340,9 +347,9 @@ const DB = (() => {
     const nested = {
       // Tous les Pass Mix et Pass International Orange sont regroupés dans
       // une seule section "Appels" (ce sont tous, au fond, des forfaits de
-      // minutes) — "Internet" est laissée prête à accueillir de futurs
-      // forfaits data Orange, ajoutés via l'onglet Super Admin "Forfaits"
-      // (une catégorie n'apparaît qu'une fois qu'elle contient un forfait).
+      // minutes) ; les Pass data (réseaux sociaux/1-3j/5-7j/mois/nuit) vivent
+      // dans "Internet" (voir aussi api/migration_phase29_forfaits_internet_orange.sql
+      // pour les bases déjà en production, jamais re-seedées par ce fichier).
       Orange: {
         Appels: [
           { id:'omx1', nom:'Pass mix 200 F',      detail:'17 min tous réseaux',        duree:'1 jour',  prix:200, ussdTemplate:'#161*{numero_destinataire}*2*1*1#' },
@@ -379,6 +386,40 @@ const DB = (() => {
           { id:'oae1', nom:'Pass Amérique/Asie/Europe 500 F',   detail:'20 min vers USA, Inde, Canada, Orange France, Roumanie, Brésil, Colombie, Mexique, Singapour + 10 min locales',  duree:'1 mois', prix:500,  ussdTemplate:'#161*{numero_destinataire}*5*7*1#' },
           { id:'oae2', nom:'Pass Amérique/Asie/Europe 1 000 F', detail:'50 min vers les mêmes destinations + 20 min locales',  duree:'1 mois', prix:1000, ussdTemplate:'#161*{numero_destinataire}*5*7*2#' },
           { id:'oae3', nom:'Pass Amérique/Asie/Europe 2 000 F', detail:'110 min vers les mêmes destinations + 30 min locales', duree:'1 mois', prix:2000, ussdTemplate:'#161*{numero_destinataire}*5*7*2#', verified:false },
+        ],
+        // Pass réseaux sociaux / 1-3 jours / 5-7 jours / mois / nuit —
+        // sous-sections déduites de l'id via _forfaitSubcategoryForId()
+        // ci-dessus (préfixes os/o13/o57/om/on), même patron que les Pass
+        // Mix/International de la section "Appels". Le "Pass internet 1000 F"
+        // (1.5 Go + 150 Mo Spotify) était listé deux fois à l'identique dans
+        // le catalogue fourni — gardé une seule fois ici.
+        Internet: [
+          { id:'os1', nom:'Pass social 300 F',       detail:'450 Mo pour Facebook, WhatsApp, Twitter, Instagram, YouTube, Dailymotion', duree:'3 jours', prix:300, ussdTemplate:'#161*{numero_destinataire}*3*1*1#' },
+          { id:'os2', nom:'Pass social TikTok 300 F', detail:'1 Go + TikTok et WhatsApp', duree:'1 jour', prix:300, ussdTemplate:'#161*{numero_destinataire}*3*1*2#' },
+          { id:'os3', nom:'Pass social 500 F',       detail:'1 Go pour Facebook, WhatsApp, Twitter, Instagram, YouTube, Dailymotion', duree:'3 jours', prix:500, ussdTemplate:'#161*{numero_destinataire}*3*1*3#' },
+
+          { id:'o131', nom:'Pass Internet 200 F',   detail:'220 Mo',                       duree:'2 jours', prix:200, ussdTemplate:'#161*{numero_destinataire}*3*2*1#' },
+          { id:'o132', nom:'Pass internet 300 F',   detail:'400 Mo',                       duree:'2 jours', prix:300, ussdTemplate:'#161*{numero_destinataire}*3*2*2#' },
+          { id:'o133', nom:'Pass internet 500 F',   detail:'500 Mo',                       duree:'3 jours', prix:500, ussdTemplate:'#161*{numero_destinataire}*3*2*5#' },
+          { id:'o134', nom:'Pass internet 400 F',   detail:'340 Mo + Life TV',             duree:'3 jours', prix:400, ussdTemplate:'#161*{numero_destinataire}*3*2*3#' },
+          { id:'o135', nom:'Pass internet 400 F',   detail:'340 Mo + WAW MUSIK illimité',  duree:'3 jours', prix:400, ussdTemplate:'#161*{numero_destinataire}*3*2*4#' },
+          { id:'o136', nom:'Pass spécial 500 F',    detail:'1,5 Go',                       duree:'3 jours', prix:500, ussdTemplate:'#161*{numero_destinataire}*3*2*6#' },
+          { id:'o137', nom:'Pass Megawin 500 F',    detail:'1 Go',                         duree:'3 jours', prix:500, ussdTemplate:'#161*{numero_destinataire}*3*2*7#' },
+          { id:'o138', nom:'Pass Max it TV 500 F',  detail:'1 Go + accès à Max it TV',      duree:'1 jour',  prix:500, ussdTemplate:'#161*{numero_destinataire}*3*2*8#' },
+          { id:'o139', nom:'Pass 700 F',            detail:'750 Mo + vidéo cuisine',        duree:'3 jours', prix:700, ussdTemplate:'#161*{numero_destinataire}*3*2*9#' },
+
+          { id:'o571', nom:'Pass internet Semaine 700 F', detail:'750 Mo + WAW MUZIK illimité', duree:'7 jours', prix:700,  ussdTemplate:'#161*{numero_destinataire}*3*3*1#' },
+          { id:'o572', nom:'Pass internet 1000 F',        detail:'1,5 Go + 150 Mo Spotify',     duree:'7 jours', prix:1000, ussdTemplate:'#161*{numero_destinataire}*3*3*2#' },
+          { id:'o573', nom:'Pass internet 1200 F',        detail:'1,5 Go + 7 Info',             duree:'7 jours', prix:1200, ussdTemplate:'#161*{numero_destinataire}*3*3*3#' },
+          { id:'o574', nom:'Pass internet 1500 F',        detail:'2,5 Go + 150 Mo sportif',     duree:'7 jours', prix:1500, ussdTemplate:'#161*{numero_destinataire}*3*3*4#' },
+
+          { id:'om1', nom:'Pass internet 2 500 F',  detail:'3,5 Go + 500 Mo sportif',  duree:'30 jours', prix:2500,  ussdTemplate:'#161*{numero_destinataire}*3*4*1#' },
+          { id:'om2', nom:'Pass internet 3 000 F',  detail:'2,7 Go + WAW illimité',    duree:'30 jours', prix:3000,  ussdTemplate:'#161*{numero_destinataire}*3*4*2#' },
+          { id:'om3', nom:'Pass internet 5 000 F',  detail:'7,5 Go + 500 Mo Spotify',  duree:'30 jours', prix:5000,  ussdTemplate:'#161*{numero_destinataire}*3*4*3#' },
+          { id:'om4', nom:'Pass internet 10 000 F', detail:'18 Go + 500 Mo Spotify',   duree:'30 jours', prix:10000, ussdTemplate:'#161*{numero_destinataire}*3*4*4#' },
+          { id:'om5', nom:'Pass internet 20 000 F', detail:'40 Go + 500 Mo Spotify',   duree:'30 jours', prix:20000, ussdTemplate:'#161*{numero_destinataire}*3*4*5#' },
+
+          { id:'on1', nom:'Pass nuit 250 F', detail:'2 Go + illimité numéros préférés', duree:'22h à 07h', prix:250, ussdTemplate:'#161*{numero_destinataire}*3*5*1#' },
         ],
       },
       MTN: {

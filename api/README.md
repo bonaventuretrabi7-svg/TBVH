@@ -64,6 +64,11 @@ colonnes `poste`/`pays`/`ville`/`quartier`/`date_naissance`/`docs` sur
 `profiles` (profil administrateur complet, jamais stocké côté serveur
 jusqu'ici — corrige un compte "Assistant clientèle" créé sans permissions).
 
+**Base déjà en place :** colle aussi le contenu de
+**`api/migration_phase29_forfaits_internet_orange.sql`** (une seule fois) —
+ajoute au catalogue `forfaits` les Pass Orange "Internet" (réseaux sociaux,
+1-3 jours, 5-7 jours, mois, nuit), jusqu'ici absents de la base.
+
 ## 3. Déposer les fichiers PHP sur l'hébergement
 
 hPanel → Sites web → ton domaine → **Gestionnaire de fichiers** → ouvre le
