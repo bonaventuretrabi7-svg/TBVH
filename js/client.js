@@ -2121,6 +2121,7 @@ function tfRenderForfaits() {
    'step-pay' en 'complete' pour afficher le récap dans la même slide,
    auquel cas plus aucun step n'est 'active' alors que cette slide reste
    bien la slide visible à resynchroniser. */
+let _tfPrevSlideIdx = 0;
 function _tfSyncSlideHeight() {
   const sync = () => {
     const track = document.getElementById('tf-slider-track');
@@ -2135,17 +2136,17 @@ function _tfSyncSlideHeight() {
     // que la section redevient visible (setOrderMode() rappelle déjà
     // cette fonction à ce moment-là).
     if (!slide || slide.scrollHeight <= 0) return;
-    if (curIdx === 0) {
-      // Étape 1 (réseau) : jamais d'agrandissement animé — seulement un
-      // ajustement instantané (transition coupée le temps de l'écriture,
-      // via un reflow forcé). Sans ça, chaque affichage/ré-affichage du
-      // tunnel (boot(), retour depuis l'onglet "Plus tard" via
-      // setOrderMode()) anime .38s depuis la hauteur précédente (souvent 0,
-      // la section étant restée display:none) jusqu'à la hauteur réelle de
-      // la carte réseau — visible comme un agrandissement au chargement/
-      // changement de page alors que cette étape ne devrait jamais bouger.
-      // L'agrandissement animé garde son sens à partir de l'étape 2, où le
-      // contenu varie réellement selon les choix de l'utilisateur.
+    // Étape 1 (réseau) : jamais d'agrandissement animé — ni en y entrant,
+    // ni en la quittant. Sans ce garde-fou, choisir un réseau (tfSelectOp()
+    // enchaîne aussitôt setStep('step-service','active')) anime .38s la
+    // hauteur du conteneur vers celle — plus grande — de l'étape 2, ce qui
+    // se lit comme "le fond grossit tout seul" alors que l'utilisateur
+    // vient juste de taper sur une carte réseau. On coupe donc aussi
+    // l'animation quand on QUITTE l'étape 1 (_tfPrevSlideIdx === 0), pas
+    // seulement quand on y ARRIVE (curIdx === 0). L'agrandissement animé
+    // garde son sens uniquement entre les étapes 2, 3 et 4, où le contenu
+    // varie réellement selon les choix de l'utilisateur.
+    if (curIdx === 0 || _tfPrevSlideIdx === 0) {
       wrap.style.transition = 'none';
       wrap.style.height = slide.scrollHeight + 'px';
       void wrap.offsetHeight;
@@ -2153,6 +2154,7 @@ function _tfSyncSlideHeight() {
     } else {
       wrap.style.height = slide.scrollHeight + 'px';
     }
+    _tfPrevSlideIdx = curIdx;
   };
   // Un second passage légèrement différé rattrape le contenu qui finit de
   // se mettre en page après le premier frame (ex : grille de forfaits

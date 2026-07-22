@@ -1111,29 +1111,18 @@ let _cabCurrentOrders = [];
 
 function loadCabOrders(filter = 'all') {
   _cabFilter = filter;
+  // Le filtre réseau (Orange/MTN/Moov activé/désactivé) a été retiré d'ici :
+  // il ne doit jamais s'appliquer à une commande DÉJÀ assignée à cette
+  // cabine (cabine_id = currentUser.id), seulement empêcher de nouvelles
+  // assignations pour ce réseau (déjà géré côté serveur, voir
+  // cabineAcceptsNetwork()/pickInitialCabine(), api/orders_common.php).
+  // L'appliquer ici aussi masquait à tort des commandes bel et bien
+  // assignées à cette cabine dès qu'elle désactivait un réseau APRÈS coup
+  // (bug remonté à plusieurs reprises : le compteur "En cours"/"Retards"
+  // affiche 1 mais la liste reste vide) — pire, la cabine ne voyait alors
+  // plus du tout la commande dont elle restait pourtant responsable
+  // (retard/pénalité possibles sans qu'elle sache qu'une commande l'attendait).
   let txns = DB.transactions.byCabine(currentUser.id);
-
-  // Filtre réseau : ne s'applique qu'aux commandes pas encore traitées.
-  // Un réseau désactivé bloque les nouvelles commandes, mais celles déjà
-  // traitées (terminées/refusées) restent visibles quel que soit l'état du
-  // toggle. Ne s'applique JAMAIS à Facture/Recharge UV/Exchange : leur
-  // assignation (pickInitialCabine(..., null, $type), api/orders_common.php)
-  // ignore volontairement reseaux_actifs et ne regarde que services_actifs
-  // — appliquer ce filtre ici aussi masquait à tort des commandes bel et
-  // bien assignées à cette cabine dès que le réseau qu'elles référencent
-  // (ex. "Orange" pour une Recharge UV) était désactivé pour les
-  // transferts classiques (bug remonté : "des commandes en cours mais on
-  // ne voit pas").
-  const ADVANCED_SERVICE_TYPES = ['facture', 'recharge_uv', 'exchange'];
-  txns = txns.filter(t => {
-    if (t.statut !== 'en_attente') return true;
-    if (ADVANCED_SERVICE_TYPES.includes(t.type)) return true;
-    const op = (t.operateur || '').toLowerCase();
-    if (op.includes('orange') && !_cabNetworks.orange) return false;
-    if (op.includes('moov')   && !_cabNetworks.moov)   return false;
-    if (op.includes('mtn')    && !_cabNetworks.mtn)    return false;
-    return true;
-  });
 
   let hiddenDoneCount = 0;
   const now        = new Date();
