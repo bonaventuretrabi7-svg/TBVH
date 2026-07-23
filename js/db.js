@@ -1216,10 +1216,18 @@ const DB = (() => {
      l'espace Client relit cette collection à chaque rendu de l'étape
      Forfait, donc toute modification y est visible sans redéploiement. */
   // Ligne serveur (snake_case, voir api/forfaits_*.php) → forme locale
-  // (camelCase pour ussdTemplate, seule divergence de nommage).
+  // (camelCase pour ussdTemplate, seule divergence de nommage). Redérive
+  // aussi sousCategorie (via _forfaitSubcategoryForId(), jamais stockée
+  // côté serveur — voir migrateForfaitSubcategories() plus haut) : sans
+  // ça, refresh() (rappelé en tâche de fond à chaque DB.forfaits.get(),
+  // pas seulement au boot) écrasait le regroupement en sous-catégories
+  // déjà affiché, avec un délai variable avant que le prochain rechargement
+  // de page ne le recalcule — un forfait Orange fraîchement ajouté pouvait
+  // ainsi apparaître "à plat" (Pass Mix/Pass Internet non groupés) tant
+  // qu'aucun rechargement n'avait eu lieu après le premier refresh().
   function forfaitFromRow(row) {
     const { ussd_template, ...rest } = row;
-    return { ...rest, ussdTemplate: ussd_template ?? null };
+    return { ...rest, ussdTemplate: ussd_template ?? null, sousCategorie: _forfaitSubcategoryForId(row.id) };
   }
 
   const forfaits = {
