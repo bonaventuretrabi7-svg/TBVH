@@ -312,7 +312,7 @@ async function restoreClientState() {
         if (catEl) tfSetCat(d.forfaitCat, catEl);
       }
       if (d.forfaitSubCat) {
-        const subEl = document.querySelector(`.fsub-btn[onclick*="tfSetSubCat('${d.forfaitSubCat}'"]`);
+        const subEl = document.querySelector(`.fsub-tab[onclick*="tfSetSubCat('${d.forfaitSubCat}'"]`);
         if (subEl) tfSetSubCat(d.forfaitSubCat, subEl);
       }
       if (d.forfaitId) {
@@ -1913,12 +1913,18 @@ async function tfSelectOp(op, el) {
    Mixtes) — les onglets sont donc générés dynamiquement plutôt que codés
    en dur dans le HTML (voir #forfait-cats-list dans client.html). */
 const FORFAIT_CAT_ICONS = { Internet: 'fa-wifi', Appels: 'fa-circle-dot', Mixtes: 'fa-layer-group' };
-// Valeur spéciale de forfaitSubCat/schedState.forfaitSubCat représentant
-// "toutes les sous-sections" — bouton "★ Tout" ajouté en tête de
-// tfRenderSubCats()/schedRenderSubCats(), sélectionné par défaut pour ne
-// jamais laisser la grille de forfaits vide tant que le client n'a rien
-// tapé explicitement.
-const FORFAIT_ALL_SUBCAT = '__all__';
+// Ordre chronologique voulu pour le ruban de sous-catégories (durée
+// croissante, International en dernier) — les sous-catégories absentes
+// de cette liste (Pass Internet) gardent leur ordre d'apparition, à la
+// suite de celles-ci.
+const FORFAIT_SUBCAT_ORDER = ['Pass Mix 1-3 jours', 'Pass Mix 5-7 jours', 'Pass Mix 30 jours', 'International'];
+function _sortForfaitSubs(subs) {
+  return subs.slice().sort((a, b) => {
+    let ia = FORFAIT_SUBCAT_ORDER.indexOf(a); if (ia === -1) ia = FORFAIT_SUBCAT_ORDER.length;
+    let ib = FORFAIT_SUBCAT_ORDER.indexOf(b); if (ib === -1) ib = FORFAIT_SUBCAT_ORDER.length;
+    return ia - ib;
+  });
+}
 function tfRenderCats() {
   const container = document.getElementById('forfait-cats-list');
   if (!container) return;
@@ -1930,9 +1936,8 @@ function tfRenderCats() {
   tf.forfaitCat    = null;
   tf.forfaitSubCat = null;
   container.innerHTML = cats.map(cat => `
-    <button class="fcat-btn" onclick="tfSetCat('${cat}',this)">
-      <span class="fcat-btn-title"><i class="fa-solid ${FORFAIT_CAT_ICONS[cat] || 'fa-earth-africa'}"></i> ${cat}</span>
-      <span class="fcat-btn-count">${all.filter(f => f.categorie === cat).length} forfaits</span>
+    <button type="button" class="fcat-btn" onclick="tfSetCat('${cat}',this)">
+      <i class="fa-solid ${FORFAIT_CAT_ICONS[cat] || 'fa-earth-africa'}"></i>${cat}<span class="fcat-count">${all.filter(f => f.categorie === cat).length}</span>
     </button>`).join('');
   const subContainer = document.getElementById('forfait-subcats-list');
   if (subContainer) { subContainer.style.display = 'none'; subContainer.innerHTML = ''; }
@@ -2003,7 +2008,7 @@ function tfSetCat(cat, el) {
   tf.forfait    = null;
   // Scopé à #tf-order-now (jamais document.querySelectorAll('.fcat-btn')
   // global) — "Passez votre commande" et "Commande automatique" partagent
-  // les mêmes classes .fcat-btn/.fsub-btn (schedRenderCats(), plus bas),
+  // les mêmes classes .fcat-btn/.fsub-tab (schedRenderCats(), plus bas),
   // donc un clic ici désélectionnait à tort les boutons catégorie de
   // l'autre section (même bug déjà corrigé sur .op-card, voir tfSelectOp()).
   document.querySelectorAll('#tf-order-now .fcat-btn').forEach(b => b.classList.remove('active'));
@@ -2019,8 +2024,9 @@ function tfRenderSubCats() {
   const container = document.getElementById('forfait-subcats-list');
   if (!container) return;
   const items = DB.forfaits.all().filter(f => f.operateur === tf.operator && f.categorie === tf.forfaitCat);
-  const subs = [];
+  let subs = [];
   items.forEach(f => { if (f.sousCategorie && !subs.includes(f.sousCategorie)) subs.push(f.sousCategorie); });
+  subs = _sortForfaitSubs(subs);
 
   if (!subs.length) {
     tf.forfaitSubCat = null;
@@ -2031,29 +2037,23 @@ function tfRenderSubCats() {
     return;
   }
 
-  // "Tout" sélectionné par défaut — le client voit déjà des offres sans
-  // avoir à taper une sous-section précise, celles-ci ne servent qu'à
-  // affiner ensuite (voir FORFAIT_ALL_SUBCAT ci-dessus).
-  tf.forfaitSubCat = FORFAIT_ALL_SUBCAT;
+  // Première sous-section sélectionnée par défaut (plus de bouton "Tout")
+  // — le client voit déjà des offres sans avoir à taper une sous-section
+  // précise, la grille ne reste donc jamais vide.
+  tf.forfaitSubCat = subs[0];
   tf.forfaitSubRequired = true;
-  container.style.display = 'grid';
+  container.style.display = 'flex';
   // Rejoue l'animation d'entrée même en passant d'une catégorie à une
-  // autre qui a elle aussi des sous-groupes (display reste "grid" dans
+  // autre qui a elle aussi des sous-groupes (display reste "flex" dans
   // ce cas, donc pas de changement d'état à observer sans ce forçage).
   container.classList.remove('fsub-reveal');
   void container.offsetWidth;
   container.classList.add('fsub-reveal');
-  const allBtn = `
-    <button type="button" class="fsub-btn fsub-btn--all active" onclick="tfSetSubCat('${FORFAIT_ALL_SUBCAT}',this)">
-      <span class="fsub-btn-title"><i class="fa-solid fa-star"></i>Tout</span>
-      <span class="fsub-btn-count">${items.length} forfaits</span>
-    </button>`;
-  container.innerHTML = allBtn + subs.map(s => {
+  container.innerHTML = subs.map((s, i) => {
     const count = items.filter(f => f.sousCategorie === s).length;
     return `
-    <button type="button" class="fsub-btn" onclick="tfSetSubCat('${s}',this)">
-      <span class="fsub-btn-title">${s}</span>
-      <span class="fsub-btn-count">${count} forfaits</span>
+    <button type="button" class="fsub-tab${i === 0 ? ' active' : ''}" onclick="tfSetSubCat('${s}',this)">
+      ${s}<span class="fsub-tab-count">${count}</span>
     </button>`;
   }).join('');
   tfRenderForfaits();
@@ -2063,7 +2063,7 @@ function tfSetSubCat(sub, el) {
   tf.forfaitSubCat = sub;
   tf.forfait = null;
   // Scopé à #tf-order-now — même raison que tfSetCat() ci-dessus.
-  document.querySelectorAll('#tf-order-now .fsub-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('#tf-order-now .fsub-tab').forEach(b => b.classList.remove('active'));
   el.classList.add('active');
   tfRenderForfaits();
 }
@@ -2088,7 +2088,7 @@ function tfRenderForfaits() {
   }
   const list = DB.forfaits.all().filter(f =>
     f.operateur === tf.operator && f.categorie === tf.forfaitCat &&
-    (!tf.forfaitSubRequired || tf.forfaitSubCat === FORFAIT_ALL_SUBCAT || f.sousCategorie === tf.forfaitSubCat));
+    (!tf.forfaitSubRequired || f.sousCategorie === tf.forfaitSubCat));
   if (!list.length) {
     container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--gray-400);">Aucun forfait disponible.</div>';
     _tfSyncSlideHeight();
@@ -2108,27 +2108,35 @@ function tfRenderForfaits() {
   container.innerHTML = list.map(f => {
     const sel = tf.forfait?.id === f.id;
     let groupHtml = '';
-    let title = f.nom;
+    // Le nom embarque déjà le prix ("Pass internet 200 F") — on le retire
+    // du titre affiché puisque le prix a maintenant sa propre statistique
+    // héro (.fc-price) ; les noms sans prix embarqué (ex. MTN "Pépite
+    // Jour") traversent ce remplacement sans y correspondre, donc intacts.
+    let title = f.nom.replace(/\s+[\d\s]+F$/, '');
     if (isIntl) {
-      const group = f.nom.replace(/\s+[\d\s]+F$/, '');
+      const group = title;
       if (group !== lastGroup) {
         groupHtml = `<div class="forfait-group-hd"><span class="forfait-group-badge ${opClass}">${group}</span></div>`;
         lastGroup = group;
       }
-      title = Fmt.money(f.prix);
+      title = '';
     }
+    const priceNum = Math.round(f.prix).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
     return `${groupHtml}
     <div class="forfait-card ${opClass} ${sel ? 'selected' : ''}" onclick="tfSelectForfait('${f.id}',this)">
       <div class="fc-check"><i class="fa-solid fa-check"></i></div>
       <div class="fc-top">
-        <div class="fc-icon ${opClass}"><img class="fc-icon-img" src="img/logos/${opLogo}" alt="${tf.operator}" onerror="this.outerHTML='<span>${opEmoji}</span>'"></div>
-        <div class="fc-title">${title}</div>
+        <div class="fc-id">
+          <div class="fc-icon ${opClass}"><img class="fc-icon-img" src="img/logos/${opLogo}" alt="${tf.operator}" onerror="this.outerHTML='<span>${opEmoji}</span>'"></div>
+          ${title ? `<div class="fc-title">${title}</div>` : ''}
+        </div>
+        <div class="fc-price"><b>${priceNum}</b><span>FCFA</span></div>
       </div>
-      <div class="fc-sep"></div>
-      <div class="fc-adv-section ${opClass}"><div class="fc-adv-lbl">Les avantages du pass</div></div>
-      <div class="fc-adv-val">${f.detail}</div>
-      <div class="fc-val-lbl">Validité</div>
-      <div class="fc-val-val">${f.duree}</div>
+      <div class="fc-adv-section ${opClass}"><span class="fc-adv-ico"><i class="fa-solid fa-star"></i></span><span class="fc-adv-lbl">Les avantages du pass</span></div>
+      <div class="fc-stats">
+        <div class="fc-stat"><span class="fc-stat-val">${f.detail}</span></div>
+        <div class="fc-stat fc-stat--chip"><span class="fc-stat-ico"><i class="fa-solid fa-clock"></i></span><span class="fc-stat-val">${f.duree}</span></div>
+      </div>
     </div>`;
   }).join('');
   _tfSyncSlideHeight();
@@ -4422,7 +4430,7 @@ function schedCustomAmount(val) {
    Reproduit exactement le même modèle que le tunnel principal
    (tfRenderCats()/tfSetCat()/tfRenderSubCats()/tfSetSubCat()/
    tfRenderForfaits()/tfSelectForfait()) — mêmes classes CSS (.fcat-btn/
-   .fsub-btn/.forfait-card...), même comportement, mais dans schedState
+   .fsub-tab/.forfait-card...), même comportement, mais dans schedState
    plutôt que tf.*, et ciblant #sched-forfait-cats/-subcats/-list. */
 function schedRenderCats() {
   const container = document.getElementById('sched-forfait-cats');
@@ -4433,8 +4441,7 @@ function schedRenderCats() {
   schedState.forfaitSubCat = null;
   container.innerHTML = cats.map(cat => `
     <button type="button" class="fcat-btn" onclick="schedSetCat('${cat}',this)">
-      <span class="fcat-btn-title"><i class="fa-solid ${FORFAIT_CAT_ICONS[cat] || 'fa-earth-africa'}"></i> ${cat}</span>
-      <span class="fcat-btn-count">${all.filter(f => f.categorie === cat).length} forfaits</span>
+      <i class="fa-solid ${FORFAIT_CAT_ICONS[cat] || 'fa-earth-africa'}"></i>${cat}<span class="fcat-count">${all.filter(f => f.categorie === cat).length}</span>
     </button>`).join('');
   const subContainer = document.getElementById('sched-forfait-subcats');
   if (subContainer) { subContainer.style.display = 'none'; subContainer.innerHTML = ''; }
@@ -4453,8 +4460,9 @@ function schedRenderSubCats() {
   const container = document.getElementById('sched-forfait-subcats');
   if (!container) return;
   const items = DB.forfaits.all().filter(f => f.operateur === schedState.operateur && f.categorie === schedState.forfaitCat);
-  const subs = [];
+  let subs = [];
   items.forEach(f => { if (f.sousCategorie && !subs.includes(f.sousCategorie)) subs.push(f.sousCategorie); });
+  subs = _sortForfaitSubs(subs);
 
   if (!subs.length) {
     schedState.forfaitSubCat = null;
@@ -4465,21 +4473,19 @@ function schedRenderSubCats() {
     return;
   }
 
-  // "Tout" sélectionné par défaut — même raison que tfRenderSubCats().
-  schedState.forfaitSubCat = FORFAIT_ALL_SUBCAT;
+  // Première sous-section sélectionnée par défaut — même raison que
+  // tfRenderSubCats() (plus de bouton "Tout").
+  schedState.forfaitSubCat = subs[0];
   schedState.forfaitSubRequired = true;
-  container.style.display = 'grid';
-  const allBtn = `
-    <button type="button" class="fsub-btn fsub-btn--all active" onclick="schedSetSubCat('${FORFAIT_ALL_SUBCAT}',this)">
-      <span class="fsub-btn-title"><i class="fa-solid fa-star"></i>Tout</span>
-      <span class="fsub-btn-count">${items.length} forfaits</span>
-    </button>`;
-  container.innerHTML = allBtn + subs.map(s => {
+  container.style.display = 'flex';
+  container.classList.remove('fsub-reveal');
+  void container.offsetWidth;
+  container.classList.add('fsub-reveal');
+  container.innerHTML = subs.map((s, i) => {
     const count = items.filter(f => f.sousCategorie === s).length;
     return `
-    <button type="button" class="fsub-btn" onclick="schedSetSubCat('${s}',this)">
-      <span class="fsub-btn-title">${s}</span>
-      <span class="fsub-btn-count">${count} forfaits</span>
+    <button type="button" class="fsub-tab${i === 0 ? ' active' : ''}" onclick="schedSetSubCat('${s}',this)">
+      ${s}<span class="fsub-tab-count">${count}</span>
     </button>`;
   }).join('');
   schedRenderForfaits();
@@ -4488,7 +4494,7 @@ function schedRenderSubCats() {
 function schedSetSubCat(sub, el) {
   schedState.forfaitSubCat = sub;
   schedState.forfait = null;
-  document.querySelectorAll('#sched-forfait-subcats .fsub-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('#sched-forfait-subcats .fsub-tab').forEach(b => b.classList.remove('active'));
   el.classList.add('active');
   schedRenderForfaits();
 }
@@ -4506,7 +4512,7 @@ function schedRenderForfaits() {
 
   const list = DB.forfaits.all().filter(f =>
     f.operateur === schedState.operateur && f.categorie === schedState.forfaitCat &&
-    (!schedState.forfaitSubRequired || schedState.forfaitSubCat === FORFAIT_ALL_SUBCAT || f.sousCategorie === schedState.forfaitSubCat));
+    (!schedState.forfaitSubRequired || f.sousCategorie === schedState.forfaitSubCat));
   if (!list.length) {
     container.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--gray-400);">Aucun forfait disponible.</div>';
     _schedSyncSlideHeight();
@@ -4521,27 +4527,32 @@ function schedRenderForfaits() {
   container.innerHTML = list.map(f => {
     const sel = schedState.forfait?.id === f.id;
     let groupHtml = '';
-    let title = f.nom;
+    // Voir tfRenderForfaits() — même retrait du prix embarqué dans le nom.
+    let title = f.nom.replace(/\s+[\d\s]+F$/, '');
     if (isIntl) {
-      const group = f.nom.replace(/\s+[\d\s]+F$/, '');
+      const group = title;
       if (group !== lastGroup) {
         groupHtml = `<div class="forfait-group-hd"><span class="forfait-group-badge ${opClass}">${group}</span></div>`;
         lastGroup = group;
       }
-      title = Fmt.money(f.prix);
+      title = '';
     }
+    const priceNum = Math.round(f.prix).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
     return `${groupHtml}
     <div class="forfait-card ${opClass} ${sel ? 'selected' : ''}" onclick="schedSelectForfait('${f.id}',this)">
       <div class="fc-check"><i class="fa-solid fa-check"></i></div>
       <div class="fc-top">
-        <div class="fc-icon ${opClass}"><img class="fc-icon-img" src="img/logos/${opLogo}" alt="${schedState.operateur}" onerror="this.outerHTML='<span>${opEmoji}</span>'"></div>
-        <div class="fc-title">${title}</div>
+        <div class="fc-id">
+          <div class="fc-icon ${opClass}"><img class="fc-icon-img" src="img/logos/${opLogo}" alt="${schedState.operateur}" onerror="this.outerHTML='<span>${opEmoji}</span>'"></div>
+          ${title ? `<div class="fc-title">${title}</div>` : ''}
+        </div>
+        <div class="fc-price"><b>${priceNum}</b><span>FCFA</span></div>
       </div>
-      <div class="fc-sep"></div>
-      <div class="fc-adv-section ${opClass}"><div class="fc-adv-lbl">Les avantages du pass</div></div>
-      <div class="fc-adv-val">${f.detail}</div>
-      <div class="fc-val-lbl">Validité</div>
-      <div class="fc-val-val">${f.duree}</div>
+      <div class="fc-adv-section ${opClass}"><span class="fc-adv-ico"><i class="fa-solid fa-star"></i></span><span class="fc-adv-lbl">Les avantages du pass</span></div>
+      <div class="fc-stats">
+        <div class="fc-stat"><span class="fc-stat-val">${f.detail}</span></div>
+        <div class="fc-stat fc-stat--chip"><span class="fc-stat-ico"><i class="fa-solid fa-clock"></i></span><span class="fc-stat-val">${f.duree}</span></div>
+      </div>
     </div>`;
   }).join('');
   _schedSyncSlideHeight();

@@ -1748,7 +1748,7 @@ body.dark .tf-step-body { border-color: var(--dark-border); }
 
 /* â”€â”€ Service Toggle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 /* Deux cartes (Crédit/Transfert direct, Forfait/Internet-appels-SMS) —
-   même traitement que .fcat-btn/.fsub-btn : inactif en gris neutre,
+   même traitement que .fcat-btn : inactif en gris neutre,
    actif coloré à la teinte de l'opérateur (--op-clr/--op-clr-text). */
 .service-toggle {
   display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
@@ -1813,39 +1813,54 @@ body.dark .amount-custom-icon { background: var(--dark-card); }
 body.dark .amount-custom-suffix { color: var(--dark-muted); }
 
 /* â”€â”€ Forfait Tabs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-/* Catégories en grille de cartes 2 colonnes (titre + nombre de forfaits),
-   colorées avec la teinte de l'opérateur (--op-clr/--op-clr-text, posées
-   sur .tf-layout par tfSelectOp()). */
+/* Catégories en interrupteur à glissière : piste sombre discrète au repos,
+   le segment sélectionné devient un bloc plein à la teinte opérateur
+   (--op-clr/--op-clr-text, posées sur .tf-layout par tfSelectOp()). */
 .forfait-cats {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
-  margin-bottom: 16px;
+  display: flex; gap: 3px; padding: 4px;
+  width: fit-content; margin: 0 auto 16px;
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 20px;
 }
 .fcat-btn {
-  display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
-  border: none; border-radius: 22px;
-  padding: 6px 10px;
-  background: var(--op-clr, var(--primary));
-  box-shadow: 0 4px 14px color-mix(in srgb, var(--op-clr, var(--primary)) 35%, transparent);
-  color: var(--op-clr-text, #fff);
-  cursor: pointer; text-align: left;
+  flex: 0 0 auto;
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+  border: none; border-radius: 16px;
+  padding: 11px 8px;
+  background: transparent;
+  color: rgba(255,255,255,.5);
+  font-family: inherit; font-weight: 700; font-size: .72rem;
+  cursor: pointer;
   transition: var(--transition);
 }
-.fcat-btn:hover { transform: translateY(-2px); }
-.fcat-btn-title { font-size: .6rem; font-weight: 800; display: flex; align-items: center; gap: 5px; }
-.fcat-btn-count { font-size: .54rem; font-weight: 600; opacity: .65; }
-.fcat-btn.active { box-shadow: 0 0 0 3px color-mix(in srgb, var(--op-clr-text, #000) 35%, transparent) inset; }
+.fcat-btn i { font-size: .78rem; }
+.fcat-count {
+  font-size: .56rem; font-weight: 800; opacity: .7;
+  background: rgba(255,255,255,.12);
+  border-radius: 999px; padding: 2px 6px;
+  transition: var(--transition);
+}
+.fcat-btn.active {
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--op-clr, var(--primary)) 100%, white 8%),
+    var(--op-clr, var(--primary)));
+  color: var(--op-clr-text, #fff);
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--op-clr, var(--primary)) 40%, transparent);
+}
+.fcat-btn.active .fcat-count { background: rgba(255,255,255,.24); opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .fcat-btn { transition: none; }
+}
 
 /* â”€â”€ Forfait Cards â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .forfait-grid {
-  display: flex; flex-flow: row wrap; gap: 8px;
-  /* Déborde un peu dans le padding gauche/droite de .tf-slide (14px) pour
-     élargir les cartes sans toucher aux autres étapes du tunnel. */
-  margin: 0 -8px;
+  display: flex; flex-direction: column; gap: 12px;
 }
 /* Annonce de destination (International) — une seule fois par pays,
    au-dessus de ses paliers de prix, plutôt que de répéter "Pass X" sur
    chaque carte (voir tfRenderForfaits). */
-.forfait-group-hd { flex-basis: 100%; margin: 8px 0 2px; }
+.forfait-group-hd { margin: 8px 0 2px; }
 .forfait-group-hd:first-child { margin-top: 0; }
 .forfait-group-badge {
   display: inline-flex; padding: 6px 14px; border-radius: 99px;
@@ -1854,117 +1869,173 @@ body.dark .amount-custom-suffix { color: var(--dark-muted); }
 }
 
 /* Sous-groupes d'une catégorie (ex. Pass Mix 1-3j/5-7j/30j + International
-   au sein d'"Appels") — même traitement en cartes que .forfait-cats. */
+   au sein d'"Appels") — onglets soulignés : texte simple sur le fond de
+   l'appli, un trait plein à la teinte opérateur glisse sous l'onglet actif
+   plutôt qu'un bloc de couleur. */
 .forfait-subcats {
-  display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;
+  display: flex; gap: 18px; padding: 0 2px 10px;
   margin-bottom: 12px;
+  border-bottom: 1px solid rgba(255,255,255,.1);
+  overflow-x: auto;
+  scrollbar-width: none;
 }
-.fsub-btn--all { background: color-mix(in srgb, var(--op-clr, var(--primary)) 92%, black 8%); }
-.fsub-btn--all .fsub-btn-title i { margin-right: 4px; }
-/* Les cartes sortent en cascade de sous la catégorie tapée (au lieu d'un
+.forfait-subcats::-webkit-scrollbar { display: none; }
+/* Les onglets entrent en fondu au tap d'une catégorie (au lieu d'un
    simple affichage instantané) — classe rejouée par tfRenderSubCats() à
    chaque tap, y compris d'une catégorie à une autre. */
-.forfait-subcats.fsub-reveal .fsub-btn {
-  animation: fsub-card-in .38s cubic-bezier(.22,1,.36,1) backwards;
+.forfait-subcats.fsub-reveal .fsub-tab {
+  animation: fsub-tab-in .3s cubic-bezier(.22,1,.36,1) backwards;
 }
-.forfait-subcats.fsub-reveal .fsub-btn:nth-child(1) { animation-delay: 0s; }
-.forfait-subcats.fsub-reveal .fsub-btn:nth-child(2) { animation-delay: .05s; }
-.forfait-subcats.fsub-reveal .fsub-btn:nth-child(3) { animation-delay: .1s; }
-.forfait-subcats.fsub-reveal .fsub-btn:nth-child(4) { animation-delay: .15s; }
-.forfait-subcats.fsub-reveal .fsub-btn:nth-child(n+5) { animation-delay: .2s; }
-@keyframes fsub-card-in {
-  from { opacity: 0; transform: translateY(-16px) scale(.92); }
-  to   { opacity: 1; transform: translateY(0) scale(1); }
+.forfait-subcats.fsub-reveal .fsub-tab:nth-child(1) { animation-delay: 0s; }
+.forfait-subcats.fsub-reveal .fsub-tab:nth-child(2) { animation-delay: .04s; }
+.forfait-subcats.fsub-reveal .fsub-tab:nth-child(3) { animation-delay: .08s; }
+.forfait-subcats.fsub-reveal .fsub-tab:nth-child(4) { animation-delay: .12s; }
+.forfait-subcats.fsub-reveal .fsub-tab:nth-child(n+5) { animation-delay: .16s; }
+@keyframes fsub-tab-in {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .forfait-subcats.fsub-reveal .fsub-btn { animation: none; }
+  .forfait-subcats.fsub-reveal .fsub-tab { animation: none; }
 }
-.fsub-btn {
-  display: flex; flex-direction: column; align-items: flex-start; gap: 3px;
-  border: none; border-radius: 16px;
-  padding: 8px 7px;
-  background: color-mix(in srgb, var(--op-clr, var(--primary)) 80%, black 20%);
-  color: var(--op-clr-text, #fff);
+.fsub-tab {
+  flex: 0 0 auto; position: relative;
+  display: flex; align-items: baseline; gap: 5px;
+  border: none; background: none;
+  padding: 4px 0 12px;
+  color: rgba(255,255,255,.42);
+  font-family: inherit; font-weight: 700; font-size: .76rem;
+  white-space: nowrap; cursor: pointer;
+  transition: color .25s ease;
+}
+.fsub-tab::after {
+  content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 3px;
+  background: var(--op-clr, var(--primary));
+  border-radius: 3px 3px 0 0;
+  transform: scaleX(0); transform-origin: center;
+  transition: transform .3s cubic-bezier(.22,1,.36,1);
+}
+.fsub-tab-count {
+  font-size: .58rem; font-weight: 800; color: rgba(255,255,255,.28);
+  transition: color .25s ease;
+}
+.fsub-tab.active { color: #fff; }
+.fsub-tab.active .fsub-tab-count { color: var(--op-clr, var(--primary)); }
+.fsub-tab.active::after { transform: scaleX(1); }
+@media (prefers-reduced-motion: reduce) {
+  .fsub-tab::after { transition: none; }
+}
+
+/* Carte "premium" pleine largeur (une par ligne) — fond crème, badge logo
+   dégradé, prix affiché en grand comme statistique héro, et pastille
+   "Les avantages du pass" au-dessus des deux statistiques (detail/durée)
+   plutôt que du texte brut empilé. --fc-1/--fc-2/--fc-text portent la
+   teinte par opérateur, posées par les classes .op-orange/.op-moov/.op-mtn
+   déjà présentes sur la carte (voir tfRenderForfaits()). */
+.forfait-card {
+  position: relative; overflow: hidden;
+  background: #FFFBF6;
+  border-radius: 22px;
+  padding: 16px;
   cursor: pointer; text-align: left;
+  box-shadow: 0 10px 24px rgba(0,0,0,.22);
   transition: var(--transition);
 }
-.fsub-btn:hover { transform: translateY(-2px); }
-.fsub-btn-title { font-size: .58rem; font-weight: 800; line-height: 1.2; }
-.fsub-btn-count { font-size: .52rem; font-weight: 600; opacity: .65; }
-.fsub-btn.active { box-shadow: 0 0 0 3px color-mix(in srgb, var(--op-clr-text, #000) 35%, transparent) inset; }
-
-/* Carte "ticket", même fond blanc vif et texte noir foncé quel que soit
-   le réseau — seuls l'icône et le contour gardent une teinte par
-   opérateur pour rester identifiables. Largeur réduite de moitié pour
-   tenir en 2 colonnes visuelles. */
-.forfait-card {
-  border: 1.5px solid var(--gray-200);
-  border-radius: 13px;
-  padding: 9px;
-  width: calc(50% - 4px);
-  cursor: pointer; text-align: left;
-  transition: var(--transition); background: #fff;
-  position: relative;
+.forfait-card:hover { transform: translateY(-2px); }
+.forfait-card::before {
+  content: ''; position: absolute; top: -36px; right: -36px;
+  width: 110px; height: 110px; border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--fc-2, var(--primary)) 22%, transparent), transparent 70%);
+  pointer-events: none;
 }
-.forfait-card:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
-.forfait-card.op-orange { border-color: rgba(255,98,0,.25); }
-.forfait-card.op-moov   { border-color: rgba(29,122,224,.25); }
-.forfait-card.op-mtn    { border-color: rgba(202,138,4,.3); }
+.forfait-card.op-orange { --fc-1: #FF7A1A; --fc-2: #FF6200; --fc-text: #fff; }
+.forfait-card.op-moov   { --fc-1: #4FA3F0; --fc-2: #1D7AE0; --fc-text: #fff; }
+.forfait-card.op-mtn    { --fc-1: #FFDD55; --fc-2: #FFCC00; --fc-text: #3D2E00; }
+.forfait-card.selected {
+  box-shadow: 0 0 0 2.5px var(--fc-2, var(--primary)), 0 14px 30px color-mix(in srgb, var(--fc-2, var(--primary)) 35%, transparent);
+}
 
-.forfait-card.selected.op-orange { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(255,98,0,.2); }
-.forfait-card.selected.op-moov   { border-color: #1D7AE0; box-shadow: 0 0 0 3px rgba(29,122,224,.2); }
-.forfait-card.selected.op-mtn    { border-color: #CA8A04; box-shadow: 0 0 0 3px rgba(202,138,4,.2); }
-
-.fc-top { display: flex; align-items: center; gap: 7px; margin-bottom: 5px; }
+.fc-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; position: relative; }
+.fc-id { display: flex; align-items: center; gap: 9px; min-width: 0; }
 .fc-icon {
-  width: 28px; height: 28px; border-radius: 9px; flex-shrink: 0;
+  width: 38px; height: 38px; border-radius: 12px; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
-  font-size: 1rem; overflow: hidden;
+  font-size: .85rem; overflow: hidden;
+  background: linear-gradient(135deg, var(--fc-1, var(--primary)), var(--fc-2, var(--primary)));
+  box-shadow: 0 6px 14px color-mix(in srgb, var(--fc-2, var(--primary)) 40%, transparent);
 }
 .fc-icon-img { width: 100%; height: 100%; object-fit: cover; }
 /* Même correctif que .op-card--orange .op-logo-img : le PNG Orange a une
    large marge blanche autour du logo. */
 .fc-icon.op-orange .fc-icon-img { transform: scale(1.7); }
-.fc-icon.op-orange { background: rgba(255,98,0,.1); color: var(--primary); }
-.fc-icon.op-moov   { background: rgba(29,122,224,.1); color: #1D7AE0; }
-.fc-icon.op-mtn    { background: rgba(202,138,4,.12); color: #CA8A04; }
 
-.fc-title { font-size: .52rem; font-weight: 800; color: var(--gray-800); line-height: 1.3; }
+.fc-title { font-size: .82rem; font-weight: 800; color: var(--gray-800); line-height: 1.25; }
+
+.fc-price { flex-shrink: 0; text-align: right; }
+.fc-price b { font-size: 1.05rem; font-weight: 900; color: var(--gray-800); letter-spacing: -.02em; }
+.fc-price span { display: block; font-size: .46rem; font-weight: 700; color: var(--gray-500); margin-top: -2px; }
 
 .fc-check {
-  position: absolute; top: 8px; right: 8px;
-  width: 14px; height: 14px; border-radius: 50%;
-  background: var(--gray-100); color: transparent;
-  display: flex; align-items: center; justify-content: center; font-size: .46rem;
-  opacity: 0; transition: opacity .2s;
+  position: absolute; top: -2px; right: -2px;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: var(--fc-2, var(--primary)); color: #fff;
+  display: flex; align-items: center; justify-content: center; font-size: .56rem;
+  opacity: 0; transform: scale(.6);
+  transition: opacity .2s ease, transform .2s cubic-bezier(.34,1.56,.64,1);
+  box-shadow: 0 6px 14px color-mix(in srgb, var(--fc-2, var(--primary)) 45%, transparent);
 }
-.forfait-card.selected .fc-check { opacity: 1; }
-.forfait-card.selected.op-orange .fc-check { color: var(--primary); }
-.forfait-card.selected.op-moov   .fc-check { color: #1D7AE0; }
-.forfait-card.selected.op-mtn    .fc-check { color: #CA8A04; }
+.forfait-card.selected .fc-check { opacity: 1; transform: scale(1); }
 
-.fc-sep { height: 1px; background: var(--gray-200); margin-bottom: 0; }
-
-/* Bandeau "Les avantages du pass" — couleur de marque par réseau, pour
-   repérer l'opérateur d'un coup d'œil même une fois la carte en fond
-   blanc (voir .forfait-card). */
+/* Bandeau "Les avantages du pass" — pastille dégradée à la teinte
+   opérateur (au lieu du tag plat précédent), sert de transition entre
+   l'identité du forfait (logo/nom/prix) et son détail (.fc-stats). */
 .fc-adv-section {
-  display: inline-flex; align-items: center; gap: 4px;
-  border-radius: 99px; padding: 1px 6px;
-  margin-bottom: 5px;
+  display: inline-flex; align-items: center; gap: 6px;
+  border-radius: 999px; padding: 5px 12px 5px 6px;
+  margin-bottom: 10px;
+  background: linear-gradient(135deg, var(--fc-1, var(--primary)), var(--fc-2, var(--primary)));
+  box-shadow: 0 6px 14px color-mix(in srgb, var(--fc-2, var(--primary)) 30%, transparent);
 }
-.fc-adv-section.op-orange { background: var(--primary); }
-.fc-adv-section.op-moov   { background: #1D7AE0; }
-.fc-adv-section.op-mtn    { background: #FFCC00; }
-.fc-adv-section .fc-adv-lbl {
-  font-size: .42rem; font-weight: 800; color: #fff;
-  text-transform: uppercase; letter-spacing: .02em; margin-bottom: 0;
+.fc-adv-ico {
+  width: 14px; height: 14px; border-radius: 50%;
+  background: rgba(255,255,255,.28);
+  display: flex; align-items: center; justify-content: center;
+  font-size: .42rem; color: var(--fc-text, #fff);
 }
-.fc-adv-section.op-mtn .fc-adv-lbl { color: #3D2E00; }
+.fc-adv-lbl {
+  font-size: .48rem; font-weight: 800; color: var(--fc-text, #fff);
+  text-transform: uppercase; letter-spacing: .04em;
+}
 
-.fc-adv-val { font-size: .66rem; font-weight: 700; color: var(--gray-800); margin-bottom: 6px; }
-.fc-val-lbl { font-size: .56rem; font-weight: 700; color: var(--gray-500); margin-bottom: 2px; }
-.fc-val-val { font-size: .66rem; font-weight: 700; color: var(--gray-800); }
+.fc-stats { display: flex; gap: 8px; position: relative; }
+.fc-stat {
+  flex: 1; min-width: 0;
+  display: flex; align-items: center; gap: 8px;
+  background: color-mix(in srgb, var(--fc-2, var(--primary)) 8%, transparent);
+  border-radius: 12px; padding: 8px 9px;
+}
+.fc-stat-ico {
+  width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0;
+  background: #fff; color: var(--fc-2, var(--primary));
+  display: flex; align-items: center; justify-content: center; font-size: .6rem;
+}
+.fc-stat-val { font-size: .6rem; font-weight: 800; color: var(--gray-800); line-height: 1.25; }
+.fc-stat-lbl { display: block; font-size: .4rem; font-weight: 700; color: var(--gray-500); text-transform: uppercase; letter-spacing: .03em; }
+
+/* Pilule compacte — utilisée pour la validité (voir tfRenderForfaits()) :
+   juste icône + valeur sur une ligne, taillée à son contenu plutôt
+   qu'étirée en pleine largeur comme .fc-stat. */
+.fc-stat--chip {
+  flex: 0 0 auto;
+  display: inline-flex; align-items: center; gap: 6px;
+  border-radius: 999px; padding: 4px 10px 4px 4px;
+}
+.fc-stat--chip .fc-stat-ico { width: 20px; height: 20px; font-size: .5rem; }
+.fc-stat--chip .fc-stat-val { font-size: .58rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  .forfait-card, .fc-check { transition: none; }
+}
 
 /* â”€â”€ Recipient Input â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 /* Carte-pilule : drapeau et bouton contacts en pastilles rondes de part
@@ -5757,20 +5828,6 @@ body.dark .fid-ms-dot { background: var(--dark-border); border-color: var(--dark
   margin: 14px 12px 8px;
   display: flex; flex-direction: column; align-items: center; gap: 10px;
 }
-.lgout3-session {
-  display: flex; align-items: center; gap: 6px;
-  font-size: .5rem; font-weight: 700; color: rgba(255,255,255,.45);
-  text-transform: uppercase; letter-spacing: .1em;
-}
-.lgout3-dot {
-  width: 6px; height: 6px; border-radius: 50%; background: #22c55e;
-  box-shadow: 0 0 6px #22c55e;
-  animation: lgout3Blink 2s ease-in-out infinite;
-}
-@keyframes lgout3Blink {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: .4; }
-}
 .lgout3-btn {
   position: relative; overflow: hidden;
   display: flex; align-items: center; gap: 10px;
@@ -7902,27 +7959,6 @@ body.dark .avail-val { color: var(--dark-text); }
 }
 .tf-slide .svc-tab.active .svc-tab-sub { color: var(--op-clr-text, #fff) !important; opacity: .7; }
 
-.tf-slide .forfait-cats .fcat-btn {
-  background: var(--op-clr, var(--primary)) !important;
-  color: var(--op-clr-text, #fff) !important;
-  border: none !important;
-  border-radius: 22px !important;
-  padding: 6px 10px !important;
-  box-shadow: 0 4px 14px color-mix(in srgb, var(--op-clr, var(--primary)) 45%, transparent) !important;
-}
-.tf-slide .forfait-cats .fcat-btn.active {
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--op-clr-text, #000) 35%, transparent) inset !important;
-}
-.tf-slide .forfait-subcats .fsub-btn {
-  background: color-mix(in srgb, var(--op-clr, var(--primary)) 80%, black 20%) !important;
-  color: var(--op-clr-text, #fff) !important;
-  border: none !important;
-  border-radius: 16px !important;
-}
-.tf-slide .forfait-subcats .fsub-btn.active {
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--op-clr-text, #000) 35%, transparent) inset !important;
-}
-
 .tf-slide .form-control,
 .tf-slide .rcp-input,
 .tf-slide input[type=tel],
@@ -9739,6 +9775,17 @@ body.dark .rh-card-ref { color: var(--dark-text, #F1F3F9); }
 #modal-uv .svc-recap-row strong { color: #0A0A0F; }
 #modal-uv .svc-recap-row--total span { color: rgba(0,0,0,.7); }
 #modal-uv .svc-confirm-title { color: #0A0A0F; }
+/* Transfert client à client (.ct-modal) — même fond blanc que #modal-uv,
+   mêmes composants partagés (.svc-back-btn/.svc-recap-row) donc mêmes
+   surcharges nécessaires pour ne pas laisser le texte blanc par défaut
+   illisible sur fond clair. */
+#modal-client-transfer .svc-back-btn { border-color: #E0E4EC; color: rgba(0,0,0,.5); }
+#modal-client-transfer .svc-back-btn:hover { background: #F1F3F8; color: rgba(0,0,0,.8); }
+#modal-client-transfer .svc-recap-rows { background: #F8F9FC; border-color: #E8ECF4; }
+#modal-client-transfer .svc-recap-row  { border-bottom-color: #EEF1F6; }
+#modal-client-transfer .svc-recap-row span { color: rgba(0,0,0,.5); }
+#modal-client-transfer .svc-recap-row strong { color: #0A0A0F; }
+#modal-client-transfer .svc-recap-row--total span { color: rgba(0,0,0,.7); }
 #modal-uv .svc-confirm-sub   { color: rgba(0,0,0,.5); }
 /* Éléments en style inline dans index.html (champ numéro étape 2, montant
    étape 2, note "solde disponible" étape 4, en-tête récap étape 5) —
