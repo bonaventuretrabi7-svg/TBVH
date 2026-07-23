@@ -1995,7 +1995,12 @@ function tfAfterAmountSet() {
 function tfSetCat(cat, el) {
   tf.forfaitCat = cat;
   tf.forfait    = null;
-  document.querySelectorAll('.fcat-btn').forEach(b => b.classList.remove('active'));
+  // Scopé à #tf-order-now (jamais document.querySelectorAll('.fcat-btn')
+  // global) — "Passez votre commande" et "Commande automatique" partagent
+  // les mêmes classes .fcat-btn/.fsub-btn (schedRenderCats(), plus bas),
+  // donc un clic ici désélectionnait à tort les boutons catégorie de
+  // l'autre section (même bug déjà corrigé sur .op-card, voir tfSelectOp()).
+  document.querySelectorAll('#tf-order-now .fcat-btn').forEach(b => b.classList.remove('active'));
   el.classList.add('active');
   tfRenderSubCats();
 }
@@ -2045,7 +2050,8 @@ function tfRenderSubCats() {
 function tfSetSubCat(sub, el) {
   tf.forfaitSubCat = sub;
   tf.forfait = null;
-  document.querySelectorAll('.fsub-btn').forEach(b => b.classList.remove('active'));
+  // Scopé à #tf-order-now — même raison que tfSetCat() ci-dessus.
+  document.querySelectorAll('#tf-order-now .fsub-btn').forEach(b => b.classList.remove('active'));
   el.classList.add('active');
   tfRenderForfaits();
 }
