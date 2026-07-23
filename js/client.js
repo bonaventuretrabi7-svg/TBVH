@@ -1913,6 +1913,12 @@ async function tfSelectOp(op, el) {
    Mixtes) — les onglets sont donc générés dynamiquement plutôt que codés
    en dur dans le HTML (voir #forfait-cats-list dans client.html). */
 const FORFAIT_CAT_ICONS = { Internet: 'fa-wifi', Appels: 'fa-circle-dot', Mixtes: 'fa-layer-group' };
+// Valeur spéciale de forfaitSubCat/schedState.forfaitSubCat représentant
+// "toutes les sous-sections" — bouton "★ Tout" ajouté en tête de
+// tfRenderSubCats()/schedRenderSubCats(), sélectionné par défaut pour ne
+// jamais laisser la grille de forfaits vide tant que le client n'a rien
+// tapé explicitement.
+const FORFAIT_ALL_SUBCAT = '__all__';
 function tfRenderCats() {
   const container = document.getElementById('forfait-cats-list');
   if (!container) return;
@@ -2025,9 +2031,10 @@ function tfRenderSubCats() {
     return;
   }
 
-  // Aucun sous-groupe pré-sélectionné : le client doit taper explicitement
-  // sur l'un d'eux (ex: "Pass Mix 1-3 jours") avant de voir ses offres.
-  tf.forfaitSubCat = null;
+  // "Tout" sélectionné par défaut — le client voit déjà des offres sans
+  // avoir à taper une sous-section précise, celles-ci ne servent qu'à
+  // affiner ensuite (voir FORFAIT_ALL_SUBCAT ci-dessus).
+  tf.forfaitSubCat = FORFAIT_ALL_SUBCAT;
   tf.forfaitSubRequired = true;
   container.style.display = 'grid';
   // Rejoue l'animation d'entrée même en passant d'une catégorie à une
@@ -2036,7 +2043,12 @@ function tfRenderSubCats() {
   container.classList.remove('fsub-reveal');
   void container.offsetWidth;
   container.classList.add('fsub-reveal');
-  container.innerHTML = subs.map(s => {
+  const allBtn = `
+    <button type="button" class="fsub-btn fsub-btn--all active" onclick="tfSetSubCat('${FORFAIT_ALL_SUBCAT}',this)">
+      <span class="fsub-btn-title"><i class="fa-solid fa-star"></i>Tout</span>
+      <span class="fsub-btn-count">${items.length} forfaits</span>
+    </button>`;
+  container.innerHTML = allBtn + subs.map(s => {
     const count = items.filter(f => f.sousCategorie === s).length;
     return `
     <button type="button" class="fsub-btn" onclick="tfSetSubCat('${s}',this)">
@@ -2076,7 +2088,7 @@ function tfRenderForfaits() {
   }
   const list = DB.forfaits.all().filter(f =>
     f.operateur === tf.operator && f.categorie === tf.forfaitCat &&
-    (!tf.forfaitSubRequired || f.sousCategorie === tf.forfaitSubCat));
+    (!tf.forfaitSubRequired || tf.forfaitSubCat === FORFAIT_ALL_SUBCAT || f.sousCategorie === tf.forfaitSubCat));
   if (!list.length) {
     container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--gray-400);">Aucun forfait disponible.</div>';
     _tfSyncSlideHeight();
@@ -4453,10 +4465,16 @@ function schedRenderSubCats() {
     return;
   }
 
-  schedState.forfaitSubCat = null;
+  // "Tout" sélectionné par défaut — même raison que tfRenderSubCats().
+  schedState.forfaitSubCat = FORFAIT_ALL_SUBCAT;
   schedState.forfaitSubRequired = true;
   container.style.display = 'grid';
-  container.innerHTML = subs.map(s => {
+  const allBtn = `
+    <button type="button" class="fsub-btn fsub-btn--all active" onclick="schedSetSubCat('${FORFAIT_ALL_SUBCAT}',this)">
+      <span class="fsub-btn-title"><i class="fa-solid fa-star"></i>Tout</span>
+      <span class="fsub-btn-count">${items.length} forfaits</span>
+    </button>`;
+  container.innerHTML = allBtn + subs.map(s => {
     const count = items.filter(f => f.sousCategorie === s).length;
     return `
     <button type="button" class="fsub-btn" onclick="schedSetSubCat('${s}',this)">
@@ -4488,7 +4506,7 @@ function schedRenderForfaits() {
 
   const list = DB.forfaits.all().filter(f =>
     f.operateur === schedState.operateur && f.categorie === schedState.forfaitCat &&
-    (!schedState.forfaitSubRequired || f.sousCategorie === schedState.forfaitSubCat));
+    (!schedState.forfaitSubRequired || schedState.forfaitSubCat === FORFAIT_ALL_SUBCAT || f.sousCategorie === schedState.forfaitSubCat));
   if (!list.length) {
     container.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--gray-400);">Aucun forfait disponible.</div>';
     _schedSyncSlideHeight();

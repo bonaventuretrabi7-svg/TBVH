@@ -1856,9 +1856,11 @@ body.dark .amount-custom-suffix { color: var(--dark-muted); }
 /* Sous-groupes d'une catégorie (ex. Pass Mix 1-3j/5-7j/30j + International
    au sein d'"Appels") — même traitement en cartes que .forfait-cats. */
 .forfait-subcats {
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;
   margin-bottom: 12px;
 }
+.fsub-btn--all { background: color-mix(in srgb, var(--op-clr, var(--primary)) 92%, black 8%); }
+.fsub-btn--all .fsub-btn-title i { margin-right: 4px; }
 /* Les cartes sortent en cascade de sous la catégorie tapée (au lieu d'un
    simple affichage instantané) — classe rejouée par tfRenderSubCats() à
    chaque tap, y compris d'une catégorie à une autre. */
