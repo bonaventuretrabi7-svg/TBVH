@@ -69,6 +69,12 @@ jusqu'ici — corrige un compte "Assistant clientèle" créé sans permissions).
 ajoute au catalogue `forfaits` les Pass Orange "Internet" (réseaux sociaux,
 1-3 jours, 5-7 jours, mois, nuit), jusqu'ici absents de la base.
 
+**Base déjà en place :** colle aussi le contenu de
+**`api/migration_phase30_forfaits_appels_orange.sql`** (une seule fois) —
+ajoute au catalogue `forfaits` les Pass Orange "Appels" (Pass Mix 1-3/5-7/30
+jours) et les Pass International, jusqu'ici présents seulement dans le seed
+local (jamais insérés côté serveur).
+
 ## 3. Déposer les fichiers PHP sur l'hébergement
 
 hPanel → Sites web → ton domaine → **Gestionnaire de fichiers** → ouvre le
