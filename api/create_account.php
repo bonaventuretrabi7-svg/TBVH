@@ -46,7 +46,9 @@ if ($stmt->fetch()) fail('Ce numéro est déjà utilisé par un autre compte de 
 // — revérifié ici pour ne pas dépendre uniquement de check_surnom.php
 // (aperçu en direct, js/client.js).
 if ($role === 'client') {
-  $surnomStmt = $pdo->prepare("SELECT id FROM profiles WHERE role = 'client' AND LOWER(TRIM(prenom)) = LOWER(TRIM(?))");
+  // client_prenom_key (colonne générée, indexée) plutôt que
+  // LOWER(TRIM(prenom)) — même raison que check_surnom.php.
+  $surnomStmt = $pdo->prepare("SELECT id FROM profiles WHERE client_prenom_key = LOWER(TRIM(?))");
   $surnomStmt->execute([$prenom]);
   if ($surnomStmt->fetch()) fail('Ce surnom est déjà utilisé par un autre client.');
 }

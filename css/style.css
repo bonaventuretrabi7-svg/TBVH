@@ -1226,7 +1226,6 @@ body.dark .balance-strip { background: linear-gradient(135deg,#0D1117,#161B22); 
   display: block;
   margin-top: 8px;
   background: linear-gradient(145deg, #0F0A2E 0%, #1A1040 55%, #0D0820 100%);
-  border: 1.5px solid rgba(138,99,255,.2);
   border-radius: var(--radius-lg);
   padding: 16px 14px;
   box-shadow: 0 2px 12px rgba(255,98,0,.08);
@@ -1607,6 +1606,100 @@ body.dark .tf-step-body { border-color: var(--dark-border); }
 #chapchap-section .ccp-type { font-size: .46rem; }
 #chapchap-section .ccp-num { font-size: .58rem; }
 #chapchap-section .op-name-pill { font-size: .6rem; padding: 4px 9px; }
+
+/* Carrousel de cartes promo, juste au-dessus de #order-mode-section (voir
+   index.html) — .promo-carousel-track glisse en transform:translateX() via
+   _promoCarouselInit() (js/client.js), une carte = 100% de la largeur du
+   wrap, alternées automatiquement. */
+.promo-carousel-wrap {
+  overflow: hidden; border-radius: 14px; margin-top: 8px;
+}
+.promo-carousel-track {
+  display: flex;
+  transition: transform .5s cubic-bezier(.4,0,.2,1);
+}
+.promo-carousel-track .promo-recruit {
+  flex: 0 0 100%; min-width: 0; margin-top: 0;
+}
+.promo-carousel-dots {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  margin-top: 8px;
+}
+.promo-carousel-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: rgba(255,98,0,.25);
+  transition: background .25s, width .25s;
+}
+.promo-carousel-dot.active {
+  width: 16px; border-radius: 3px; background: var(--primary);
+}
+
+/* Carte "devenir promoteur"/"bonus réseaux" — fond blanc, sans bordure
+   (demande explicite), relief porté uniquement par l'ombre. Texte en noir
+   et orange uniquement (aucun gris intermédiaire). */
+.promo-recruit {
+  cursor: pointer; text-align: center;
+  border-radius: 14px;
+  padding: 9px 12px 11px;
+  background: #fff;
+  box-shadow: 0 6px 14px -10px rgba(0,0,0,.2);
+}
+.promo-recruit-eyebrow {
+  display: flex; align-items: center; justify-content: center; gap: 5px;
+  font-size: .46rem; font-weight: 800; letter-spacing: .08em;
+  color: var(--primary-dark); margin-bottom: 4px;
+}
+.promo-recruit-dot {
+  width: 4px; height: 4px; border-radius: 50%; background: var(--primary);
+  box-shadow: 0 0 5px 1px rgba(255,98,0,.7);
+}
+.promo-recruit-title {
+  font-size: .68rem; font-weight: 900; color: #000000; text-transform: uppercase;
+  line-height: 1.25; margin-bottom: 3px;
+}
+.promo-recruit-title em {
+  font-style: italic; color: var(--primary-dark);
+}
+.promo-recruit-sub {
+  font-size: .56rem; line-height: 1.4; color: #000000;
+  max-width: 220px; margin: 0 auto 8px;
+}
+.promo-recruit-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  border: none; border-radius: 99px; padding: 6px 17px;
+  background: linear-gradient(135deg, var(--primary-light), var(--primary));
+  color: #fff; font-size: .56rem; font-weight: 800; letter-spacing: .03em;
+  cursor: pointer; box-shadow: 0 5px 11px -6px rgba(255,98,0,.6);
+}
+.promo-recruit-eyebrow-ico { font-size: .6rem; }
+
+/* Carte "recherche administrateurs" — seule carte du carrousel avec une
+   photo en fond (img/administrateur.jpg, dégradé sombre posé dessus en
+   inline style, voir index.html) ; texte basculé en blanc pour rester
+   lisible sur la photo, jamais sur les autres cartes (fond blanc, texte
+   noir/orange par défaut, voir .promo-recruit-title/-sub ci-dessus). */
+.promo-recruit--photo {
+  /* Visage dans le tiers supérieur de la photo (voir
+     img/administrateur.jpg) — un centrage vertical pur le coupait sur une
+     carte courte et large, cadrage remonté pour le garder visible. */
+  background-size: cover; background-position: center 15%;
+}
+.promo-recruit--photo .promo-recruit-eyebrow { color: var(--primary-light); }
+.promo-recruit--photo .promo-recruit-title,
+.promo-recruit--photo .promo-recruit-sub { color: #fff; }
+.promo-recruit--photo .promo-recruit-title em { color: var(--primary-light); }
+
+/* Logos réseau (carte "bonus mardi/vendredi") — agrandis, sans bordure. */
+.promo-bonus-logos {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  margin-bottom: 8px;
+}
+.promo-bonus-logo {
+  width: 38px; height: 38px; border-radius: 11px; overflow: hidden; flex-shrink: 0;
+  background: #fff; display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 3px 8px rgba(0,0,0,.15);
+}
+.promo-bonus-logo img { width: 100%; height: 100%; object-fit: cover; }
 
 /* "Je passe ma commande" (#order-mode-section) — carte autonome, coins
    entièrement arrondis (comme n'importe quelle .tf-layout), fond gris
@@ -5245,8 +5338,6 @@ body.dark .hbc-btn { color: var(--dark-text-muted); }
 .asc-card {
   margin-top: 8px;
   background: linear-gradient(145deg, #17103a 0%, #1e1248 55%, #120c2c 100%);
-  border: 1.5px solid rgba(255,98,0,.22);
-  border-top: 2px solid rgba(255,98,0,.45);
   border-radius: var(--radius-lg);
   padding: 16px 18px;
   box-shadow: 0 6px 24px rgba(0,0,0,.45), 0 0 0 1px rgba(255,98,0,.08) inset;
@@ -5473,10 +5564,10 @@ body.dark .actu-item-title { color: var(--dark-text); }
 /* ── Fidélité ────────────────────────────────────────────────── */
 .fid-card {
   background: #fff; border-radius: var(--radius-lg);
-  border: 1.5px solid var(--frame-green); padding: 18px 18px 14px;
+  padding: 18px 18px 14px;
   box-shadow: 0 2px 8px rgba(168,230,176,.25);
 }
-body.dark .fid-card { background: var(--dark-surface); border-color: var(--dark-border); }
+body.dark .fid-card { background: var(--dark-surface); }
 .fid-reward-visual {
   display: flex; align-items: center; gap: 14px; margin-bottom: 16px;
   padding-bottom: 14px; border-bottom: 1px solid var(--gray-100);
@@ -7112,8 +7203,6 @@ body.dark .avail-val { color: var(--dark-text); }
 ══════════════════════════════════════════════════════════════ */
 .frp2-card {
   background: linear-gradient(145deg, #17103a 0%, #1e1248 55%, #120c2c 100%);
-  border: 1.5px solid rgba(255,98,0,.22);
-  border-top: 2px solid rgba(255,98,0,.45);
   border-radius: var(--radius-lg);
   padding: 18px 18px 16px;
   box-shadow: 0 6px 24px rgba(0,0,0,.45), 0 0 0 1px rgba(255,98,0,.08) inset;
@@ -9312,7 +9401,7 @@ body.dark .rh-card-ref { color: var(--dark-text, #F1F3F9); }
   position: relative; z-index: 160;
   width: fit-content; margin: -108px auto 0;
   padding: 22px;
-  background: linear-gradient(135deg, #ffffff 0%, #FFCC99 100%);
+  background: linear-gradient(135deg, #ffffff 0%, #FFB870 100%);
   border-radius: 28px;
   box-shadow: 0 16px 34px rgba(0,0,0,.22), 0 3px 8px rgba(0,0,0,.08);
   /* Même correctif que .pgc-hero-card juste au-dessus (couche de

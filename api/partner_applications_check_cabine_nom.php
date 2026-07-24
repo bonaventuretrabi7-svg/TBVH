@@ -11,12 +11,16 @@ $in = body();
 $cabineNom = trim((string)($in['cabine_nom'] ?? ''));
 if ($cabineNom === '') fail('Nom de cabine requis.');
 
+// Compare sur cabine_nom_key (colonne générée, indexée — voir
+// migration_phase33_perf_indexes.sql) : LOWER()/TRIM() ne porte ici que sur
+// le PARAMÈTRE (?), jamais sur la colonne — calculé par MySQL, garanti
+// identique à la fonction utilisée pour générer la colonne.
 $appStmt = db()->prepare("SELECT id FROM partner_applications
-    WHERE LOWER(TRIM(cabine_nom)) = LOWER(TRIM(?)) AND statut IN ('en_attente', 'validée')");
+    WHERE cabine_nom_key = LOWER(TRIM(?)) AND statut IN ('en_attente', 'validée')");
 $appStmt->execute([$cabineNom]);
 if ($appStmt->fetch()) { echo json_encode(['ok' => true, 'exists' => true]); exit; }
 
-$cabineStmt = db()->prepare("SELECT id FROM profiles WHERE role = 'cabine' AND LOWER(TRIM(cabine_nom)) = LOWER(TRIM(?))");
+$cabineStmt = db()->prepare("SELECT id FROM profiles WHERE cabine_nom_key = LOWER(TRIM(?))");
 $cabineStmt->execute([$cabineNom]);
 
 echo json_encode(['ok' => true, 'exists' => (bool)$cabineStmt->fetch()]);

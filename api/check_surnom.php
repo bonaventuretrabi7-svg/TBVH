@@ -13,7 +13,11 @@ $in = body();
 $prenom = trim((string)($in['prenom'] ?? ''));
 if ($prenom === '') fail('Surnom requis.');
 
-$stmt = db()->prepare("SELECT id FROM profiles WHERE role = 'client' AND LOWER(TRIM(prenom)) = LOWER(TRIM(?))");
+// Compare sur client_prenom_key (colonne générée, indexée — voir
+// migration_phase32) au lieu de LOWER(TRIM(prenom)) : envelopper la
+// colonne dans une fonction empêcherait MySQL d'utiliser l'index, un
+// simple scan complet à chaque frappe (aperçu en direct).
+$stmt = db()->prepare("SELECT id FROM profiles WHERE client_prenom_key = LOWER(TRIM(?))");
 $stmt->execute([$prenom]);
 
 echo json_encode(['ok' => true, 'exists' => (bool)$stmt->fetch()]);

@@ -263,6 +263,51 @@ function initRevCarousel() {
   _revTimer = setInterval(() => revGoTo(_revIdx + 1), 4000);
 }
 
+// Carrousel des cartes promo (#promo-carousel-track, voir index.html) —
+// même principe que initRevCarousel() ci-dessus (translateX + minuteur).
+// Points de pagination (#promo-carousel-dots) générés ici, jamais un
+// nombre de cartes figé en dur (track.children.length) — signalent au
+// client qu'il y a plusieurs annonces qui défilent, sans titre de section.
+function _promoCarouselInit() {
+  const track = document.getElementById('promo-carousel-track');
+  const dotsEl = document.getElementById('promo-carousel-dots');
+  const total = track?.children.length || 0;
+  if (!track || total < 2) return;
+  let idx = 0;
+  if (dotsEl) {
+    dotsEl.innerHTML = '';
+    for (let i = 0; i < total; i++) {
+      const dot = document.createElement('span');
+      dot.className = 'promo-carousel-dot' + (i === 0 ? ' active' : '');
+      dotsEl.appendChild(dot);
+    }
+  }
+  setInterval(() => {
+    idx = (idx + 1) % total;
+    track.style.transform = `translateX(-${idx * 100}%)`;
+    dotsEl?.querySelectorAll('.promo-carousel-dot').forEach((d, i) =>
+      d.classList.toggle('active', i === idx));
+  }, 4500);
+}
+
+// Carte "recherche administrateurs" — aucun formulaire de candidature en
+// ligne pour ce rôle (contrairement à "devenir partenaire"), contact
+// direct par WhatsApp comme le reste de l'assistance de l'app (voir
+// DEFAULT_WHATSAPP_NUMBER, plus bas dans ce fichier).
+function promoContactAdminRecruit() {
+  const link = Fmt.whatsappLink(DEFAULT_WHATSAPP_NUMBER, 'Bonjour, je suis intéressé(e) par un poste d\'administrateur chez KBINE PLUS.');
+  if (link) window.open(link, '_blank');
+}
+
+// Carte "devenir promoteur" — même numéro WhatsApp fixe que la carte
+// administrateur ci-dessus (DEFAULT_WHATSAPP_NUMBER), toujours celui-ci
+// quel que soit le numéro configuré/en rotation pour l'assistance client
+// habituelle (handleClientWhatsappClick()) — demande explicite.
+function promoContactPromoterRecruit() {
+  const link = Fmt.whatsappLink(DEFAULT_WHATSAPP_NUMBER, 'Bonjour, je suis intéressé(e) par devenir promoteur KBINE PLUS.');
+  if (link) window.open(link, '_blank');
+}
+
 function initClientCounterAnim() {
   const el = document.getElementById('asc-stat-clients');
   if (!el) return;
@@ -491,6 +536,7 @@ async function boot() {
     renderActualites();
     initRevCarousel();
     initClientCounterAnim();
+    _promoCarouselInit();
 
     // Pull-to-refresh (glisser vers le bas pour actualiser) : chaque
     // section rappelle simplement sa propre fonction de chargement déjà
@@ -3343,11 +3389,37 @@ async function prgValidate(step) {
   return true;
 }
 
-function prgReadFileAsDataUrl(file) {
+// Redimensionne + recompresse une image côté client (JPEG) avant envoi —
+// une photo brute prise au téléphone pèse souvent plusieurs Mo, et
+// prgSubmit() en envoie jusqu'à 4 d'un coup (photo + pièce recto/verso + QR
+// Wave) dans une seule requête JSON : au-delà d'une certaine taille,
+// l'hébergeur (Hostinger) la bloquait en amont, avant même d'atteindre
+// partner_applications_create.php — d'où un échec avec un message qui
+// n'existe nulle part dans cette app ("Accès non autorisé", jamais un
+// fail() de ce projet). Repli sur le fichier brut si le décodage échoue
+// (ex. format d'image non supporté par <canvas>) plutôt que de bloquer la
+// candidature.
+function _prgCompressImage(file, maxDim = 1280, quality = 0.8) {
   return new Promise((resolve) => {
     if (!file) { resolve(''); return; }
     const reader = new FileReader();
-    reader.onload  = () => resolve(reader.result);
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > maxDim || height > maxDim) {
+          const scale = maxDim / Math.max(width, height);
+          width = Math.round(width * scale);
+          height = Math.round(height * scale);
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = () => resolve(reader.result);
+      img.src = reader.result;
+    };
     reader.onerror = () => resolve('');
     reader.readAsDataURL(file);
   });
@@ -3364,8 +3436,8 @@ function prgSubmit() {
   const qrFile    = document.getElementById('prg-file-qr')?.files[0];
 
   Promise.all([
-    prgReadFileAsDataUrl(photoFile), prgReadFileAsDataUrl(rectoFile),
-    prgReadFileAsDataUrl(versoFile), prgReadFileAsDataUrl(qrFile),
+    _prgCompressImage(photoFile), _prgCompressImage(rectoFile),
+    _prgCompressImage(versoFile), _prgCompressImage(qrFile),
   ]).then(async ([photoDataUrl, rectoDataUrl, versoDataUrl, qrDataUrl]) => {
     const res = await DB.partnerApplications.create({
       prenom     : document.getElementById('prg-prenom').value.trim(),

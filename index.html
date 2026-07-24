@@ -278,6 +278,112 @@
     <span id="prev-dest-label"    style="display:none"></span>
     <span id="prev-pay-label"     style="display:none"></span>
 
+    <!-- Carrousel de cartes promo — juste au-dessus de "Je passe ma
+         commande", alterne automatiquement l'une et l'autre (voir
+         _promoCarouselInit(), js/client.js). Points de pagination
+         (#promo-carousel-dots) signalant qu'il y a plusieurs cartes qui
+         défilent, sans titre de section. -->
+    <div class="promo-carousel-wrap">
+      <div class="promo-carousel-track" id="promo-carousel-track">
+
+        <!-- Carte 1 : devenir promoteur — tape dessus -> WhatsApp fixe
+             0576230860 (voir promoContactPromoterRecruit(), js/client.js),
+             toujours ce numéro, jamais celui en rotation de l'assistance
+             client habituelle. "img/agent promoteur.jpg" en fond (voir
+             .promo-recruit--photo, css/style.css), visage cadré en haut à
+             gauche de la photo source. -->
+        <div class="promo-recruit promo-recruit--photo" onclick="promoContactPromoterRecruit()" role="button" tabindex="0"
+             onkeydown="if(event.key==='Enter')promoContactPromoterRecruit()"
+             style="background-image:linear-gradient(rgba(15,10,32,.72),rgba(15,10,32,.82)),url('img/agent promoteur.jpg');background-position:15% 15%">
+          <div class="promo-recruit-eyebrow"><span class="promo-recruit-dot"></span>KBINE PLUS RECRUTE</div>
+          <div class="promo-recruit-title">DEVENEZ <em>PROMOTEUR</em> KBINE PLUS</div>
+          <div class="promo-recruit-sub">Gagnez une commission sur chaque client ou cabine que vous nous apportez.</div>
+          <button type="button" class="promo-recruit-btn">DEVENIR PROMOTEUR</button>
+        </div>
+
+        <!-- Carte 2 : bonus réseaux mardi/vendredi — tape dessus -> descend
+             directement sur le tunnel de commande juste en dessous.
+             img/bonus.png en fond (voir .promo-recruit--photo,
+             css/style.css). -->
+        <div class="promo-recruit promo-recruit--photo" onclick="document.getElementById('tf-order-now')?.scrollIntoView({behavior:'smooth',block:'start'})" role="button" tabindex="0"
+             onkeydown="if(event.key==='Enter')document.getElementById('tf-order-now')?.scrollIntoView({behavior:'smooth',block:'start'})"
+             style="background-image:linear-gradient(rgba(15,10,32,.72),rgba(15,10,32,.82)),url('img/bonus.png');background-position:center 15%">
+          <div class="promo-recruit-eyebrow"><span class="promo-recruit-dot"></span>OFFRE MARDI &amp; VENDREDI</div>
+          <div class="promo-recruit-title"><em>+200%</em> DE BONUS</div>
+          <div class="promo-recruit-sub">Sur toutes vos recharges Orange, MTN et Moov ces jours-là.</div>
+          <div class="promo-bonus-logos">
+            <span class="promo-bonus-logo"><img src="img/logos/orange.png" alt="Orange"></span>
+            <span class="promo-bonus-logo"><img src="img/logos/mtn.jpg" alt="MTN"></span>
+            <span class="promo-bonus-logo"><img src="img/logos/moov.jpg" alt="Moov"></span>
+          </div>
+        </div>
+
+        <!-- Carte 3 : recherche administrateurs — tape dessus -> contact
+             WhatsApp direct (aucun formulaire de candidature en ligne pour
+             ce rôle, voir promoContactAdminRecruit(), js/client.js).
+             img/administrateur.jpg en fond (voir .promo-recruit--photo,
+             css/style.css) — seule carte du carrousel avec une image, donc
+             texte basculé en blanc juste pour celle-ci (lisibilité sur
+             photo, jamais sur les 5 autres cartes fond blanc). -->
+        <div class="promo-recruit promo-recruit--photo" onclick="promoContactAdminRecruit()" role="button" tabindex="0"
+             onkeydown="if(event.key==='Enter')promoContactAdminRecruit()"
+             style="background-image:linear-gradient(rgba(15,10,32,.72),rgba(15,10,32,.82)),url('img/administrateur.jpg')">
+          <div class="promo-recruit-eyebrow"><span class="promo-recruit-dot"></span>KBINE PLUS RECRUTE</div>
+          <div class="promo-recruit-title">DEVENEZ <em>ADMINISTRATEUR</em> KBINE PLUS</div>
+          <div class="promo-recruit-sub">Rejoignez notre équipe et participez à la gestion de la plateforme.</div>
+          <button type="button" class="promo-recruit-btn">NOUS CONTACTER</button>
+        </div>
+
+        <!-- Carte 4 : devenir cabine (traiter des commandes) — tape dessus
+             -> directement les étapes d'inscription (voir
+             openPartnerRegister(), js/client.js), sans passer par l'écran
+             de connexion partenaire intermédiaire. img/cabine.jpg en fond
+             (voir .promo-recruit--photo, css/style.css), visage cadré à
+             droite de la photo source. -->
+        <div class="promo-recruit promo-recruit--photo" onclick="openPartnerRegister()" role="button" tabindex="0"
+             onkeydown="if(event.key==='Enter')openPartnerRegister()"
+             style="background-image:linear-gradient(rgba(15,10,32,.72),rgba(15,10,32,.82)),url('img/cabine.jpg');background-position:80% 25%">
+          <div class="promo-recruit-eyebrow"><span class="promo-recruit-dot"></span>KBINE PLUS RECRUTE</div>
+          <div class="promo-recruit-title">VOTRE SMARTPHONE DEVIENT VOTRE <em>SOURCE DE REVENUS</em></div>
+          <div class="promo-recruit-sub">Traitez des commandes et gagnez plus de 5&nbsp;000 FCFA par jour grâce au réseau KBINE PLUS.</div>
+          <button type="button" class="promo-recruit-btn">DEVENIR PARTENAIRE</button>
+        </div>
+
+        <!-- Carte 5 : rapidité du service — tape dessus -> descend
+             directement sur le tunnel de commande juste en dessous.
+             img/commande.png en fond (voir .promo-recruit--photo,
+             css/style.css), visage cadré en haut à droite de la photo
+             source. -->
+        <div class="promo-recruit promo-recruit--photo" onclick="document.getElementById('tf-order-now')?.scrollIntoView({behavior:'smooth',block:'start'})" role="button" tabindex="0"
+             onkeydown="if(event.key==='Enter')document.getElementById('tf-order-now')?.scrollIntoView({behavior:'smooth',block:'start'})"
+             style="background-image:linear-gradient(rgba(15,10,32,.72),rgba(15,10,32,.82)),url('img/commande.png');background-position:65% 12%">
+          <div class="promo-recruit-eyebrow"><span class="promo-recruit-dot"></span>AVEC KBINE PLUS</div>
+          <div class="promo-recruit-title">RECEVEZ VOTRE TRANSFERT EN <em>2 MIN</em></div>
+          <div class="promo-recruit-sub">Transfert d'unités ou souscription — reçus en seulement 2 minutes, où que vous soyez.</div>
+          <button type="button" class="promo-recruit-btn">COMMANDER MAINTENANT</button>
+        </div>
+
+        <!-- Carte 6 : disponibilité 24h/24 7j/7 — tape dessus -> appel
+             téléphonique direct (même numéro que le lien "tel:" de la
+             section Réseaux sociaux). Symbole de l'appel toujours visible
+             (étiquette ET bouton), demande explicite. img/assistant.jpg en
+             fond (voir .promo-recruit--photo, css/style.css). -->
+        <div class="promo-recruit promo-recruit--photo" onclick="window.location.href='tel:+2250576230860'" role="button" tabindex="0"
+             onkeydown="if(event.key==='Enter')window.location.href='tel:+2250576230860'"
+             style="background-image:linear-gradient(rgba(15,10,32,.72),rgba(15,10,32,.82)),url('img/assistant.jpg');background-position:35% 20%">
+          <div class="promo-recruit-eyebrow"><i class="fa-solid fa-phone promo-recruit-eyebrow-ico"></i>ASSISTANCE KBINE PLUS</div>
+          <div class="promo-recruit-title">DISPONIBLES <em>24H/24 &amp; 7J/7</em></div>
+          <div class="promo-recruit-sub">Notre équipe est toujours là pour vous accompagner, appelez-nous à tout moment.</div>
+          <button type="button" class="promo-recruit-btn"><i class="fa-solid fa-phone"></i> APPELER MAINTENANT</button>
+        </div>
+
+      </div>
+    </div>
+    <!-- Points de pagination — générés/mis à jour en JS (voir
+         _promoCarouselInit(), js/client.js), jamais un nombre de points
+         figé en dur ici. -->
+    <div class="promo-carousel-dots" id="promo-carousel-dots"></div>
+
     <!-- ── Je passe ma commande : bascule Maintenant (tunnel temps réel +
          Chap Chap) / Plus tard (commande automatique programmée) — un
          seul des deux blocs visible à la fois, voir setOrderMode()

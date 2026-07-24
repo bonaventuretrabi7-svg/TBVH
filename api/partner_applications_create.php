@@ -47,6 +47,13 @@ if (!preg_match('/^[^\s@]+@gmail\.com$/i', $email)) fail('Adresse Gmail invalide
 // (aperçu en direct, js/client.js) pour le même principe. Le nom+prénom est
 // vérifié ENSEMBLE, jamais séparément — deux candidats différents peuvent
 // tout à fait partager un simple prénom ou nom de famille courant.
+// Comparaisons sur les colonnes générées email_key/cabine_nom_key/
+// fullname_key (partner_applications) et cabine_nom_key/cabine_fullname_key
+// (profiles) — voir migration_phase33_perf_indexes.sql. LOWER()/TRIM() ne
+// portent ici que sur les PARAMÈTRES (?), jamais sur la colonne elle-même :
+// envelopper la colonne empêcherait MySQL d'utiliser l'index, et calculer
+// côté MySQL (plutôt qu'un équivalent recalculé en PHP) garantit un
+// résultat identique à celui utilisé pour générer la colonne.
 $pdo = db();
 $dupTelStmt = $pdo->prepare("SELECT id FROM partner_applications WHERE telephone = ? AND statut IN ('en_attente', 'validée')");
 $dupTelStmt->execute([$telephone]);
@@ -56,30 +63,32 @@ $dupCabineTelStmt = $pdo->prepare("SELECT id FROM profiles WHERE role = 'cabine'
 $dupCabineTelStmt->execute([$telephone]);
 if ($dupCabineTelStmt->fetch()) fail('Ce numéro est déjà utilisé par un compte partenaire existant.');
 
-$dupEmailStmt = $pdo->prepare("SELECT id FROM partner_applications WHERE LOWER(email) = LOWER(?) AND statut IN ('en_attente', 'validée')");
+$dupEmailStmt = $pdo->prepare("SELECT id FROM partner_applications WHERE email_key = LOWER(?) AND statut IN ('en_attente', 'validée')");
 $dupEmailStmt->execute([$email]);
 if ($dupEmailStmt->fetch()) fail('Une candidature est déjà en cours avec cette adresse Gmail.');
 
+// profiles nettement plus petit que partner_applications (un compte par
+// utilisateur réel, jamais une candidature par étape) : pas de colonne
+// générée dédiée à l'email ici, LOWER(email) reste un scan mais sur un
+// volume négligeable.
 $dupCabineEmailStmt = $pdo->prepare("SELECT id FROM profiles WHERE role = 'cabine' AND LOWER(email) = LOWER(?)");
 $dupCabineEmailStmt->execute([$email]);
 if ($dupCabineEmailStmt->fetch()) fail('Cette adresse Gmail est déjà utilisée par un compte partenaire existant.');
 
 $dupFullnameStmt = $pdo->prepare("SELECT id FROM partner_applications
-    WHERE LOWER(TRIM(prenom)) = LOWER(TRIM(?)) AND LOWER(TRIM(nom)) = LOWER(TRIM(?)) AND statut IN ('en_attente', 'validée')");
+    WHERE fullname_key = CONCAT(LOWER(TRIM(?)), '|', LOWER(TRIM(?))) AND statut IN ('en_attente', 'validée')");
 $dupFullnameStmt->execute([$prenom, $nom]);
 if ($dupFullnameStmt->fetch()) fail('Une candidature est déjà en cours avec ce nom et prénom.');
 
-$dupCabineFullnameStmt = $pdo->prepare("SELECT id FROM profiles
-    WHERE role = 'cabine' AND LOWER(TRIM(prenom)) = LOWER(TRIM(?)) AND LOWER(TRIM(nom)) = LOWER(TRIM(?))");
+$dupCabineFullnameStmt = $pdo->prepare("SELECT id FROM profiles WHERE cabine_fullname_key = CONCAT(LOWER(TRIM(?)), '|', LOWER(TRIM(?)))");
 $dupCabineFullnameStmt->execute([$prenom, $nom]);
 if ($dupCabineFullnameStmt->fetch()) fail('Ce nom et prénom sont déjà utilisés par un compte partenaire existant.');
 
-$dupCabineNomStmt = $pdo->prepare("SELECT id FROM partner_applications
-    WHERE LOWER(TRIM(cabine_nom)) = LOWER(TRIM(?)) AND statut IN ('en_attente', 'validée')");
+$dupCabineNomStmt = $pdo->prepare("SELECT id FROM partner_applications WHERE cabine_nom_key = LOWER(TRIM(?)) AND statut IN ('en_attente', 'validée')");
 $dupCabineNomStmt->execute([$cabineNom]);
 if ($dupCabineNomStmt->fetch()) fail('Une candidature est déjà en cours avec ce nom de cabine.');
 
-$dupCabineNomProfileStmt = $pdo->prepare("SELECT id FROM profiles WHERE role = 'cabine' AND LOWER(TRIM(cabine_nom)) = LOWER(TRIM(?))");
+$dupCabineNomProfileStmt = $pdo->prepare("SELECT id FROM profiles WHERE cabine_nom_key = LOWER(TRIM(?))");
 $dupCabineNomProfileStmt->execute([$cabineNom]);
 if ($dupCabineNomProfileStmt->fetch()) fail('Ce nom de cabine est déjà utilisé par un compte partenaire existant.');
 

@@ -73,9 +73,17 @@ CREATE TABLE IF NOT EXISTS profiles (
   -- pour les autres roles, donc jamais de collision entre deux comptes
   -- cabine partageant le meme vrai prenom.
   client_prenom_key VARCHAR(190) GENERATED ALWAYS AS (CASE WHEN role = 'client' THEN LOWER(TRIM(prenom)) ELSE NULL END) STORED,
+  -- Même principe pour role='cabine' (voir migration_phase33_perf_indexes.sql)
+  -- : vérifications de doublon nom de cabine / nom complet à la
+  -- candidature partenaire (partner_applications_check_{cabine_nom,fullname}.php),
+  -- indexées au lieu d'un scan complet.
+  cabine_nom_key      VARCHAR(190) GENERATED ALWAYS AS (CASE WHEN role = 'cabine' THEN LOWER(TRIM(cabine_nom)) ELSE NULL END) STORED,
+  cabine_fullname_key VARCHAR(380) GENERATED ALWAYS AS (CASE WHEN role = 'cabine' THEN CONCAT(LOWER(TRIM(prenom)), '|', LOWER(TRIM(nom))) ELSE NULL END) STORED,
   UNIQUE KEY uniq_telephone_role (telephone, role),
   UNIQUE KEY uniq_email_role (email, role),
-  UNIQUE KEY uniq_client_prenom (client_prenom_key)
+  UNIQUE KEY uniq_client_prenom (client_prenom_key),
+  KEY idx_profiles_cabine_nom_key (cabine_nom_key),
+  KEY idx_profiles_cabine_fullname_key (cabine_fullname_key)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Jeton d'accès opaque émis à la connexion (voir api/login.php) — remplace
@@ -460,7 +468,20 @@ CREATE TABLE IF NOT EXISTS partner_applications (
   statut            VARCHAR(32)  NOT NULL DEFAULT 'en_attente',
   date_created      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   date_traitement   DATETIME     NULL,
-  processed_by      CHAR(36)     NULL
+  processed_by      CHAR(36)     NULL,
+  -- Colonnes générées STORED (voir migration_phase33_perf_indexes.sql) :
+  -- permettent aux vérifications anti-doublon (partner_applications_check_
+  -- {email,fullname,cabine_nom}.php) d'utiliser un index au lieu d'un scan
+  -- complet — la comparaison porte sur la colonne générée elle-même,
+  -- jamais enveloppée dans LOWER()/TRIM() côté colonne.
+  email_key         VARCHAR(190) GENERATED ALWAYS AS (LOWER(email)) STORED,
+  cabine_nom_key    VARCHAR(190) GENERATED ALWAYS AS (LOWER(TRIM(cabine_nom))) STORED,
+  fullname_key      VARCHAR(380) GENERATED ALWAYS AS (CONCAT(LOWER(TRIM(prenom)), '|', LOWER(TRIM(nom)))) STORED,
+  KEY idx_pa_telephone (telephone),
+  KEY idx_pa_email_key (email_key),
+  KEY idx_pa_cabine_nom_key (cabine_nom_key),
+  KEY idx_pa_fullname_key (fullname_key),
+  KEY idx_pa_statut (statut)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ── Appareils connectés (client/cabine/admin simple) ────────────────────
