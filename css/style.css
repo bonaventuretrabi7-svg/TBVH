@@ -1623,7 +1623,12 @@ body.dark .tf-step-body { border-color: var(--dark-border); }
 }
 .promo-carousel-dots {
   display: flex; align-items: center; justify-content: center; gap: 6px;
-  margin-top: 8px;
+  /* Négatif : réduit l'espace blanc visible autour des points, qui
+     s'ajoute sinon au gap:20px de #cs-transfer.active (voir plus bas dans
+     ce fichier) des deux côtés (carrousel au-dessus, "Je passe ma
+     commande" en dessous) — même mécanisme que la jointure order-mode
+     déjà annulée plus bas. */
+  margin: -10px 0;
 }
 .promo-carousel-dot {
   width: 6px; height: 6px; border-radius: 50%;
@@ -1640,38 +1645,38 @@ body.dark .tf-step-body { border-color: var(--dark-border); }
 .promo-recruit {
   cursor: pointer; text-align: center;
   border-radius: 14px;
-  padding: 9px 12px 11px;
+  padding: 14px 16px 16px;
   background: #fff;
   box-shadow: 0 6px 14px -10px rgba(0,0,0,.2);
 }
 .promo-recruit-eyebrow {
   display: flex; align-items: center; justify-content: center; gap: 5px;
-  font-size: .46rem; font-weight: 800; letter-spacing: .08em;
-  color: var(--primary-dark); margin-bottom: 4px;
+  font-size: .56rem; font-weight: 800; letter-spacing: .08em;
+  color: var(--primary-dark); margin-bottom: 6px;
 }
 .promo-recruit-dot {
-  width: 4px; height: 4px; border-radius: 50%; background: var(--primary);
+  width: 5px; height: 5px; border-radius: 50%; background: var(--primary);
   box-shadow: 0 0 5px 1px rgba(255,98,0,.7);
 }
 .promo-recruit-title {
-  font-size: .68rem; font-weight: 900; color: #000000; text-transform: uppercase;
-  line-height: 1.25; margin-bottom: 3px;
+  font-size: .82rem; font-weight: 900; color: #000000; text-transform: uppercase;
+  line-height: 1.25; margin-bottom: 5px;
 }
 .promo-recruit-title em {
   font-style: italic; color: var(--primary-dark);
 }
 .promo-recruit-sub {
-  font-size: .56rem; line-height: 1.4; color: #000000;
-  max-width: 220px; margin: 0 auto 8px;
+  font-size: .68rem; line-height: 1.4; color: #000000;
+  max-width: 260px; margin: 0 auto 11px;
 }
 .promo-recruit-btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-  border: none; border-radius: 99px; padding: 6px 17px;
+  border: none; border-radius: 99px; padding: 9px 22px;
   background: linear-gradient(135deg, var(--primary-light), var(--primary));
-  color: #fff; font-size: .56rem; font-weight: 800; letter-spacing: .03em;
+  color: #fff; font-size: .66rem; font-weight: 800; letter-spacing: .03em;
   cursor: pointer; box-shadow: 0 5px 11px -6px rgba(255,98,0,.6);
 }
-.promo-recruit-eyebrow-ico { font-size: .6rem; }
+.promo-recruit-eyebrow-ico { font-size: .72rem; }
 
 /* Carte "recherche administrateurs" — seule carte du carrousel avec une
    photo en fond (img/administrateur.jpg, dégradé sombre posé dessus en
@@ -1702,10 +1707,12 @@ body.dark .tf-step-body { border-color: var(--dark-border); }
 .promo-bonus-logo img { width: 100%; height: 100%; object-fit: cover; }
 
 /* "Je passe ma commande" (#order-mode-section) — carte autonome, coins
-   entièrement arrondis (comme n'importe quelle .tf-layout), fond gris
-   neutre plutôt que le dégradé sombre par défaut (demande explicite) —
-   le bandeau titre et les onglets Maintenant/Plus tard portent chacun
-   déjà leur propre fond (orange / blanc), donc rien d'autre à retoucher. */
+   entièrement arrondis (comme n'importe quelle .tf-layout), même dégradé
+   sombre que .tf-layout par défaut ("Passez votre commande"/"Commande
+   automatique" juste en dessous, demande explicite : mêmes couleurs en
+   haut et en bas) — le bandeau titre et les onglets Maintenant/Plus tard
+   portent chacun déjà leur propre fond (orange / blanc), donc rien
+   d'autre à retoucher. */
 #order-mode-section {
   border-radius: var(--radius-lg);
   /* Même fond que .tf-layout par défaut ("Commande automatique" juste en
@@ -1713,10 +1720,37 @@ body.dark .tf-step-body { border-color: var(--dark-border); }
   background: linear-gradient(145deg, #0F0A2E 0%, #1A1040 55%, #0D0820 100%);
   border-color: rgba(138,99,255,.2);
   padding: 12px 12px 14px;
-  margin-top: 8px;
+  margin-top: 0;
+  /* Collée au bloc qui s'affiche juste en dessous (#tf-order-now ou
+     #sched-section, voir setOrderMode(), js/client.js) — un seul bloc
+     continu plutôt que deux cartes séparées par un espace visible. */
+  margin-bottom: 0;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  box-shadow: none;
 }
-#order-mode-section .tf-slide-hd { padding: 8px 12px; margin-bottom: 10px; font-size: .62rem; gap: 7px; }
-#order-mode-section .tf-slide-hd i { font-size: .7rem; }
+/* Étiquette flottante (maquette "Modèle 2") — remplace le bandeau plein
+   largeur par un badge compact centré, contour lumineux plutôt qu'aplat
+   orange, pour se fondre dans la carte sombre. Scopé à cette instance
+   uniquement : .tf-slide-hd reste le bandeau plein largeur classique
+   partout ailleurs (Choisissez votre réseau, Type d'opération, etc.). */
+#order-mode-section .tf-slide-hd {
+  display: flex; align-items: center; gap: 8px;
+  width: fit-content; margin: 0 auto 12px;
+  background: rgba(255,98,0,.12);
+  border: 1px solid rgba(255,98,0,.4); border-left: 1px solid rgba(255,98,0,.4);
+  border-radius: 99px;
+  padding: 6px 15px 6px 6px;
+  font-size: .6rem; letter-spacing: .04em; color: var(--primary-light);
+  box-shadow: none;
+}
+#order-mode-section .tf-slide-hd i {
+  width: 22px; height: 22px; border-radius: 50%;
+  background: var(--primary);
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-size: .62rem; flex-shrink: 0;
+  box-shadow: 0 0 10px rgba(255,98,0,.6);
+}
 #order-mode-section .service-toggle { gap: 8px; margin-bottom: 0; }
 #order-mode-section .svc-tab { padding: 10px 8px; border-radius: 11px; gap: 3px; }
 #order-mode-section .svc-tab-title { font-size: .74rem; }
@@ -1727,7 +1761,17 @@ body.dark .tf-step-body { border-color: var(--dark-border); }
    explicite), aucune couleur retouchée : accroche/stepper/bandeau/cartes
    réseau simplement rétrécis, exactement les mêmes teintes qu'avant. */
 #tf-order-now,
-#sched-section { padding: 12px 12px 20px; }
+#sched-section {
+  padding: 12px 12px 20px;
+  /* Collée à #order-mode-section juste au-dessus — voir ce bloc. Les deux
+     sont enfants directs de #cs-transfer.active (display:flex, gap:20px),
+     qui insère 20px entre eux quel que soit leur propre margin (un simple
+     margin-top:0 ne suffit pas) — le margin négatif annule ce gap, même
+     mécanisme déjà utilisé par .pgc-panel plus bas dans ce fichier. */
+  margin-top: -20px;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
 #tf-order-now .tf-order-intro,
 #sched-section .tf-order-intro { padding: 9px 11px; margin-bottom: 10px; gap: 8px; }
 #tf-order-now .tf-oi-title,
@@ -3878,18 +3922,24 @@ body.dark .cs-page-title { color: var(--dark-text); }
 .rst-admin-actions { display: flex; flex-direction: column; align-items: flex-end; flex-shrink: 0; }
 
 /* ── Modal inscription partenaire v2 ───────────────────────────── */
+/* Thème clair (même modèle que la modale admin "Créer un nouveau compte",
+   voir .form-control/.form-label/.type-card, admin.html) — remplace
+   l'ancien thème sombre de ce formulaire, demande explicite pour que la
+   candidature partenaire (côté client) ressemble à la création de compte
+   côté admin. Structure inchangée (3 étapes, bandeaux "01/02/03", champ
+   "Code de parrainage" déjà présent — voir #prg-parrain-code plus bas). */
 .prg-modal {
-  background: #111118; border: 1px solid rgba(255,255,255,.09);
+  background: var(--white); border: 1px solid var(--gray-200);
   border-radius: 22px; width: 94%; max-width: 390px;
   max-height: 92vh; display: flex; flex-direction: column;
   overflow: hidden; animation: slideUp .3s cubic-bezier(.16,1,.3,1);
-  box-shadow: 0 24px 60px rgba(0,0,0,.6);
+  box-shadow: 0 24px 60px rgba(0,0,0,.18);
 }
 
 /* Topbar */
 .prg-topbar {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 14px 16px 12px; border-bottom: 1px solid rgba(255,255,255,.06); flex-shrink: 0;
+  padding: 14px 16px 12px; border-bottom: 1px solid var(--gray-200); flex-shrink: 0;
 }
 .prg-topbar-brand { display: flex; align-items: center; gap: 9px; }
 .prg-topbar-logo  {
@@ -3897,45 +3947,45 @@ body.dark .cs-page-title { color: var(--dark-text); }
   background: #FF6200; display: flex; align-items: center; justify-content: center;
   font-size: .68rem; font-weight: 900; color: #fff; letter-spacing: -.03em; flex-shrink: 0;
 }
-.prg-topbar-title { font-size: .72rem; font-weight: 800; color: #fff; }
+.prg-topbar-title { font-size: .72rem; font-weight: 800; color: var(--gray-800); }
 .prg-topbar-close {
   width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
-  background: rgba(255,255,255,.07); border: none; color: rgba(255,255,255,.5);
+  background: var(--gray-100); border: none; color: var(--gray-600);
   font-size: .7rem; cursor: pointer; display: flex; align-items: center; justify-content: center;
   transition: background .15s;
 }
-.prg-topbar-close:hover { background: rgba(255,255,255,.12); color: #fff; }
+.prg-topbar-close:hover { background: #FEE2E2; color: #EF4444; }
 
 /* Stepper */
 .prg-stepper {
   display: flex; align-items: center; padding: 12px 20px; flex-shrink: 0;
-  border-bottom: 1px solid rgba(255,255,255,.05);
+  border-bottom: 1px solid var(--gray-200);
 }
 .prg-stp { display: flex; flex-direction: column; align-items: center; gap: 4px; flex-shrink: 0; }
 .prg-stp-num {
   width: 28px; height: 28px; border-radius: 50%;
-  background: rgba(255,255,255,.07); border: 2px solid rgba(255,255,255,.1);
+  background: var(--gray-100); border: 2px solid var(--gray-300);
   display: flex; align-items: center; justify-content: center;
-  font-size: .6rem; font-weight: 800; color: rgba(255,255,255,.3);
+  font-size: .6rem; font-weight: 800; color: var(--gray-400);
   transition: all .3s;
 }
-.prg-stp-lbl { font-size: .46rem; color: rgba(255,255,255,.45); font-weight: 600; white-space: nowrap; transition: color .3s; }
-.prg-stp--active .prg-stp-num { background: #FF6200; border-color: #FF6200; color: #fff; box-shadow: 0 0 12px rgba(255,98,0,.5); }
+.prg-stp-lbl { font-size: .46rem; color: var(--gray-500); font-weight: 600; white-space: nowrap; transition: color .3s; }
+.prg-stp--active .prg-stp-num { background: #FF6200; border-color: #FF6200; color: #fff; box-shadow: 0 0 12px rgba(255,98,0,.35); }
 .prg-stp--active .prg-stp-lbl { color: #FF6200; }
-.prg-stp--done .prg-stp-num   { background: rgba(34,197,94,.15); border-color: #22c55e; color: #22c55e; }
+.prg-stp--done .prg-stp-num   { background: rgba(34,197,94,.12); border-color: #22c55e; color: #22c55e; }
 .prg-stp--done .prg-stp-lbl   { color: #22c55e; }
-.prg-stp-line { flex: 1; height: 2px; background: rgba(255,255,255,.07); margin: 0 6px; margin-bottom: 14px; transition: background .3s; }
+.prg-stp-line { flex: 1; height: 2px; background: var(--gray-200); margin: 0 6px; margin-bottom: 14px; transition: background .3s; }
 .prg-stp-line--done { background: #22c55e; }
 
 /* Step hero */
 .prg-step-hero {
   position: relative; overflow: hidden;
-  background: rgba(255,98,0,.04); border: 1px solid rgba(255,98,0,.12);
+  background: rgba(255,98,0,.05); border: 1px solid rgba(255,98,0,.15);
   border-radius: 14px; padding: 14px 16px; margin-bottom: 16px;
 }
 .prg-step-hero-num {
   position: absolute; right: -4px; top: -8px;
-  font-size: 3.5rem; font-weight: 900; color: rgba(255,98,0,.06);
+  font-size: 3.5rem; font-weight: 900; color: rgba(255,98,0,.08);
   line-height: 1; letter-spacing: -.05em; pointer-events: none; user-select: none;
 }
 .prg-step-hero-tag {
@@ -3945,7 +3995,7 @@ body.dark .cs-page-title { color: var(--dark-text); }
   padding: 3px 9px; border-radius: 99px; margin-bottom: 6px;
   text-transform: uppercase; letter-spacing: .08em;
 }
-.prg-step-hero-title { font-size: .78rem; font-weight: 800; color: #fff; }
+.prg-step-hero-title { font-size: .78rem; font-weight: 800; color: var(--gray-800); }
 
 /* Corps */
 .prg-body  { flex: 1; overflow-y: auto; padding: 16px; }
@@ -3959,40 +4009,41 @@ body.dark .cs-page-title { color: var(--dark-text); }
 }
 .prg-notice {
   display: flex; align-items: flex-start; gap: 7px;
-  background: rgba(56,189,248,.07); border: 1px solid rgba(56,189,248,.18);
+  background: rgba(56,189,248,.08); border: 1px solid rgba(56,189,248,.25);
   border-radius: 8px; padding: 8px 10px; margin-bottom: 14px;
-  font-size: .55rem; color: rgba(255,255,255,.4); line-height: 1.5;
+  font-size: .55rem; color: var(--gray-600); line-height: 1.5;
 }
 .prg-field  { margin-bottom: 12px; }
 .prg-label  {
-  font-size: .55rem; font-weight: 700; color: rgba(255,255,255,.35);
-  display: block; margin-bottom: 5px; text-transform: uppercase; letter-spacing: .07em;
+  font-size: .74rem; font-weight: 600; color: var(--gray-700);
+  display: block; margin-bottom: 5px;
 }
 .prg-input-wrap { position: relative; }
-.prg-ico    { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); font-size: .65rem; color: rgba(255,98,0,.5); }
+.prg-ico    { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); font-size: .65rem; color: rgba(255,98,0,.65); }
 .prg-input  {
-  width: 100%; background: rgba(255,255,255,.04); border: 1.5px solid rgba(255,255,255,.1);
-  border-radius: 10px; color: #fff; font-family: var(--font);
-  font-size: .68rem; padding: 10px 12px; box-sizing: border-box;
+  width: 100%; background: var(--white); border: 1.5px solid var(--gray-300);
+  border-radius: var(--radius); color: var(--gray-800); font-family: var(--font);
+  font-size: .74rem; padding: 10px 12px; box-sizing: border-box;
   outline: none; transition: border-color .2s, background .2s;
 }
 .prg-input--icon { padding-left: 33px; }
-.prg-input:focus { border-color: #FF6200; background: rgba(255,98,0,.05); }
+.prg-input:focus { border-color: #FF6200; background: rgba(255,98,0,.03); }
+.prg-input::placeholder { color: var(--gray-400); }
 .prg-select   { appearance: none; cursor: pointer; }
 .prg-textarea { resize: vertical; min-height: 90px; line-height: 1.6; padding: 10px 12px !important; }
 
 /* Upload */
 .prg-upload {
-  border: 2px dashed rgba(255,255,255,.12); border-radius: 12px;
+  border: 2px dashed var(--gray-300); border-radius: 12px;
   padding: 18px; text-align: center; cursor: pointer;
-  transition: border-color .2s, background .2s; background: rgba(255,255,255,.02);
+  transition: border-color .2s, background .2s; background: var(--gray-100);
 }
 .prg-upload:hover { border-color: rgba(255,98,0,.4); background: rgba(255,98,0,.04); }
-.prg-upload--done { border-color: rgba(34,197,94,.4); border-style: solid; background: rgba(34,197,94,.04); }
-.prg-upload-ico   { font-size: 1.3rem; color: rgba(255,255,255,.2); margin-bottom: 7px; display: block; }
+.prg-upload--done { border-color: rgba(34,197,94,.4); border-style: solid; background: rgba(34,197,94,.05); }
+.prg-upload-ico   { font-size: 1.3rem; color: var(--gray-400); margin-bottom: 7px; display: block; }
 .prg-upload--done .prg-upload-ico { color: #22c55e; }
-.prg-upload-lbl   { font-size: .6rem; color: rgba(255,255,255,.35); margin-bottom: 3px; }
-.prg-upload-fn    { font-size: .54rem; color: rgba(255,255,255,.2); word-break: break-all; }
+.prg-upload-lbl   { font-size: .6rem; color: var(--gray-600); margin-bottom: 3px; }
+.prg-upload-fn    { font-size: .54rem; color: var(--gray-400); word-break: break-all; }
 .prg-upload--done .prg-upload-fn { color: #22c55e; font-weight: 600; }
 
 /* Abonnements */
@@ -4003,8 +4054,9 @@ body.dark .cs-page-title { color: var(--dark-text); }
   border-radius: 13px; padding: 12px 12px 10px; cursor: pointer;
   transition: border-color .2s, background .2s;
 }
+.prg-abo2          { background: var(--gray-100); border: 1.5px solid var(--gray-200); }
 .prg-abo2:hover    { background: rgba(255,98,0,.05); border-color: rgba(255,98,0,.25); }
-.prg-abo2--sel     { background: rgba(255,98,0,.08); border-color: #FF6200; box-shadow: 0 0 0 1px #FF6200; }
+.prg-abo2--sel     { background: rgba(255,98,0,.06); border-color: #FF6200; box-shadow: 0 0 0 1px #FF6200; }
 .prg-abo2--popular { border-color: rgba(255,98,0,.3); }
 .prg-abo2-popular-tag {
   position: absolute; top: 0; right: 0;
@@ -4013,14 +4065,14 @@ body.dark .cs-page-title { color: var(--dark-text); }
   padding: 3px 9px; border-radius: 0 11px 0 8px;
 }
 .prg-abo2-top  { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
-.prg-abo2-name { font-size: .75rem; font-weight: 900; color: #fff; }
+.prg-abo2-name { font-size: .75rem; font-weight: 900; color: var(--gray-800); }
 .prg-abo2-badge { font-size: .42rem; font-weight: 700; padding: 2px 7px; border-radius: 99px; border: 1px solid; }
 .prg-abo2-price { font-size: .85rem; font-weight: 900; color: #FF6200; line-height: 1; }
-.prg-abo2-price span { font-size: .46rem; font-weight: 600; color: rgba(255,255,255,.4); margin-left: 2px; }
-.prg-abo2-desc  { font-size: .54rem; color: rgba(255,255,255,.3); line-height: 1.5; margin-bottom: 8px; }
-.prg-abo2-desc strong { color: rgba(255,255,255,.55); }
+.prg-abo2-price span { font-size: .46rem; font-weight: 600; color: var(--gray-500); margin-left: 2px; }
+.prg-abo2-desc  { font-size: .54rem; color: var(--gray-500); line-height: 1.5; margin-bottom: 8px; }
+.prg-abo2-desc strong { color: var(--gray-700); }
 .prg-abo2-feats { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 6px; }
-.prg-abo2-feats span { font-size: .52rem; color: rgba(255,255,255,.35); display: flex; align-items: center; gap: 5px; }
+.prg-abo2-feats span { font-size: .52rem; color: var(--gray-600); display: flex; align-items: center; gap: 5px; }
 .prg-abo2-feats i { color: #22c55e; font-size: .48rem; }
 .prg-abo2-check { display: none; position: absolute; top: 10px; right: 10px; font-size: .85rem; color: #FF6200; }
 .prg-abo2--sel .prg-abo2-check { display: block; }
@@ -4029,13 +4081,13 @@ body.dark .cs-page-title { color: var(--dark-text); }
 .prg-pay-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
 .prg-pay-card {
   display: flex; align-items: center; gap: 8px;
-  background: rgba(255,255,255,.03); border: 1.5px solid rgba(255,255,255,.08);
+  background: var(--gray-100); border: 1.5px solid var(--gray-200);
   border-radius: 10px; padding: 9px 11px; cursor: pointer;
   transition: border-color .18s, background .18s;
-  font-size: .6rem; font-weight: 600; color: rgba(255,255,255,.55);
+  font-size: .6rem; font-weight: 600; color: var(--gray-600);
 }
 .prg-pay-card:hover  { background: rgba(255,98,0,.06); border-color: rgba(255,98,0,.2); }
-.prg-pay-card--sel   { background: rgba(255,98,0,.1); border-color: #FF6200; color: #fff; }
+.prg-pay-card--sel   { background: rgba(255,98,0,.08); border-color: #FF6200; color: var(--gray-800); }
 .prg-pay-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
 /* Logo réel (voir #prg-pay-abo/#prg-pay-vers, index.html) — remplace les
    pastilles de couleur .prg-pay-dot pour ces deux grilles seulement ;
@@ -4062,7 +4114,7 @@ body.dark .cs-page-title { color: var(--dark-text); }
 .prg-net-row {
   display: flex; align-items: center; gap: 12px;
   padding: 10px 12px; border-radius: 12px; cursor: pointer;
-  border: 1.5px solid rgba(255,255,255,.1); background: rgba(255,255,255,.03);
+  border: 1.5px solid var(--gray-200); background: var(--gray-100);
   transition: all .18s ease;
 }
 .prg-net-logo {
@@ -4070,10 +4122,10 @@ body.dark .cs-page-title { color: var(--dark-text); }
   background: #fff; display: flex; align-items: center; justify-content: center;
 }
 .prg-net-logo img { width: 100%; height: 100%; object-fit: cover; }
-.prg-net-name { flex: 1; font-weight: 800; font-size: .74rem; color: #fff; }
+.prg-net-name { flex: 1; font-weight: 800; font-size: .74rem; color: var(--gray-800); }
 .prg-net-check {
   width: 22px; height: 22px; border-radius: 7px; flex-shrink: 0;
-  border: 1.5px solid rgba(255,255,255,.2); background: transparent;
+  border: 1.5px solid var(--gray-300); background: transparent;
   display: flex; align-items: center; justify-content: center; color: transparent; font-size: .6rem;
   transition: all .18s ease;
 }
@@ -4081,30 +4133,30 @@ body.dark .cs-page-title { color: var(--dark-text); }
 .prg-net-row--on .prg-net-check { background: #FF6200; border-color: #FF6200; color: #fff; }
 
 /* Aperçu en direct du parrain (prénom) dès qu'un code valide est saisi —
-   #prg-parrain-feedback (candidature partenaire, formulaire sombre) et
-   #ag-reg-parrain-feedback (inscription client, coupon clair, voir plus
-   bas #reg-slide-3) — voir _wireParrainLookup(), js/client.js. */
+   #prg-parrain-feedback (candidature partenaire) et #ag-reg-parrain-feedback
+   (inscription client, coupon clair, voir plus bas #reg-slide-3) — les deux
+   sur fond clair désormais, voir _wireParrainLookup(), js/client.js. */
 .parrain-fb {
   display: none; align-items: center; gap: 6px;
   font-size: .62rem; font-weight: 700; margin-top: 6px;
 }
-.parrain-fb--checking { color: rgba(255,255,255,.45); }
+.parrain-fb--checking { color: var(--gray-500); }
 .parrain-fb--ok       { color: #22c55e; }
 .parrain-fb--warn     { color: #f59e0b; }
 
 /* Footer navigation */
 .prg-footer {
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
-  padding: 12px 16px; border-top: 1px solid rgba(255,255,255,.06); flex-shrink: 0;
+  padding: 12px 16px; border-top: 1px solid var(--gray-200); flex-shrink: 0;
 }
 .prg-btn-back {
   display: flex; align-items: center; gap: 6px; flex-shrink: 0;
-  background: none; border: 1.5px solid rgba(255,255,255,.1);
-  border-radius: 10px; color: rgba(255,255,255,.45);
+  background: none; border: 1.5px solid var(--gray-300);
+  border-radius: 10px; color: var(--gray-500);
   font-size: .62rem; font-weight: 700; font-family: var(--font);
   padding: 9px 14px; cursor: pointer; transition: border-color .15s, color .15s;
 }
-.prg-btn-back:hover { border-color: rgba(255,255,255,.25); color: rgba(255,255,255,.7); }
+.prg-btn-back:hover { border-color: var(--gray-400); color: var(--gray-700); }
 .prg-btn-fwd {
   flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px;
   background: #FF6200; border: none; border-radius: 10px; color: #fff;
@@ -4120,8 +4172,8 @@ body.dark .cs-page-title { color: var(--dark-text); }
 /* Confirmation */
 .prg-success { text-align: center; padding: 24px 12px; }
 .prg-success-ico { font-size: 3.2rem; color: #22c55e; margin-bottom: 14px; }
-.prg-success-title { font-size: .92rem; font-weight: 900; color: #fff; margin-bottom: 10px; }
-.prg-success-msg  { font-size: .6rem; color: rgba(255,255,255,.38); line-height: 1.75; margin-bottom: 22px; }
+.prg-success-title { font-size: .92rem; font-weight: 900; color: var(--gray-800); margin-bottom: 10px; }
+.prg-success-msg  { font-size: .6rem; color: var(--gray-500); line-height: 1.75; margin-bottom: 22px; }
 .prg-success-btn  {
   background: #FF6200; border: none; border-radius: 10px;
   color: #fff; font-size: .68rem; font-weight: 800; font-family: var(--font);
@@ -8256,12 +8308,20 @@ body.dark .avail-val { color: var(--dark-text); }
 .adx-input:-webkit-autofill,
 .rst-input:-webkit-autofill,
 .ag-input:-webkit-autofill,
-.svc-input:-webkit-autofill,
-.prg-input:-webkit-autofill {
+.svc-input:-webkit-autofill {
   -webkit-text-fill-color: #fff;
   -webkit-box-shadow: 0 0 0 1000px #1a1330 inset;
   box-shadow: 0 0 0 1000px #1a1330 inset;
   caret-color: #fff;
+  transition: background-color 9999s ease-in-out 0s;
+}
+/* .prg-input est désormais un champ clair (voir plus haut) — autofill
+   assorti au lieu d'hériter du forçage sombre partagé ci-dessus. */
+.prg-input:-webkit-autofill {
+  -webkit-text-fill-color: var(--gray-800);
+  -webkit-box-shadow: 0 0 0 1000px #fff inset;
+  box-shadow: 0 0 0 1000px #fff inset;
+  caret-color: var(--gray-800);
   transition: background-color 9999s ease-in-out 0s;
 }
 
@@ -9400,7 +9460,7 @@ body.dark .rh-card-ref { color: var(--dark-text, #F1F3F9); }
 .pgc-qr-card {
   position: relative; z-index: 160;
   width: fit-content; margin: -108px auto 0;
-  padding: 22px;
+  padding: 19px;
   background: linear-gradient(135deg, #ffffff 0%, #FFB870 100%);
   border-radius: 28px;
   box-shadow: 0 16px 34px rgba(0,0,0,.22), 0 3px 8px rgba(0,0,0,.08);
@@ -9418,7 +9478,7 @@ body.dark .rh-card-ref { color: var(--dark-text, #F1F3F9); }
 .pgc-qr-inner {
   background: var(--white);
   border-radius: 20px;
-  padding: 12px;
+  padding: 5px;
   box-shadow: 0 4px 14px rgba(0,0,0,.08);
 }
 
@@ -9473,7 +9533,7 @@ body.dark .rh-card-ref { color: var(--dark-text, #F1F3F9); }
 .pgc-qr-big-wrap { position: relative; display: inline-block; }
 .pgc-qr-big {
   position: relative;
-  width: 180px; height: 180px; padding: 10px;
+  width: 160px; height: 160px; padding: 5px;
   background: #fff; border: 1px solid var(--gray-200); border-radius: 18px;
   display: flex; align-items: center; justify-content: center;
   cursor: pointer; font-family: inherit;
@@ -9497,7 +9557,7 @@ body.dark .rh-card-ref { color: var(--dark-text, #F1F3F9); }
    scannable malgré la zone couverte). */
 .pgc-qr-logo-badge {
   position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-  width: 42px; height: 42px; border-radius: 50%;
+  width: 38px; height: 38px; border-radius: 50%;
   background: #fff; padding: 3px;
   box-shadow: 0 1px 5px rgba(0,0,0,.22);
   pointer-events: none;

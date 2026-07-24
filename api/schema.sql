@@ -83,7 +83,11 @@ CREATE TABLE IF NOT EXISTS profiles (
   UNIQUE KEY uniq_email_role (email, role),
   UNIQUE KEY uniq_client_prenom (client_prenom_key),
   KEY idx_profiles_cabine_nom_key (cabine_nom_key),
-  KEY idx_profiles_cabine_fullname_key (cabine_fullname_key)
+  KEY idx_profiles_cabine_fullname_key (cabine_fullname_key),
+  -- Filtrage par role/statut (list_profiles.php, listes admin) -- voir
+  -- migration_phase36_admin_perf_indexes.sql.
+  KEY idx_profiles_role (role),
+  KEY idx_profiles_statut (statut)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Jeton d'accès opaque émis à la connexion (voir api/login.php) — remplace
@@ -202,7 +206,11 @@ CREATE TABLE IF NOT EXISTS transactions (
   hold_used                      TINYINT(1)   NOT NULL DEFAULT 0,
   KEY idx_txn_client (client_id),
   KEY idx_txn_cabine (cabine_id),
-  KEY idx_txn_statut (statut)
+  KEY idx_txn_statut (statut),
+  -- Filtrage par type (recharge-uv-admin/exchange-admin) et tri par date
+  -- (orders_list.php, ORDER BY date DESC) -- voir migration_phase36_admin_perf_indexes.sql.
+  KEY idx_txn_type (type),
+  KEY idx_txn_date (date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ── Retraits de commission (cabiniste) ──────────────────────────────────

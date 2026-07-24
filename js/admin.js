@@ -292,10 +292,9 @@ async function submitAdminLoginGate() {
     return;
   }
 
-  // Le super admin n'est jamais éligible (voir Auth._hasDeviceLimit(),
-  // js/auth.js) : rememberToken reste alors simplement absent, la case
-  // cochée n'a aucun effet pour ce compte — cohérent avec le reste de
-  // l'app, aucun cas particulier à gérer ici.
+  // "Rester connecté" (30 jours, voir Auth._applyDeviceBookkeeping()) — même
+  // mécanisme pour le super admin que pour un admin simple, voir
+  // Auth._hasDeviceLimit() (aucune exclusion par admin_level).
   if (res.rememberToken) localStorage.setItem(Auth.REMEMBER_TOKEN_KEY, res.rememberToken);
 
   window.location.reload();
@@ -303,10 +302,10 @@ async function submitAdminLoginGate() {
 
 /* Reprise "rester connecté" SANS redemander le PIN — même patron que
    _tryRememberMeRestore() côté cabine (js/cabine.js) et
-   _tryRememberMeClientRestore() côté client (js/client.js), étendu ici à
-   l'administrateur simple (le super admin n'a jamais de jeton à reprendre,
-   voir Auth._hasDeviceLimit()). Toujours revérifié par le serveur
-   (api/session_whoami.php) avant d'ouvrir quoi que ce soit. */
+   _tryRememberMeClientRestore() côté client (js/client.js), pour tout
+   compte admin, super inclus (aucune exclusion, voir Auth._hasDeviceLimit()).
+   Toujours revérifié par le serveur (api/session_whoami.php) avant d'ouvrir
+   quoi que ce soit. */
 async function _tryRememberMeAdminRestore() {
   const token = localStorage.getItem(Auth.REMEMBER_TOKEN_KEY);
   if (!token) return;
@@ -779,7 +778,7 @@ function loadDashboard() {
   animateCountUp(document.getElementById('admin-revenue'), stats.commissions, Fmt.money);
   animateCountUp(document.getElementById('admin-pending'), stats.pending);
   animateCountUp(document.getElementById('admin-done'), stats.done);
-  animateCountUp(document.getElementById('admin-refused'), stats.refused);
+  animateCountUp(document.getElementById('admin-late'), DB.retards.all().length);
 
   // Inscriptions du jour (tous rôles)
   const todayStart = new Date(); todayStart.setHours(0,0,0,0);
@@ -1908,6 +1907,40 @@ const TXN_TYPE_LABELS = {
   transfert_client_reception: 'Transfert reçu',
 };
 
+// Sous-catégorie de la commande, en complément du libellé général
+// ci-dessus : pour un "Forfait", le forfait précis choisi (t.details.forfait_nom,
+// voir tf._tfForfaitDetails()/js/client.js) ; pour un "Transfert direct",
+// le réseau ciblé (déjà visible dans la colonne Réseau, donc pas répété
+// ici). Partagée entre loadTransactions() (colonne "Type de service") et
+// _buildAdminTxnSections() (détail complet) pour ne jamais diverger.
+function _txnServiceLabel(t) {
+  const base = t.service || TXN_TYPE_LABELS[t.type] || t.type || '—';
+  const d = t.details || {};
+  if (t.service === 'Forfait' && d.forfait_nom) return `${base} — ${d.forfait_nom}`;
+  return base;
+}
+
+// Pastille de statut pleine couleur (fond saturé + texte blanc), utilisée
+// sur la carte "hero" sombre de showAdminTxnDetail() — contrairement à
+// Fmt.statusBadge() (fond pastel clair + texte foncé, pensé pour un fond
+// blanc), qui serait illisible sur ce fond marine. Réutilise la même
+// couleur de référence que Fmt.rowColors() (STATUS_COLORS.line, js/auth.js)
+// pour ne jamais diverger de la teinte affichée ailleurs pour ce statut.
+const _TXN_STATUS_PILL_META = {
+  en_attente: { icon: 'fa-clock',                 label: 'En attente' },
+  'terminé':  { icon: 'fa-check',                 label: 'Terminé' },
+  'refusé':   { icon: 'fa-xmark',                 label: 'Refusé' },
+  'remboursé':{ icon: 'fa-rotate-left',            label: 'Remboursé' },
+  suspendue:  { icon: 'fa-circle-pause',           label: 'Suspendue' },
+  en_retard:  { icon: 'fa-triangle-exclamation',   label: 'En retard' },
+};
+function _txnStatusPill(t) {
+  const key = Fmt.isLate(t) ? 'en_retard' : t.statut;
+  const meta = _TXN_STATUS_PILL_META[key] || { icon: 'fa-circle', label: key };
+  const c = Fmt.rowColors(t);
+  return `<span style="display:inline-flex;align-items:center;gap:5px;font-size:.62rem;font-weight:800;text-transform:uppercase;letter-spacing:.02em;padding:4px 10px;border-radius:99px;background:${c.line};color:#fff;white-space:nowrap;flex-shrink:0;"><i class="fa-solid ${meta.icon}"></i> ${meta.label}</span>`;
+}
+
 function loadTransactions(query = '', statusFilter = 'all') {
   // Badge de la sidebar : total en_attente indépendant de la recherche/du
   // filtre de statut affiché — même motif que partner-badge/reset-badge/
@@ -1991,7 +2024,7 @@ function loadTransactions(query = '', statusFilter = 'all') {
         </div>
       </td>
       <td><span style="display:inline-flex;padding:4px 10px;border-radius:999px;font-size:.72rem;font-weight:800;color:${op.fg};background:${op.bg};">${t.operateur}</span></td>
-      <td>${t.service || TXN_TYPE_LABELS[t.type] || '—'}</td>
+      <td>${_txnServiceLabel(t)}</td>
       <td><code>${Fmt.phone(t.numero_beneficiaire)}</code></td>
       <td>
         <strong>${Fmt.money(t.montant)}</strong>
@@ -2024,7 +2057,7 @@ function _buildAdminTxnSections(t) {
   const sections = [
     { title: 'Identification', rows: [
       ['fa-hashtag', 'ID', '#' + Fmt.ref(t.id)],
-      ['fa-layer-group', 'Type de service', t.service || TXN_TYPE_LABELS[t.type] || t.type || '—'],
+      ['fa-layer-group', 'Type de service', _txnServiceLabel(t)],
       ['fa-signal', 'Réseau', t.operateur || '—'],
     ] },
     { title: 'Parties', rows: [
@@ -2075,28 +2108,42 @@ function _buildAdminTxnSections(t) {
   return sections;
 }
 
+// Modèle "carte de paiement" (maquette G) : montant/ID/type de service/
+// statut vivent dans une carte hero façon carte bancaire, le reste de
+// toutes les sections (voir _buildAdminTxnSections()) forme une liste
+// continue à icônes en dessous — ces 3 libellés seraient sinon répétés.
+const _TXN_DETAIL_HERO_LABELS = ['ID', 'Type de service', 'Montant'];
+
 function showAdminTxnDetail(id) {
   const t = DB.transactions.all().find(x => x.id === id);
   const body = document.getElementById('admin-txn-detail-body');
   if (!t || !body) return;
 
   const sections = _buildAdminTxnSections(t);
-  const rowHtml = ([ico, lbl, val]) => `
-    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding:9px 16px;border-bottom:1px solid var(--border);font-size:.76rem;">
-      <span style="color:var(--text-muted);display:flex;align-items:center;gap:6px;flex-shrink:0;"><i class="fa-solid ${ico}"></i> ${lbl}</span>
-      <strong style="text-align:right;">${val}</strong>
+  const rows = sections.flatMap(s => s.rows).filter(([, lbl]) => !_TXN_DETAIL_HERO_LABELS.includes(lbl));
+  const itemHtml = ([ico, lbl, val]) => `
+    <div style="display:flex;align-items:center;gap:11px;padding:10px 2px;border-bottom:1px solid var(--border);">
+      <div style="width:30px;height:30px;border-radius:9px;background:var(--gray-100);display:flex;align-items:center;justify-content:center;color:var(--primary);font-size:.8rem;flex-shrink:0;"><i class="fa-solid ${ico}"></i></div>
+      <div style="min-width:0;">
+        <div style="font-size:.64rem;color:var(--text-muted);">${lbl}</div>
+        <div style="font-size:.8rem;font-weight:700;">${val}</div>
+      </div>
     </div>`;
 
   body.innerHTML = `
-    <div style="padding:16px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
-      <span style="font-weight:900;font-size:1rem;">${Fmt.money(t.montant)}</span>
-      ${Fmt.statusBadge(t)}
+    <div style="padding:18px 18px 4px;">
+      <div style="background:linear-gradient(135deg,#171B2E,#2C3255 70%);border-radius:16px;padding:18px 18px 16px;color:#fff;position:relative;overflow:hidden;margin-bottom:6px;">
+        <div style="width:30px;height:22px;border-radius:5px;background:linear-gradient(135deg,var(--primary),#FFB067);margin-bottom:16px;"></div>
+        <div style="font-size:1.4rem;font-weight:800;">${Fmt.money(t.montant)}</div>
+        <div style="font-family:'Courier New',monospace;letter-spacing:.08em;color:#B9BCCB;font-size:.75rem;margin-top:8px;">#${Fmt.ref(t.id)}</div>
+        <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:14px;gap:10px;">
+          <div style="font-size:.66rem;color:#B9BCCB;min-width:0;">Type de service<div style="color:#fff;font-size:.78rem;font-weight:700;margin-top:2px;">${_txnServiceLabel(t)}</div></div>
+          ${_txnStatusPill(t)}
+        </div>
+      </div>
     </div>
-    ${sections.map(s => `
-      <div style="padding:10px 16px 5px;font-size:.58rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--primary);">${s.title}</div>
-      ${s.rows.map(rowHtml).join('')}
-    `).join('')}
-    <div style="padding:16px;">
+    <div style="padding:0 18px;">${rows.map(itemHtml).join('')}</div>
+    <div style="padding:16px 18px 18px;">
       <button class="btn btn-primary" style="width:100%;justify-content:center;" onclick="downloadAdminTxnDetail('${id}')">
         <i class="fa-solid fa-download"></i> Télécharger le détail
       </button>

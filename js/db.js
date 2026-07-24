@@ -2172,20 +2172,23 @@ const DB = (() => {
     },
 
     /* "Portefeuille" de la cabine — somme des MONTANTS (pas des
-       commissions) de ses commandes TERMINÉES, à la demande explicite de
-       l'administration. Utilisé comme LA source unique de "Solde actuel"
-       (Recharge cabiniste), "Montant disponible" (Retraits), "Solde en
-       attente" (espace cabine) et "Solde" (Gestion des cabines), voir
-       js/admin.js/js/cabine.js. Distinct de cabineSoldeDisponible()
-       ci-dessus : ne diminue jamais après un retrait ou une commande
-       remboursée — accepté sciemment, le débit réel (profiles.solde)
-       reste protégé côté serveur (CAS, voir api/retraits_create.php), qui
-       refuse toujours un retrait au-delà de l'argent réellement en caisse
-       quel que soit ce que cet affichage suggère. */
+       commissions) de ses commandes TERMINÉES, moins les retraits déjà
+       traités (y compris les sanctions, elles aussi des retraits admin —
+       voir refundTransactionEffect(), api/orders_common.php), pour rester
+       cohérent avec le solde réel (débit atomique CAS côté serveur, voir
+       api/retraits_create.php). Utilisé comme LA source unique de "Solde
+       actuel" (Recharge cabiniste), "Montant disponible" (Retraits),
+       "Solde en attente" (espace cabine) et "Solde" (Gestion des cabines),
+       voir js/admin.js/js/cabine.js — corrigé suite au signalement : le
+       montant affiché ne diminuait pas après qu'un retrait soit traité. */
     cabineVolumeTraite(cabineId) {
-      return transactions.byCabine(cabineId)
+      const volume = transactions.byCabine(cabineId)
         .filter(t => t.statut === 'terminé')
         .reduce((s, t) => s + (t.montant || 0), 0);
+      const retraitsPayes = retraits.byCabine(cabineId)
+        .filter(r => r.statut === 'terminé')
+        .reduce((s, r) => s + (r.montant || 0), 0);
+      return Math.max(0, volume - retraitsPayes);
     },
 
     /* Réglages propres à la cabine (réseaux actifs, pause du service,
