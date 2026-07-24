@@ -803,6 +803,46 @@ const ServerAPI = (() => {
     return { ok: true, found: data.found, prenom: data.prenom, nom: data.nom };
   }
 
+  // Unicité du surnom client (voir migration_phase32_client_surnom_unique.sql
+  // et check_surnom.php) — public, appelé pendant la saisie (aperçu en
+  // direct) ET revérifié avant de passer à l'étape suivante de l'inscription
+  // (voir _regValidateStep(), js/client.js).
+  async function checkSurnomTaken(prenom) {
+    const { res, data } = await _call('check_surnom.php', { body: { prenom } });
+    if (!res.ok || !data || data.error) return { ok: false, error: (data && data.error) || 'Échec de la vérification.' };
+    return { ok: true, exists: !!data.exists };
+  }
+
+  // Un même numéro/email ne peut être "numéro principal"/adresse que d'une
+  // candidature partenaire active à la fois (voir
+  // partner_applications_check_phone.php/_email.php — une candidature
+  // refusée n'empêche jamais une nouvelle tentative). Public, même usage
+  // double (aperçu en direct + revérification) que checkSurnomTaken()
+  // ci-dessus, voir prgValidate(), js/client.js.
+  async function checkPartnerPhoneTaken(telephone) {
+    const { res, data } = await _call('partner_applications_check_phone.php', { body: { telephone } });
+    if (!res.ok || !data || data.error) return { ok: false, error: (data && data.error) || 'Échec de la vérification.' };
+    return { ok: true, exists: !!data.exists };
+  }
+  async function checkPartnerEmailTaken(email) {
+    const { res, data } = await _call('partner_applications_check_email.php', { body: { email } });
+    if (!res.ok || !data || data.error) return { ok: false, error: (data && data.error) || 'Échec de la vérification.' };
+    return { ok: true, exists: !!data.exists };
+  }
+  // Nom+prénom vérifiés ENSEMBLE (voir partner_applications_check_fullname.php)
+  // — jamais séparément, deux candidats différents pouvant partager un
+  // simple prénom ou nom de famille courant.
+  async function checkPartnerFullNameTaken(prenom, nom) {
+    const { res, data } = await _call('partner_applications_check_fullname.php', { body: { prenom, nom } });
+    if (!res.ok || !data || data.error) return { ok: false, error: (data && data.error) || 'Échec de la vérification.' };
+    return { ok: true, exists: !!data.exists };
+  }
+  async function checkPartnerCabineNomTaken(cabineNom) {
+    const { res, data } = await _call('partner_applications_check_cabine_nom.php', { body: { cabine_nom: cabineNom } });
+    if (!res.ok || !data || data.error) return { ok: false, error: (data && data.error) || 'Échec de la vérification.' };
+    return { ok: true, exists: !!data.exists };
+  }
+
   /* Réclamations + demandes de remboursement (Phase 5) — voir
      DB.reclamations/refundRequests (js/db.js) et api/reclamations_*.php,
      refund_requests_list.php. */
@@ -904,6 +944,7 @@ const ServerAPI = (() => {
     ordersScheduleCreate, ordersScheduleCreateAdmin, ordersScheduleList, ordersSweepScheduled,
     ordersRecharge, ordersRefund, ordersSuspend, ordersReactivate, ordersDelete, cabineSuspendManual,
     cabineSelfRecharge, cabineUpdateSelf, cabineUpdatePin, ordersHold, cabineResubscribe, adminSetAbonnement, cabineTransfer, cabineLookupByName, clientTransfer, clientLookup, clientLoginLookup,
+    checkSurnomTaken, checkPartnerPhoneTaken, checkPartnerEmailTaken, checkPartnerFullNameTaken, checkPartnerCabineNomTaken,
     adminCreateLoginLink, adminMagicLogin, adminImpersonate,
     forfaitsList, forfaitsCreate, forfaitsUpdate, forfaitsRemove, commissionsList, commissionsUpdateRate,
     reclamationsList, reclamationsCreate, reclamationsResolve, reclamationsConfirmReceived,

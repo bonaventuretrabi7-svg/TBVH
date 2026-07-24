@@ -6732,12 +6732,13 @@ body.dark .pf-kpi-val { color: var(--dark-text); }
   font-family: inherit; padding: 0;
 }
 #reg-slide-3 .reg3-coupon-input::placeholder { color: rgba(0,0,0,.28); font-weight: 700; }
-/* Coupon clair -> couleurs adaptées au fond blanc (voir .parrain-fb, plus
-   haut, pensé par défaut pour un fond sombre comme #prg-parrain-feedback). */
-#reg-slide-3 .parrain-fb { margin: 6px 18px 0; font-size: .58rem; }
-#reg-slide-3 .parrain-fb--checking { color: rgba(0,0,0,.4); }
-#reg-slide-3 .parrain-fb--ok       { color: #16a34a; }
-#reg-slide-3 .parrain-fb--warn     { color: #d97706; }
+/* Fond clair sur tout le panneau d'inscription (#ag-modal, voir plus haut
+   background:#fafafa) -> couleurs adaptées (.parrain-fb par défaut est pensé
+   pour un fond sombre comme #prg-parrain-feedback, formulaire partenaire). */
+#ag-panel-register .parrain-fb { margin: 6px 18px 0; font-size: .58rem; }
+#ag-panel-register .parrain-fb--checking { color: rgba(0,0,0,.4); }
+#ag-panel-register .parrain-fb--ok       { color: #16a34a; }
+#ag-panel-register .parrain-fb--warn     { color: #d97706; }
 
 /* Panneau succès */
 .ag-success-wrap {

@@ -106,6 +106,40 @@ final class AuthTest extends ApiTestCase
         $this->assertSame(0, $count, 'aucun compte client ne doit être créé sans surnom');
     }
 
+    // Phase 32 -- unicité du surnom entre clients (voir
+    // migration_phase32_client_surnom_unique.sql, check_surnom.php) : deux
+    // comptes clients différents ne peuvent pas partager le même surnom
+    // (comparaison insensible à la casse/aux espaces), même règle que le
+    // téléphone ci-dessus (testCreateAccountRejectsDuplicatePhoneForSameRole).
+    public function testCreateAccountRejectsDuplicateSurnomForClientRole(): void
+    {
+        Fixtures::createProfile('client', ['prenom' => 'LE KING']);
+
+        $res = ApiClient::post('/create_account.php', [
+            'role' => 'client', 'prenom' => '  le king  ', 'telephone' => '0700001234', 'pin' => '1234',
+        ]);
+
+        $this->assertFalse($res->ok());
+        $count = (int)Fixtures::pdo()->query("SELECT COUNT(*) FROM profiles WHERE telephone = '0700001234'")->fetchColumn();
+        $this->assertSame(0, $count, 'aucun compte ne doit être créé avec un surnom déjà pris (casse/espaces ignorés)');
+    }
+
+    // Deux comptes CABINE peuvent partager le même prénom (vrai prénom, pas
+    // un surnom choisi) — la contrainte d'unicité (colonne générée
+    // client_prenom_key) ne s'applique qu'aux clients.
+    public function testCabineAccountsCanShareTheSamePrenom(): void
+    {
+        Fixtures::createProfile('cabine', ['prenom' => 'Jean']);
+
+        $admin = Fixtures::createProfile('admin');
+        $res = ApiClient::post('/admin_create_account.php', [
+            'role' => 'cabine', 'prenom' => 'Jean', 'nom' => 'Autre',
+            'telephone' => '0700005678', 'email' => 'jean.autre@test.local', 'pin' => '1234',
+        ], $admin['token']);
+
+        $this->assertTrue($res->ok(), $res->raw);
+    }
+
     public function testEndpointsRejectMissingOrInvalidToken(): void
     {
         $res = ApiClient::post('/orders_create.php', ['operateur' => 'Orange', 'numero_beneficiaire' => '0700000000', 'montant' => 1000]);

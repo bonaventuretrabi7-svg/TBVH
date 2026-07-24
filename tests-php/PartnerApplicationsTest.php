@@ -73,8 +73,14 @@ final class PartnerApplicationsTest extends ApiTestCase
     public function testCannotValidateIfPhoneAlreadyUsedByAnotherCabine(): void
     {
         $admin = Fixtures::createProfile('admin');
-        Fixtures::createProfile('cabine', ['telephone' => '0700000001']);
+        // Le numéro est encore libre au dépôt de la candidature (sinon
+        // partner_applications_create.php la refuserait lui-même, voir
+        // testRejectsNewApplicationIfPhoneAlreadyUsedByExistingCabineAccount)
+        // — un autre compte cabine le prend ENTRE-TEMPS (ex. créé
+        // directement par l'admin, hors de ce flux), et c'est ce que doit
+        // rattraper la validation.
         ApiClient::post('/partner_applications_create.php', $this->validPayload());
+        Fixtures::createProfile('cabine', ['telephone' => '0700000001']);
         $appId = Fixtures::pdo()->query('SELECT id FROM partner_applications LIMIT 1')->fetchColumn();
 
         $res = ApiClient::post('/partner_applications_validate.php', ['application_id' => $appId], $admin['token']);
@@ -147,5 +153,153 @@ final class PartnerApplicationsTest extends ApiTestCase
         $validate = ApiClient::post('/partner_applications_validate.php', ['application_id' => $appId], $admin['token']);
         $this->assertTrue($validate->ok(), $validate->raw);
         $this->assertNotEmpty($validate->json['cabineId']);
+    }
+
+    // Un même numéro/email ne peut être "numéro principal"/adresse que d'UNE
+    // candidature active (en_attente ou validée) à la fois — voir
+    // partner_applications_check_phone.php/_email.php pour le même principe
+    // côté aperçu en direct. Un refus n'est jamais définitif : le candidat
+    // doit pouvoir retenter sa chance avec le même numéro/email.
+    public function testRejectsNewApplicationIfPhoneAlreadyPending(): void
+    {
+        ApiClient::post('/partner_applications_create.php', $this->validPayload(['telephone' => '0711112222']));
+
+        $res = ApiClient::post('/partner_applications_create.php', $this->validPayload([
+            'telephone' => '0711112222', 'email' => 'autre@gmail.com',
+        ]));
+
+        $this->assertFalse($res->ok());
+        $count = (int)Fixtures::pdo()->query("SELECT COUNT(*) FROM partner_applications WHERE telephone = '0711112222'")->fetchColumn();
+        $this->assertSame(1, $count, 'la 2e tentative ne doit jamais être enregistrée');
+    }
+
+    public function testAllowsNewApplicationWithSamePhoneAfterPreviousRefusal(): void
+    {
+        $admin = Fixtures::createProfile('admin');
+        ApiClient::post('/partner_applications_create.php', $this->validPayload(['telephone' => '0711112222']));
+        $firstId = Fixtures::pdo()->query('SELECT id FROM partner_applications LIMIT 1')->fetchColumn();
+        ApiClient::post('/partner_applications_refuse.php', ['application_id' => $firstId], $admin['token']);
+
+        $res = ApiClient::post('/partner_applications_create.php', $this->validPayload([
+            'telephone' => '0711112222', 'email' => 'autre@gmail.com',
+        ]));
+
+        $this->assertTrue($res->ok(), $res->raw);
+    }
+
+    public function testRejectsNewApplicationIfPhoneAlreadyUsedByExistingCabineAccount(): void
+    {
+        Fixtures::createProfile('cabine', ['telephone' => '0711112222']);
+
+        $res = ApiClient::post('/partner_applications_create.php', $this->validPayload(['telephone' => '0711112222']));
+
+        $this->assertFalse($res->ok());
+    }
+
+    public function testRejectsNewApplicationIfEmailAlreadyPending(): void
+    {
+        ApiClient::post('/partner_applications_create.php', $this->validPayload(['email' => 'doublon@gmail.com']));
+
+        $res = ApiClient::post('/partner_applications_create.php', $this->validPayload([
+            'telephone' => '0722223333', 'email' => 'doublon@gmail.com',
+        ]));
+
+        $this->assertFalse($res->ok());
+        $count = (int)Fixtures::pdo()->query("SELECT COUNT(*) FROM partner_applications WHERE LOWER(email) = 'doublon@gmail.com'")->fetchColumn();
+        $this->assertSame(1, $count, 'la 2e tentative ne doit jamais être enregistrée');
+    }
+
+    public function testAllowsNewApplicationWithSameEmailAfterPreviousRefusal(): void
+    {
+        $admin = Fixtures::createProfile('admin');
+        ApiClient::post('/partner_applications_create.php', $this->validPayload(['email' => 'doublon@gmail.com']));
+        $firstId = Fixtures::pdo()->query('SELECT id FROM partner_applications LIMIT 1')->fetchColumn();
+        ApiClient::post('/partner_applications_refuse.php', ['application_id' => $firstId], $admin['token']);
+
+        $res = ApiClient::post('/partner_applications_create.php', $this->validPayload([
+            'telephone' => '0722223333', 'email' => 'doublon@gmail.com',
+        ]));
+
+        $this->assertTrue($res->ok(), $res->raw);
+    }
+
+    // Nom+prénom vérifiés ENSEMBLE : deux candidats différents partageant
+    // juste un prénom ou un nom de famille courant ne doivent jamais être
+    // bloqués l'un par l'autre (voir partner_applications_check_fullname.php).
+    public function testRejectsNewApplicationIfSameFullNameAlreadyPending(): void
+    {
+        ApiClient::post('/partner_applications_create.php', $this->validPayload([
+            'prenom' => 'Aya', 'nom' => 'Koffi', 'telephone' => '0733334444', 'email' => 'aya1@gmail.com',
+        ]));
+
+        $res = ApiClient::post('/partner_applications_create.php', $this->validPayload([
+            'prenom' => ' aya ', 'nom' => ' KOFFI ', 'telephone' => '0733335555', 'email' => 'aya2@gmail.com',
+        ]));
+
+        $this->assertFalse($res->ok());
+    }
+
+    public function testAllowsDifferentCandidatesSharingOnlyFirstOrLastName(): void
+    {
+        ApiClient::post('/partner_applications_create.php', $this->validPayload([
+            'prenom' => 'Aya', 'nom' => 'Koffi', 'telephone' => '0733334444', 'email' => 'aya1@gmail.com',
+        ]));
+
+        // Même prénom, nom différent -> pas un doublon.
+        $res1 = ApiClient::post('/partner_applications_create.php', $this->validPayload([
+            'prenom' => 'Aya', 'nom' => 'Traore', 'telephone' => '0733335555', 'email' => 'aya2@gmail.com',
+        ]));
+        $this->assertTrue($res1->ok(), $res1->raw);
+
+        // Même nom, prénom différent -> pas un doublon.
+        $res2 = ApiClient::post('/partner_applications_create.php', $this->validPayload([
+            'prenom' => 'Marie', 'nom' => 'Koffi', 'telephone' => '0733336666', 'email' => 'aya3@gmail.com',
+        ]));
+        $this->assertTrue($res2->ok(), $res2->raw);
+    }
+
+    public function testAllowsSameFullNameAfterPreviousRefusal(): void
+    {
+        $admin = Fixtures::createProfile('admin');
+        ApiClient::post('/partner_applications_create.php', $this->validPayload([
+            'prenom' => 'Aya', 'nom' => 'Koffi', 'telephone' => '0733334444', 'email' => 'aya1@gmail.com',
+        ]));
+        $firstId = Fixtures::pdo()->query('SELECT id FROM partner_applications LIMIT 1')->fetchColumn();
+        ApiClient::post('/partner_applications_refuse.php', ['application_id' => $firstId], $admin['token']);
+
+        $res = ApiClient::post('/partner_applications_create.php', $this->validPayload([
+            'prenom' => 'Aya', 'nom' => 'Koffi', 'telephone' => '0733335555', 'email' => 'aya2@gmail.com',
+        ]));
+
+        $this->assertTrue($res->ok(), $res->raw);
+    }
+
+    public function testRejectsNewApplicationIfCabineNomAlreadyPending(): void
+    {
+        ApiClient::post('/partner_applications_create.php', $this->validPayload([
+            'cabine_nom' => 'Kbine Plus Cocody', 'telephone' => '0744445555', 'email' => 'cab1@gmail.com',
+        ]));
+
+        $res = ApiClient::post('/partner_applications_create.php', $this->validPayload([
+            'cabine_nom' => '  kbine plus cocody  ', 'telephone' => '0744446666', 'email' => 'cab2@gmail.com',
+        ]));
+
+        $this->assertFalse($res->ok());
+    }
+
+    public function testAllowsCabineNomReuseAfterPreviousRefusal(): void
+    {
+        $admin = Fixtures::createProfile('admin');
+        ApiClient::post('/partner_applications_create.php', $this->validPayload([
+            'cabine_nom' => 'Kbine Plus Cocody', 'telephone' => '0744445555', 'email' => 'cab1@gmail.com',
+        ]));
+        $firstId = Fixtures::pdo()->query('SELECT id FROM partner_applications LIMIT 1')->fetchColumn();
+        ApiClient::post('/partner_applications_refuse.php', ['application_id' => $firstId], $admin['token']);
+
+        $res = ApiClient::post('/partner_applications_create.php', $this->validPayload([
+            'cabine_nom' => 'Kbine Plus Cocody', 'telephone' => '0744446666', 'email' => 'cab2@gmail.com',
+        ]));
+
+        $this->assertTrue($res->ok(), $res->raw);
     }
 }

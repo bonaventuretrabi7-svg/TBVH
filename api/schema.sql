@@ -69,8 +69,13 @@ CREATE TABLE IF NOT EXISTS profiles (
   motif_zero_txn        TEXT         NULL,
   motif_inactif         TEXT         NULL,
   appel_statut          VARCHAR(32)  NULL,
+  -- Surnom unique entre clients uniquement (voir migration_phase32) : NULL
+  -- pour les autres roles, donc jamais de collision entre deux comptes
+  -- cabine partageant le meme vrai prenom.
+  client_prenom_key VARCHAR(190) GENERATED ALWAYS AS (CASE WHEN role = 'client' THEN LOWER(TRIM(prenom)) ELSE NULL END) STORED,
   UNIQUE KEY uniq_telephone_role (telephone, role),
-  UNIQUE KEY uniq_email_role (email, role)
+  UNIQUE KEY uniq_email_role (email, role),
+  UNIQUE KEY uniq_client_prenom (client_prenom_key)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Jeton d'accès opaque émis à la connexion (voir api/login.php) — remplace

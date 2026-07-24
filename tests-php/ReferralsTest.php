@@ -102,8 +102,10 @@ final class ReferralsTest extends ApiTestCase
     public function testReferralsSummaryReturnsCountAndTotal(): void
     {
         $referrer = Fixtures::createProfile('client', ['telephone' => '0700000001']);
-        ApiClient::post('/create_account.php', ['role' => 'client', 'prenom' => 'Filleul', 'telephone' => '0700000002', 'pin' => '1234', 'parrain_telephone' => '0700000001']);
-        ApiClient::post('/create_account.php', ['role' => 'client', 'prenom' => 'Filleul', 'telephone' => '0700000003', 'pin' => '1234', 'parrain_telephone' => '0700000001']);
+        // Surnoms distincts : unique entre clients depuis la phase 32 (voir
+        // migration_phase32_client_surnom_unique.sql).
+        ApiClient::post('/create_account.php', ['role' => 'client', 'prenom' => 'Filleul1', 'telephone' => '0700000002', 'pin' => '1234', 'parrain_telephone' => '0700000001']);
+        ApiClient::post('/create_account.php', ['role' => 'client', 'prenom' => 'Filleul2', 'telephone' => '0700000003', 'pin' => '1234', 'parrain_telephone' => '0700000001']);
 
         $res = ApiClient::get('/referrals_summary.php', $referrer['token']);
         $this->assertTrue($res->ok());

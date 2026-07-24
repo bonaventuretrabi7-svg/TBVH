@@ -41,6 +41,16 @@ $stmt = $pdo->prepare('SELECT id FROM profiles WHERE telephone = ? AND role = ?'
 $stmt->execute([$telephone, $role]);
 if ($stmt->fetch()) fail('Ce numéro est déjà utilisé par un autre compte de ce type.');
 
+// Surnom unique entre clients (voir migration_phase32_client_surnom_unique.sql
+// pour la contrainte définitive côté base, colonne générée client_prenom_key)
+// — revérifié ici pour ne pas dépendre uniquement de check_surnom.php
+// (aperçu en direct, js/client.js).
+if ($role === 'client') {
+  $surnomStmt = $pdo->prepare("SELECT id FROM profiles WHERE role = 'client' AND LOWER(TRIM(prenom)) = LOWER(TRIM(?))");
+  $surnomStmt->execute([$prenom]);
+  if ($surnomStmt->fetch()) fail('Ce surnom est déjà utilisé par un autre client.');
+}
+
 $id = uuid4();
 // abonnement_debut : amorce le délai de 30 jours pour atteindre le quota
 // (voir checkQuotaDeadline(), api/orders_common.php) — uniquement pour une

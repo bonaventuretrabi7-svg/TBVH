@@ -2166,6 +2166,7 @@
             <input id="prg-nom" class="prg-input" type="text" placeholder="Ex : Droubli">
           </div>
         </div>
+        <div id="prg-fullname-feedback" class="parrain-fb" style="margin-bottom:8px;"></div>
 
         <div class="prg-field">
           <label class="prg-label">Adresse e-mail (Gmail) *</label>
@@ -2173,6 +2174,7 @@
             <i class="fa-solid fa-envelope prg-ico"></i>
             <input id="prg-email" class="prg-input prg-input--icon" type="email" placeholder="exemple@gmail.com">
           </div>
+          <div id="prg-email-feedback" class="parrain-fb"></div>
         </div>
 
         <div class="prg-field">
@@ -2181,6 +2183,7 @@
             <i class="fa-solid fa-phone prg-ico"></i>
             <input id="prg-tel" class="prg-input prg-input--icon" type="tel" inputmode="numeric" maxlength="14" placeholder="XX XX XX XX XX" oninput="formatPhoneInput(this)">
           </div>
+          <div id="prg-tel-feedback" class="parrain-fb"></div>
         </div>
 
         <div class="prg-field">
@@ -2204,6 +2207,7 @@
             <i class="fa-solid fa-store prg-ico"></i>
             <input id="prg-cabine-nom" class="prg-input prg-input--icon" type="text" placeholder="Ex : Kbine Plus Yopougon Centre">
           </div>
+          <div id="prg-cabine-nom-feedback" class="parrain-fb"></div>
           <div style="font-size:.55rem;color:rgba(255,255,255,.28);margin-top:3px;">Ce nom sera affiché sur votre espace partenaire et dans l'application.</div>
         </div>
 
@@ -2898,6 +2902,7 @@
                   placeholder="Ex : LE KING DE BONOA" maxlength="40"
                   onkeydown="if(event.key==='Enter'){event.preventDefault();regGoStep(2);}" />
               </div>
+              <div id="ag-reg-surnom-feedback" class="parrain-fb"></div>
             </div>
             <button type="button" class="ag-submit-btn" onclick="regGoStep(2)">
               <i class="fa-solid fa-arrow-right"></i> Continuer
@@ -2919,6 +2924,7 @@
                   inputmode="numeric" oninput="formatPhoneInput(this)"
                   onkeydown="if(event.key==='Enter'){event.preventDefault();regGoStep(3);}" />
               </div>
+              <div id="ag-reg-tel-feedback" class="parrain-fb"></div>
             </div>
             <button type="button" class="ag-submit-btn" onclick="regGoStep(3)">
               <i class="fa-solid fa-arrow-right"></i> Continuer

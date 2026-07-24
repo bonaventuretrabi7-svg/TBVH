@@ -68,7 +68,11 @@ final class Fixtures
         $defaults = [
             'id' => $id,
             'nom' => ucfirst($role),
-            'prenom' => 'Test',
+            // Suffixé (voir migration_phase32_client_surnom_unique.sql,
+            // unique entre clients) : plusieurs tests créent plusieurs
+            // clients dans le même test sans surcharger 'prenom', un
+            // défaut fixe casserait la contrainte dès le 2e.
+            'prenom' => 'Test' . $suffix,
             'telephone' => '07' . substr(bin2hex(random_bytes(4)), 0, 8),
             'email' => $role . '.' . $suffix . '@test.local',
             'mot_de_passe_hash' => password_hash($pin, PASSWORD_BCRYPT),

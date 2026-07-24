@@ -474,7 +474,7 @@ async function boot() {
     renderSidebar();
     renderSoldeSection();
     initPinRows();
-    _wireParrainLookups();
+    _wireLiveChecks();
     tfRenderPaymentMethods();
     schedRenderPaymentMethods();
     setOrderMode('now');
@@ -1392,24 +1392,41 @@ function _regSetStepperVisual(step) {
   }
 }
 
-function _regValidateStep(step) {
+// Unicité surnom/téléphone (voir migration_phase32_client_surnom_unique.sql,
+// check_surnom.php, client_login_lookup.php) — revérifiée ici en plus de
+// l'aperçu en direct (_wireLiveChecks()) pour ne jamais dépendre uniquement
+// d'un indicateur qui peut être en retard sur une saisie rapide.
+async function _regValidateStep(step) {
   if (step === 1) {
     const surnom = document.getElementById('ag-reg-surnom')?.value.trim();
     if (!surnom) { Toast.error('Choisissez un surnom.'); return false; }
+    const check = await ServerAPI.checkSurnomTaken(surnom);
+    if (check.ok && check.exists) { Toast.error('Ce surnom est déjà utilisé par un autre client.'); return false; }
   }
   if (step === 2) {
     const tel = (document.getElementById('ag-reg-tel')?.value || '').replace(/\s/g, '');
     if (!/^[0-9]{10}$/.test(tel)) { Toast.error('Numéro invalide — 10 chiffres requis.'); return false; }
+    const check = await ServerAPI.clientLoginLookup(tel);
+    if (check.ok && check.found) { Toast.error('Ce numéro est déjà utilisé par un compte client.'); return false; }
   }
   return true;
 }
 
-function regGoStep(target) {
-  if (target === regStep) return;
+// Garde-fou anti-double-appel pendant la vérification serveur (même
+// principe que _agLoginLookupInFlight ci-dessus) — un second clic sur
+// "Continuer" pendant l'attente relancerait un appel réseau inutile.
+let _regStepCheckInFlight = false;
+async function regGoStep(target) {
+  if (target === regStep || _regStepCheckInFlight) return;
   // Vérifie l'étape qu'on quitte uniquement en avançant — revenir en
   // arrière (bouton Retour ou clic sur une bulle déjà validée) ne doit
   // jamais être bloqué par une validation.
-  if (target > regStep && !_regValidateStep(regStep)) return;
+  if (target > regStep) {
+    _regStepCheckInFlight = true;
+    const ok = await _regValidateStep(regStep);
+    _regStepCheckInFlight = false;
+    if (!ok) return;
+  }
 
   const from = document.getElementById('reg-slide-' + regStep);
   const to   = document.getElementById('reg-slide-' + target);
@@ -3177,8 +3194,15 @@ function prgShowStep(n) {
   _savePrgState();
 }
 
-function prgNext() {
-  if (!prgValidate(prgStep)) return;
+// Garde-fou anti-double-appel pendant la vérification serveur (même
+// principe que _regStepCheckInFlight ci-dessus).
+let _prgStepCheckInFlight = false;
+async function prgNext() {
+  if (_prgStepCheckInFlight) return;
+  _prgStepCheckInFlight = true;
+  const ok = await prgValidate(prgStep);
+  _prgStepCheckInFlight = false;
+  if (!ok) return;
   if (prgStep < PRG_TOTAL) {
     prgStep++;
     prgShowStep(prgStep);
@@ -3191,7 +3215,7 @@ function prgPrev() {
   if (prgStep > 1) { prgStep--; prgShowStep(prgStep); }
 }
 
-function prgValidate(step) {
+async function prgValidate(step) {
   if (step === 1) {
     const prenom = document.getElementById('prg-prenom').value.trim();
     const nom    = document.getElementById('prg-nom').value.trim();
@@ -3208,6 +3232,19 @@ function prgValidate(step) {
     const pin2 = [...document.querySelectorAll('#prg-pin-confirm-row .adm-pin-box')].map(b => b.value).join('');
     if (pin1.length !== 4) { Toast.error('Veuillez définir un code PIN à 4 chiffres.'); return false; }
     if (pin1 !== pin2)     { Toast.error('Les codes PIN ne correspondent pas.'); return false; }
+    // Un même numéro/email/nom de cabine ne peut être utilisé que par une
+    // candidature active à la fois, et le nom+prénom ENSEMBLE de même (voir
+    // partner_applications_check_phone.php/_email.php/_fullname.php/
+    // _cabine_nom.php) — revérifié ici en plus de l'aperçu en direct
+    // (_wireLiveChecks()).
+    const telCheck = await ServerAPI.checkPartnerPhoneTaken(tel);
+    if (telCheck.ok && telCheck.exists) { Toast.error('Une candidature est déjà en cours avec ce numéro de téléphone.'); return false; }
+    const emailCheck = await ServerAPI.checkPartnerEmailTaken(email);
+    if (emailCheck.ok && emailCheck.exists) { Toast.error('Une candidature est déjà en cours avec cette adresse Gmail.'); return false; }
+    const fullNameCheck = await ServerAPI.checkPartnerFullNameTaken(prenom, nom);
+    if (fullNameCheck.ok && fullNameCheck.exists) { Toast.error('Une candidature est déjà en cours avec ce nom et prénom.'); return false; }
+    const cabineNomCheck = await ServerAPI.checkPartnerCabineNomTaken(cabineNom);
+    if (cabineNomCheck.ok && cabineNomCheck.exists) { Toast.error('Une candidature est déjà en cours avec ce nom de cabine.'); return false; }
   }
   if (step === 2) {
     if (!document.getElementById('prg-file-recto').files[0]) { Toast.error('Veuillez importer la pièce d\'identité (recto).'); return false; }
@@ -5576,24 +5613,12 @@ function _parseParrainCode(raw) {
   return /^[0-9]{10}$/.test(digits) ? digits : null;
 }
 
-// Aperçu en direct du parrain (prénom) dès qu'un code KP<téléphone> valide
-// est saisi — inscription client (#ag-reg-parrain-code) et candidature
-// partenaire (#prg-parrain-code), voir _wireParrainLookups() ci-dessous.
-// Même correspondance que le versement réel (role='client' uniquement, voir
-// api/client_login_lookup.php et api/partner_applications_validate.php) :
-// purement informatif, un code qui ne trouve personne n'empêche jamais
-// l'inscription/la candidature (voir handleAuthGateRegister()/prgValidate()).
-function _wireParrainLookup(inputId, feedbackId) {
-  const input = document.getElementById(inputId);
-  const feedback = document.getElementById(feedbackId);
-  if (!input || !feedback) return;
-  let timer = null;
-  let seq = 0;
-  // DOM direct (jamais innerHTML) : res.prenom vient du surnom saisi par un
-  // AUTRE utilisateur à son inscription (aucune restriction de caractères,
-  // voir handleAuthGateRegister()) et cette page n'exige aucune connexion —
-  // l'injecter tel quel dans du HTML ouvrirait une XSS stockée exploitable
-  // par n'importe qui avant même de se connecter.
+// DOM direct (jamais innerHTML) : certains textes affichés (ex. le prénom
+// du parrain) viennent d'un AUTRE utilisateur, saisis sans restriction de
+// caractères à SON inscription, sur une page qui n'exige aucune connexion —
+// les injecter tels quels dans du HTML ouvrirait une XSS stockée
+// exploitable par n'importe qui avant même de se connecter.
+function _feedbackController(feedback) {
   const show = (state, iconClass, text) => {
     feedback.className = 'parrain-fb parrain-fb--' + state;
     feedback.style.display = 'flex';
@@ -5604,27 +5629,131 @@ function _wireParrainLookup(inputId, feedbackId) {
     feedback.appendChild(document.createTextNode(' ' + text));
   };
   const hide = () => { feedback.style.display = 'none'; feedback.textContent = ''; };
+  return { show, hide };
+}
+
+// Aperçu en direct pendant la saisie (parrainage, unicité surnom/téléphone/
+// email/nom de cabine) — debounce 400ms, ignore les réponses obsolètes si
+// l'utilisateur retouche le champ pendant que l'appel est en vol (compteur
+// de séquence). Purement informatif : la vraie décision de bloquer ou non
+// se prend à la transition d'étape (voir _regValidateStep()/prgValidate()
+// plus bas), qui refait le même appel de façon autoritaire — jamais
+// uniquement ce retour visuel, qui peut être en retard sur une saisie très
+// rapide. `check(value)` doit renvoyer { ok, ... } (voir js/server-api.js) ;
+// `decide(res)` renvoie { state:'ok'|'warn', icon, text } ou null pour
+// masquer l'indicateur.
+function _wireLiveCheck(inputId, feedbackId, { extract, check, decide }) {
+  const input = document.getElementById(inputId);
+  const feedback = document.getElementById(feedbackId);
+  if (!input || !feedback) return;
+  const { show, hide } = _feedbackController(feedback);
+  let timer = null;
+  let seq = 0;
   input.addEventListener('input', () => {
     clearTimeout(timer);
-    const phone = _parseParrainCode(input.value);
-    if (!phone) { hide(); return; }
+    const value = extract(input.value);
+    if (!value) { hide(); return; }
     const mySeq = ++seq;
     show('checking', 'fa-solid fa-spinner fa-spin', 'Vérification…');
     timer = setTimeout(async () => {
-      const res = await ServerAPI.clientLoginLookup(phone);
+      const res = await check(value);
       if (mySeq !== seq) return; // saisie modifiée entre-temps, réponse obsolète
       if (!res.ok) { hide(); return; }
-      if (res.found) {
-        show('ok', 'fa-solid fa-circle-check', 'Parrainé par ' + (res.prenom || 'ce client'));
-      } else {
-        show('warn', 'fa-solid fa-triangle-exclamation', 'Aucun client trouvé pour ce code');
-      }
+      const outcome = decide(res);
+      if (outcome) show(outcome.state, outcome.icon, outcome.text); else hide();
     }, 400);
   });
 }
-function _wireParrainLookups() {
-  _wireParrainLookup('ag-reg-parrain-code', 'ag-reg-parrain-feedback');
-  _wireParrainLookup('prg-parrain-code', 'prg-parrain-feedback');
+
+// Variante à plusieurs champs (voir prg-prenom+prg-nom ci-dessous, vérifiés
+// ENSEMBLE) : `extract(values)` reçoit les valeurs courantes de tous les
+// `inputIds`, dans l'ordre, et renvoie une clé de vérification ou null.
+// Chaque champ déclenche une réévaluation complète à sa propre saisie.
+function _wireMultiLiveCheck(inputIds, feedbackId, { extract, check, decide }) {
+  const inputs = inputIds.map(id => document.getElementById(id));
+  const feedback = document.getElementById(feedbackId);
+  if (inputs.some(el => !el) || !feedback) return;
+  const { show, hide } = _feedbackController(feedback);
+  let timer = null;
+  let seq = 0;
+  const onInput = () => {
+    clearTimeout(timer);
+    const value = extract(inputs.map(el => el.value));
+    if (!value) { hide(); return; }
+    const mySeq = ++seq;
+    show('checking', 'fa-solid fa-spinner fa-spin', 'Vérification…');
+    timer = setTimeout(async () => {
+      const res = await check(value);
+      if (mySeq !== seq) return;
+      if (!res.ok) { hide(); return; }
+      const outcome = decide(res);
+      if (outcome) show(outcome.state, outcome.icon, outcome.text); else hide();
+    }, 400);
+  };
+  inputs.forEach(el => el.addEventListener('input', onInput));
+}
+
+function _extractParrainCode(raw) { return _parseParrainCode(raw); }
+function _extractPhone10(raw) {
+  const digits = (raw || '').replace(/\s/g, '');
+  return /^[0-9]{10}$/.test(digits) ? digits : null;
+}
+function _extractSurnom(raw) { return (raw || '').trim() || null; }
+function _extractGmail(raw) {
+  const v = (raw || '').trim();
+  return /^[^\s@]+@gmail\.com$/i.test(v) ? v : null;
+}
+const _DECIDE_PARRAIN = (res) => res.found
+  ? { state: 'ok', icon: 'fa-solid fa-circle-check', text: 'Parrainé par ' + (res.prenom || 'ce client') }
+  : { state: 'warn', icon: 'fa-solid fa-triangle-exclamation', text: 'Aucun client trouvé pour ce code' };
+
+function _wireLiveChecks() {
+  _wireLiveCheck('ag-reg-parrain-code', 'ag-reg-parrain-feedback', {
+    extract: _extractParrainCode, check: ServerAPI.clientLoginLookup, decide: _DECIDE_PARRAIN,
+  });
+  _wireLiveCheck('prg-parrain-code', 'prg-parrain-feedback', {
+    extract: _extractParrainCode, check: ServerAPI.clientLoginLookup, decide: _DECIDE_PARRAIN,
+  });
+  _wireLiveCheck('ag-reg-surnom', 'ag-reg-surnom-feedback', {
+    extract: _extractSurnom, check: ServerAPI.checkSurnomTaken,
+    decide: (res) => res.exists
+      ? { state: 'warn', icon: 'fa-solid fa-triangle-exclamation', text: 'Ce surnom est déjà utilisé' }
+      : { state: 'ok', icon: 'fa-solid fa-circle-check', text: 'Surnom disponible' },
+  });
+  _wireLiveCheck('ag-reg-tel', 'ag-reg-tel-feedback', {
+    extract: _extractPhone10, check: ServerAPI.clientLoginLookup,
+    decide: (res) => res.found
+      ? { state: 'warn', icon: 'fa-solid fa-triangle-exclamation', text: 'Ce numéro est déjà utilisé par un compte client' }
+      : { state: 'ok', icon: 'fa-solid fa-circle-check', text: 'Numéro disponible' },
+  });
+  _wireLiveCheck('prg-tel', 'prg-tel-feedback', {
+    extract: _extractPhone10, check: ServerAPI.checkPartnerPhoneTaken,
+    decide: (res) => res.exists
+      ? { state: 'warn', icon: 'fa-solid fa-triangle-exclamation', text: 'Une candidature est déjà en cours avec ce numéro' }
+      : { state: 'ok', icon: 'fa-solid fa-circle-check', text: 'Numéro disponible' },
+  });
+  _wireLiveCheck('prg-email', 'prg-email-feedback', {
+    extract: _extractGmail, check: ServerAPI.checkPartnerEmailTaken,
+    decide: (res) => res.exists
+      ? { state: 'warn', icon: 'fa-solid fa-triangle-exclamation', text: 'Une candidature est déjà en cours avec cette adresse' }
+      : { state: 'ok', icon: 'fa-solid fa-circle-check', text: 'Adresse disponible' },
+  });
+  _wireLiveCheck('prg-cabine-nom', 'prg-cabine-nom-feedback', {
+    extract: _extractSurnom, check: ServerAPI.checkPartnerCabineNomTaken,
+    decide: (res) => res.exists
+      ? { state: 'warn', icon: 'fa-solid fa-triangle-exclamation', text: 'Une candidature est déjà en cours avec ce nom de cabine' }
+      : { state: 'ok', icon: 'fa-solid fa-circle-check', text: 'Nom de cabine disponible' },
+  });
+  // Nom+prénom vérifiés ENSEMBLE, jamais séparément — deux candidats
+  // différents peuvent tout à fait partager un simple prénom ou nom de
+  // famille courant (voir partner_applications_check_fullname.php).
+  _wireMultiLiveCheck(['prg-prenom', 'prg-nom'], 'prg-fullname-feedback', {
+    extract: ([prenom, nom]) => (prenom.trim() && nom.trim()) ? { prenom: prenom.trim(), nom: nom.trim() } : null,
+    check: (v) => ServerAPI.checkPartnerFullNameTaken(v.prenom, v.nom),
+    decide: (res) => res.exists
+      ? { state: 'warn', icon: 'fa-solid fa-triangle-exclamation', text: 'Une candidature est déjà en cours avec ce nom et prénom' }
+      : { state: 'ok', icon: 'fa-solid fa-circle-check', text: 'Nom disponible' },
+  });
 }
 
 function renderParrainage(u) {
