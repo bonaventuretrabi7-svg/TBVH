@@ -1896,6 +1896,18 @@ async function submitCommandeAutoAdmin(event) {
 }
 
 /* â”€â”€ Transactions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+// Type de service — `service` (rempli par le client à la commande, ex.
+// "Transfert direct"/"Forfait Orange") pour les commandes réseau
+// classiques ; les types "spéciaux" sans `service` (recharge de
+// portefeuille, transfert client-à-client) retombent sur ces libellés.
+// Portée module (partagée entre loadTransactions() et
+// showAdminTxnDetail() ci-dessous).
+const TXN_TYPE_LABELS = {
+  recharge: 'Recharge',
+  transfert_client_envoi: 'Transférer',
+  transfert_client_reception: 'Transfert reçu',
+};
+
 function loadTransactions(query = '', statusFilter = 'all') {
   // Badge de la sidebar : total en_attente indépendant de la recherche/du
   // filtre de statut affiché — même motif que partner-badge/reset-badge/
@@ -1939,7 +1951,7 @@ function loadTransactions(query = '', statusFilter = 'all') {
   const tbody = document.getElementById('admin-txn-tbody');
   if (!tbody) return;
   if (!txns.length) {
-    tbody.innerHTML = `<tr><td colspan="9"><div class="empty-state" style="padding:24px"><div class="empty-title">Aucune transaction</div></div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="10"><div class="empty-state" style="padding:24px"><div class="empty-title">Aucune transaction</div></div></td></tr>`;
     updateBulkReassignBar();
     return;
   }
@@ -1966,8 +1978,8 @@ function loadTransactions(query = '', statusFilter = 'all') {
     // Liseré + fond très légèrement teinté, le texte des cellules reste
     // neutre : seul le badge Fmt.status() porte la couleur saturée.
     const rc = Fmt.rowColors(t);
-    return `<tr style="background:${rc.bg};">
-      <td style="box-shadow:inset 3px 0 0 ${rc.line};">${canReassign ? `<input type="checkbox" class="txn-bulk-chk" value="${t.id}" onchange="updateBulkReassignBar()">` : ''}</td>
+    return `<tr style="background:${rc.bg};cursor:pointer;" onclick="showAdminTxnDetail('${t.id}')">
+      <td style="box-shadow:inset 3px 0 0 ${rc.line};" onclick="event.stopPropagation()">${canReassign ? `<input type="checkbox" class="txn-bulk-chk" value="${t.id}" onchange="updateBulkReassignBar()">` : ''}</td>
       <td><code style="font-size:.7rem;color:var(--primary);font-weight:700;">${Fmt.ref(t.id)}</code></td>
       <td>
         <div class="user-chip">
@@ -1979,6 +1991,7 @@ function loadTransactions(query = '', statusFilter = 'all') {
         </div>
       </td>
       <td><span style="display:inline-flex;padding:4px 10px;border-radius:999px;font-size:.72rem;font-weight:800;color:${op.fg};background:${op.bg};">${t.operateur}</span></td>
+      <td>${t.service || TXN_TYPE_LABELS[t.type] || '—'}</td>
       <td><code>${Fmt.phone(t.numero_beneficiaire)}</code></td>
       <td>
         <strong>${Fmt.money(t.montant)}</strong>
@@ -1986,11 +1999,159 @@ function loadTransactions(query = '', statusFilter = 'all') {
       </td>
       <td>${Fmt.statusBadge(t)}${t.statut === 'suspendue' && t.motif_suspension ? `<div style="font-size:.62rem;color:var(--gray-400);margin-top:2px;font-style:italic;">${t.motif_suspension}</div>` : ''}</td>
       <td>${Fmt.datetime(t.date)}</td>
-      <td>${hasActions ? `<button class="menu-btn-row" onclick="toggleTxnRowMenu(this,'${t.id}')" title="Actions"><i class="fa-solid fa-ellipsis-vertical"></i></button>` : '<span style="color:var(--gray-400);font-size:.7rem;">—</span>'}</td>
+      <td onclick="event.stopPropagation()">${hasActions ? `<button class="menu-btn-row" onclick="toggleTxnRowMenu(this,'${t.id}')" title="Actions"><i class="fa-solid fa-ellipsis-vertical"></i></button>` : '<span style="color:var(--gray-400);font-size:.7rem;">—</span>'}</td>
     </tr>`;
   }).join('');
   document.getElementById('admin-txn-check-all').checked = false;
   updateBulkReassignBar();
+}
+
+// Détail complet d'une transaction (tape sur la ligne, voir loadTransactions()
+// ci-dessus) — contrairement au détail équivalent côté client
+// (openOrderDetail(), js/client.js), montre aussi l'identité de la cabine
+// qui a traité la commande et les infos internes (commission, historique
+// de renvoi/suspension) réservées à l'admin.
+// Sections/lignes du détail d'une transaction (voir maquette "Piste A",
+// groupé plutôt qu'une longue liste plate) — partagées entre
+// showAdminTxnDetail() (modale) et downloadAdminTxnDetail() (reçu
+// imprimable), pour ne jamais avoir deux listes de champs qui divergent.
+function _buildAdminTxnSections(t) {
+  const client = DB.users.byId(t.client_id);
+  const cabine = DB.users.byId(t.cabine_id);
+  const d = t.details || {};
+  const dt = (v) => v ? Fmt.datetime(v) : null;
+
+  const sections = [
+    { title: 'Identification', rows: [
+      ['fa-hashtag', 'ID', '#' + Fmt.ref(t.id)],
+      ['fa-layer-group', 'Type de service', t.service || TXN_TYPE_LABELS[t.type] || t.type || '—'],
+      ['fa-signal', 'Réseau', t.operateur || '—'],
+    ] },
+    { title: 'Parties', rows: [
+      ['fa-user', 'Client', client ? `${client.prenom} ${client.nom} · ${Fmt.phone(client.telephone)}` : '?'],
+      ['fa-store', 'Cabine ayant traité', cabine ? `${cabine.cabine_nom || (cabine.prenom + ' ' + cabine.nom)} · ${Fmt.phone(cabine.telephone)}` : 'Non assignée'],
+      ['fa-mobile-screen', 'N° bénéficiaire', t.numero_beneficiaire ? Fmt.phone(t.numero_beneficiaire) : '—'],
+    ] },
+    { title: 'Paiement', rows: [
+      ['fa-wallet', 'Moyen de paiement', t.moyen_paiement || '—'],
+      ['fa-phone', 'N° paiement', t.numero_paiement ? Fmt.phone(t.numero_paiement) : '—'],
+      ['fa-coins', 'Montant', Fmt.money(t.montant)],
+      ['fa-receipt', 'Frais de service', Fmt.money(t.frais_service || 0)],
+      ['fa-percent', 'Commission', Fmt.money(t.commission || 0)],
+    ] },
+  ];
+
+  const chrono = [
+    ['fa-paper-plane', 'Créée le', dt(t.date) || '—'],
+    ['fa-user-check', 'Assignée le', dt(t.date_assignation) || 'Non assignée'],
+    ['fa-circle-check', 'Validée (partenaire) le', dt(t.date_fin) || '—'],
+  ];
+  if (t.statut === 'remboursé') chrono.push(['fa-rotate-left', 'Remboursée le', dt(t.date_remboursement) || '—']);
+  if (t.statut === 'suspendue') {
+    chrono.push(['fa-circle-pause', 'Suspendue le', dt(t.date_suspension) || '—']);
+    if (t.motif_suspension) chrono.push(['fa-comment', 'Motif de suspension', t.motif_suspension]);
+  }
+  if (t.dernier_renvoi_motif) {
+    chrono.push(['fa-rotate', 'Dernier renvoi le', dt(t.dernier_renvoi_date) || '—']);
+    chrono.push(['fa-comment-dots', 'Motif du renvoi', t.dernier_renvoi_motif]);
+    if (t.dernier_renvoi_justification) chrono.push(['fa-file-lines', 'Justification du renvoi', t.dernier_renvoi_justification]);
+  }
+  sections.push({ title: 'Chronologie', rows: chrono });
+
+  // Détails propres à certains types (même contenu JSON `details` que côté
+  // client, voir renderHistoryList()/openOrderDetail(), js/client.js).
+  const extra = [];
+  if (t.type === 'exchange') {
+    extra.push(['fa-arrow-up', 'Réseau débité', d.debit_network || '—']);
+    extra.push(['fa-hashtag', 'Numéro débité', d.debit_numero ? Fmt.phone(d.debit_numero) : '—']);
+    extra.push(['fa-arrow-down', 'Réseau reçu', d.recep_network || '—']);
+    extra.push(['fa-hashtag', 'Numéro reçu', d.recep_numero ? Fmt.phone(d.recep_numero) : '—']);
+  } else if (t.type === 'facture') {
+    extra.push(['fa-file-lines', 'Référence facture', d.ref || t.numero_beneficiaire || '—']);
+    if (d.offer) extra.push(['fa-tag', 'Offre', d.offer]);
+  }
+  if (extra.length) sections.push({ title: 'Détails spécifiques', rows: extra });
+
+  return sections;
+}
+
+function showAdminTxnDetail(id) {
+  const t = DB.transactions.all().find(x => x.id === id);
+  const body = document.getElementById('admin-txn-detail-body');
+  if (!t || !body) return;
+
+  const sections = _buildAdminTxnSections(t);
+  const rowHtml = ([ico, lbl, val]) => `
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding:9px 16px;border-bottom:1px solid var(--border);font-size:.76rem;">
+      <span style="color:var(--text-muted);display:flex;align-items:center;gap:6px;flex-shrink:0;"><i class="fa-solid ${ico}"></i> ${lbl}</span>
+      <strong style="text-align:right;">${val}</strong>
+    </div>`;
+
+  body.innerHTML = `
+    <div style="padding:16px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
+      <span style="font-weight:900;font-size:1rem;">${Fmt.money(t.montant)}</span>
+      ${Fmt.statusBadge(t)}
+    </div>
+    ${sections.map(s => `
+      <div style="padding:10px 16px 5px;font-size:.58rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--primary);">${s.title}</div>
+      ${s.rows.map(rowHtml).join('')}
+    `).join('')}
+    <div style="padding:16px;">
+      <button class="btn btn-primary" style="width:100%;justify-content:center;" onclick="downloadAdminTxnDetail('${id}')">
+        <i class="fa-solid fa-download"></i> Télécharger le détail
+      </button>
+    </div>
+  `;
+  openModal('modal-admin-txn-detail');
+}
+
+// Téléchargement du détail — même patron que downloadReceipt() côté client
+// (js/client.js) : page imprimable dans un nouvel onglet, "Enregistrer en
+// PDF" via l'impression du navigateur plutôt qu'un vrai fichier généré
+// côté serveur. Reprend les mêmes sections que la modale (voir
+// _buildAdminTxnSections()) — jamais deux listes de champs qui divergent.
+function downloadAdminTxnDetail(id) {
+  const t = DB.transactions.all().find(x => x.id === id);
+  if (!t) return;
+  const sections = _buildAdminTxnSections(t);
+
+  const rowsHtml = sections.map(s => `
+    <div class="sec">${s.title}</div>
+    ${s.rows.map(([ico, lbl, val]) => `
+      <div class="row"><span class="label">${lbl}</span><span class="value">${val}</span></div>
+    `).join('')}
+  `).join('');
+
+  const win = window.open('', '_blank');
+  win.document.write(`<!DOCTYPE html><html><head><title>Transaction ${Fmt.ref(t.id)} — KBINE PLUS</title>
+<style>
+  body{font-family:'Segoe UI',sans-serif;max-width:420px;margin:40px auto;padding:20px;color:#333}
+  .hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+  .amount{font-size:1.3rem;font-weight:900}
+  .sub{text-align:center;color:#888;font-size:.8rem;margin:0 0 16px}
+  hr{border:none;border-top:2px dashed #ddd;margin:16px 0}
+  .sec{font-size:.68rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#FF6200;margin:16px 0 4px}
+  .row{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid #f5f5f5;font-size:.85rem}
+  .label{color:#888}.value{font-weight:700;text-align:right}
+  .footer{text-align:center;color:#bbb;font-size:.72rem;margin-top:24px}
+  /* Structure du badge de statut — Fmt.statusBadge() (js/auth.js) porte
+     déjà sa couleur en style inline, seule la forme manque ici puisque
+     cette fenêtre imprimable ne charge jamais css/style.css. */
+  .badge{display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border-radius:99px;font-size:.72rem;font-weight:700;}
+</style></head><body>
+<img src="img/logo.png" alt="KBINE PLUS" style="width:70px;height:70px;object-fit:contain;display:block;margin:0 auto 4px;">
+<div class="sub">Détail de transaction (admin) · Côte d'Ivoire 🇨🇮</div>
+<hr>
+<div class="hd"><span class="amount">${Fmt.money(t.montant)}</span>${Fmt.statusBadge(t)}</div>
+${rowsHtml}
+<div class="footer">KBINE PLUS — usage interne administration<br>© ${new Date().getFullYear()} KBINE PLUS Côte d'Ivoire</div>
+<div style="text-align:center;margin-top:20px">
+  <button onclick="window.print()" style="padding:10px 24px;background:#FF6200;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700">
+    🖨️ Imprimer / Sauvegarder PDF
+  </button>
+</div>
+</body></html>`);
+  win.document.close();
 }
 
 /* ── Assignation multiple (feature 2) ─────────────────────────────── */

@@ -1726,10 +1726,10 @@
           <div class="table-wrapper">
             <table>
               <thead>
-                <tr><th><input type="checkbox" id="admin-txn-check-all" onchange="toggleAllTxnChecks(this.checked)"></th><th>ID</th><th>Client / Cabine</th><th>Réseau</th><th>N° Bénéficiaire</th><th>Montant</th><th>Statut</th><th>Date</th><th>Actions</th></tr>
+                <tr><th><input type="checkbox" id="admin-txn-check-all" onchange="toggleAllTxnChecks(this.checked)"></th><th>ID</th><th>Client / Cabine</th><th>Réseau</th><th>Type de service</th><th>N° Bénéficiaire</th><th>Montant</th><th>Statut</th><th>Date</th><th>Actions</th></tr>
               </thead>
               <tbody id="admin-txn-tbody">
-                <tr><td colspan="9" style="text-align:center;padding:24px">Chargement…</td></tr>
+                <tr><td colspan="10" style="text-align:center;padding:24px">Chargement…</td></tr>
               </tbody>
             </table>
           </div>
@@ -3151,6 +3151,21 @@
     </div>
     <div class="modal-body" style="padding:0;max-height:60vh;overflow-y:auto;">
       <div id="pcode-detail-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Détail complet d'une transaction (tape sur une ligne du tableau
+     Transactions, voir loadTransactions()/showAdminTxnDetail(),
+     js/admin.js) ──────────────────────────────────────────────────── -->
+<div class="modal-overlay" id="modal-admin-txn-detail">
+  <div class="modal" style="max-width:460px;">
+    <div class="modal-header">
+      <span class="modal-title"><i class="fa-solid fa-receipt" style="color:var(--primary)"></i> Détail de la transaction</span>
+      <button class="modal-close" onclick="closeModal('modal-admin-txn-detail')"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body" style="padding:0;max-height:70vh;overflow-y:auto;">
+      <div id="admin-txn-detail-body"></div>
     </div>
   </div>
 </div>
